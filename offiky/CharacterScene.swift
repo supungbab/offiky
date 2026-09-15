@@ -42,6 +42,7 @@ final class CharacterNode: SKNode {
     private(set) var lastAnimation: Animation = .idle
     var hurtUntil: TimeInterval = 0
     private var wasAirborne = false
+    private var previousY: CGFloat = 0
 
     private var fromX: CGFloat = 0, fromY: CGFloat = 0
     private var toX: CGFloat = 0, toY: CGFloat = 0
@@ -102,7 +103,7 @@ final class CharacterNode: SKNode {
         } else {
             interpolate(dt: dt)
         }
-        detectLanding(now: now)
+        detectLanding(now: now, dt: dt)
         bobPhase += CGFloat(dt) * (isWalking ? 9 : 2)
 
         let moved = x - previousX
@@ -215,17 +216,24 @@ final class CharacterNode: SKNode {
         isWalking = abs(toX - fromX) > 1
     }
 
-    private func detectLanding(now: TimeInterval) {
+    /// 낙하 속도는 프레임 간 높이 변화로 구한다. verticalSpeed 는 착지 직전에
+    /// 0으로 초기화되고, 원격 캐릭터에는 아예 없다.
+    private func detectLanding(now: TimeInterval, dt: TimeInterval) {
         let airborne = y > 0
         if wasAirborne && !airborne {
+            let impact = abs(previousY - y) / CGFloat(max(dt, 0.001))
             if self === World.shared.me { World.shared.commitAnchor() }
-            (scene as? CharacterScene)?.spawnDust(at: position, speed: abs(verticalSpeed), now: now)
+            (scene as? CharacterScene)?.spawnDust(at: position, speed: impact, now: now)
             image.run(.sequence([
                 .scaleY(to: 0.85, duration: 0.05),
                 .scaleY(to: 1.0, duration: 0.08),
             ]))
+            // 점프 정점(48pt)에서 떨어지면 약 320pt/s 다. 그보다 높은 데서
+            // 떨어졌을 때만 피격한다
+            if impact > 500 { takeHit(now: now) }
         }
         wasAirborne = airborne
+        previousY = y
     }
 
     /// bob 은 position 에만 더한다. y 에 섞으면 걸음마다 착지 먼지가 인다.
@@ -347,7 +355,7 @@ final class CharacterScene: SKScene {
 
 
     func spawnDust(at point: CGPoint, speed: CGFloat, now: TimeInterval) {
-        let count = min(6, max(4, Int(speed / 400)))
+        let count = min(8, max(3, Int(speed / 220)))
         let rgb: UInt32 = 0xAB5236
         let color = NSColor(
             red: CGFloat((rgb >> 16) & 0xFF) / 255,
