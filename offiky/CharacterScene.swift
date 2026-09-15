@@ -40,6 +40,8 @@ final class CharacterNode: SKNode {
     private var walkPhase: TimeInterval = 0
     private var previousX: CGFloat = 0
     private(set) var lastAnimation: Animation = .idle
+    /// 부딪히면 다칠 만큼 앞으로 나아가는 중인지. 표시용 동작이 아니라 실제 속도로 판정한다.
+    private(set) var isCharging = false
     var hurtUntil: TimeInterval = 0
     private var wasAirborne = false
     private var previousY: CGFloat = 0
@@ -142,6 +144,8 @@ final class CharacterNode: SKNode {
             image.texture = textures[index]
         }
         lastAnimation = animation
+        // 공중에서는 앞으로 나아가는 점프만, 바닥에서는 대시만 해당한다
+        isCharging = !isDragging && now >= hurtUntil && (y > 0 ? speed > 35 : speed > 70)
     }
 
     private func simulate(dt: TimeInterval, now: TimeInterval, strip: FloorStrip) {
@@ -466,13 +470,14 @@ final class World {
         }
     }
 
-    /// 대시로 달리는 캐릭터끼리 정면으로 부딪히면 둘 다 피격 동작을 재생한다.
+    /// 앞으로 빠르게 나아가는 캐릭터끼리 정면으로 부딪히면 둘 다 피격한다.
+    /// 지상 대시, 걷기 점프, 대시 점프가 모두 해당한다.
     /// 좌표는 모두가 공유하므로 각자 같은 판정을 내린다. 평소에는 서로 통과한다.
-    private func resolveDashCollisions(now: TimeInterval) {
-        let dashing = ([me] + Array(peers.values)).filter { $0.lastAnimation == .dash }
-        guard dashing.count > 1 else { return }
-        for (i, a) in dashing.enumerated() {
-            for b in dashing.dropFirst(i + 1) {
+    private func resolveCollisions(now: TimeInterval) {
+        let charging = ([me] + Array(peers.values)).filter(\.isCharging)
+        guard charging.count > 1 else { return }
+        for (i, a) in charging.enumerated() {
+            for b in charging.dropFirst(i + 1) {
                 guard now >= a.hurtUntil, now >= b.hurtUntil,
                       abs(a.x - b.x) < 22,
                       a.facingSign != b.facingSign,
@@ -510,7 +515,7 @@ final class World {
             visible.append((node, placement))
         }
 
-        resolveDashCollisions(now: now)
+        resolveCollisions(now: now)
         scenes.forEach { $0.sweepDust(now: now) }
 
         for (node, placement) in visible {
