@@ -373,6 +373,7 @@ final class World {
 
     private var scenes: [CharacterScene] = []
     private var lastTick: TimeInterval = 0
+    private var coordinatesVisible = false
 
     private init() {
         let stored = UserDefaults.standard.string(forKey: "name") ?? NSFullUserName()
@@ -410,6 +411,8 @@ final class World {
         guard !strip.frames.isEmpty else { return }
         me.anchorX = strip.clamp(me.anchorX)
         me.x = strip.clamp(me.x)
+        // 씬을 새로 만들었으므로 눈금도 다시 그린다
+        if coordinatesVisible { showCoordinates(true) }
     }
 
     func beginDrag() { me.beginDrag() }
@@ -552,6 +555,7 @@ extension World {
 extension World {
     /// 바닥에 200포인트 간격으로 눈금과 x 값을 그린다
     func showCoordinates(_ show: Bool) {
+        coordinatesVisible = show
         for scene in scenes {
             for node in scene.children where node.name == "coord" { node.removeFromParent() }
         }
