@@ -17,7 +17,7 @@ final class OverlayController {
         NotificationCenter.default.addObserver(
             self, selector: #selector(screensChanged),
             name: NSApplication.didChangeScreenParametersNotification, object: nil)
-        timer = Timer.scheduledTimer(withTimeInterval: 1.0 / 12, repeats: true) { _ in
+        timer = Timer.scheduledTimer(withTimeInterval: 1.0 / 24, repeats: true) { _ in
             World.shared.tick(now: ProcessInfo.processInfo.systemUptime)
         }
     }
@@ -69,7 +69,7 @@ final class OverlayController {
 
             let view = SKView(frame: CGRect(origin: .zero, size: frame.size))
             view.allowsTransparency = true
-            view.preferredFramesPerSecond = 12
+            view.preferredFramesPerSecond = 24
             let scene = CharacterScene(size: frame.size)
             scene.backgroundColor = .clear
             scene.scaleMode = .resizeFill

@@ -24,7 +24,7 @@ final class CharacterNode: SKNode {
     private var nextJumpAt: TimeInterval = 0
     private var nextDashAt: TimeInterval = 0
     private var dashTarget: CGFloat?
-    private var walkSpeed: CGFloat { dashTarget == nil ? 20 : 160 }
+    private var walkSpeed: CGFloat { dashTarget == nil ? 20 : 90 }
     private var isWalking = false
     /// 이동 방향. +1 오른쪽, -1 왼쪽
     private var facing: CGFloat = -1
@@ -423,7 +423,7 @@ final class World {
 
     func tick(now: TimeInterval) {
         guard !scenes.isEmpty else { return }
-        let dt = lastTick == 0 ? 1.0 / 12 : min(0.25, now - lastTick)
+        let dt = lastTick == 0 ? 1.0 / 24 : min(0.25, now - lastTick)
         lastTick = now
 
         var visible: [(node: CharacterNode, placement: Placement)] = []
