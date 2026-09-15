@@ -216,13 +216,12 @@ final class CharacterNode: SKNode {
             let reached = dashDirection > 0 ? x >= target : x <= target
             if reached {
                 dashTarget = nil
-                anchorX = x
-                walkTarget = x
-                nextWalkAt = now + Double.random(in: 1...3)
-                isWalking = false
-            } else {
-                isWalking = true
+                // 급정거하지 않고 같은 방향으로 조금 더 걸어 나간다
+                walkTarget = strip.clamp(x + dashDirection * CGFloat.random(in: 30...80))
+                anchorX = walkTarget
+                nextWalkAt = now + Double.random(in: 3...7)
             }
+            isWalking = true
             return
         }
 
