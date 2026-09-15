@@ -103,6 +103,18 @@ final class CharacterNode: SKNode {
         verticalSpeed = (2 * CharacterNode.gravity * apex).squareRoot()
     }
 
+    /// 집어 드는 순간 진행 중이던 모든 운동을 지운다.
+    /// 남겨두면 놓는 순간 이전 속도로 튀어 나가거나 하던 대시를 이어서 한다.
+    func beginDrag() {
+        isDragging = true
+        verticalSpeed = 0
+        airSpeed = 0
+        dashTarget = nil
+        hurtUntil = 0
+        walkPhase = 0
+        isWalking = false
+    }
+
     func takeHit(now: TimeInterval) {
         hurtUntil = now + 0.6
         walkPhase = 0
@@ -221,6 +233,12 @@ final class CharacterNode: SKNode {
     /// 낙하 속도는 프레임 간 높이 변화로 구한다. verticalSpeed 는 착지 직전에
     /// 0으로 초기화되고, 원격 캐릭터에는 아예 없다.
     private func detectLanding(now: TimeInterval, dt: TimeInterval) {
+        // 드래그 중에는 착지가 아니다. 커서를 바닥으로 내리면 낙하로 오인한다
+        guard !isDragging else {
+            wasAirborne = y > 0
+            previousY = y
+            return
+        }
         let airborne = y > 0
         if wasAirborne && !airborne {
             let impact = abs(previousY - y) / CGFloat(max(dt, 0.001))
@@ -434,7 +452,7 @@ final class World {
         me.x = me.anchorX
     }
 
-    func beginDrag() { me.isDragging = true }
+    func beginDrag() { me.beginDrag() }
 
     func endDrag() { me.isDragging = false }
 
