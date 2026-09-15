@@ -13,6 +13,7 @@ final class CharacterNode: SKNode {
     var isDragging = false
 
     private let image = SKSpriteNode()
+    private let shadow = SKSpriteNode(texture: CharacterNode.shadowTexture)
     private let label = SKLabelNode(fontNamed: "Helvetica")
     private var nameBackground: SKShapeNode?
     private var renderedName: String?
@@ -38,6 +39,11 @@ final class CharacterNode: SKNode {
         self.displayName = name
         self.isLocal = isLocal
         super.init()
+
+        shadow.size = CGSize(width: spriteDisplaySize,
+                             height: spriteDisplaySize * 5 / 16)
+        shadow.zPosition = -2
+        addChild(shadow)
 
         image.size = CGSize(width: spriteDisplaySize, height: spriteDisplaySize)
         addChild(image)
@@ -134,9 +140,42 @@ final class CharacterNode: SKNode {
     func render(placement: Placement) {
         let bob: CGFloat = sin(bobPhase) > 0 ? 2 : 0
         position = CGPoint(x: placement.point.x, y: placement.point.y + bob)
+
+        // 그림자는 캐릭터를 따라 뜨지 않고 바닥에 남는다
+        let lift = y + bob
+        shadow.position = CGPoint(x: 0, y: -lift - spriteDisplaySize / 2 + 3)
+        let height = min(1, y / 120)
+        shadow.setScale(1 - 0.45 * height)
+        shadow.alpha = 0.3 * (1 - 0.75 * height)
         zPosition = x + CGFloat(stableHash(id) % 997) / 1000
         updateNameLabel()
     }
+
+    static let shadowTexture: SKTexture = {
+        let rows = [
+            "....########....",
+            ".##############.",
+            "################",
+            ".##############.",
+            "....########....",
+        ]
+        let width = 16, height = rows.count
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        for (y, row) in rows.enumerated() {
+            for (x, character) in row.enumerated() where character == "#" {
+                pixels[(y * width + x) * 4 + 3] = 255
+            }
+        }
+        let provider = CGDataProvider(data: Data(pixels) as CFData)!
+        let image = CGImage(
+            width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 32,
+            bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+            provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent)!
+        let texture = SKTexture(cgImage: image)
+        texture.filteringMode = .nearest
+        return texture
+    }()
 
     /// 이름이 바뀔 때만 배경을 다시 만든다
     private func updateNameLabel() {
