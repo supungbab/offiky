@@ -11,7 +11,6 @@ final class CharacterNode: SKNode {
     var anchorX: CGFloat = 0
 
     var isDragging = false
-    var forceName = false
 
     private let image = SKSpriteNode()
     private let label = SKLabelNode(fontNamed: "Helvetica")
@@ -29,6 +28,8 @@ final class CharacterNode: SKNode {
     private var toX: CGFloat = 0, toY: CGFloat = 0
     private var interpolatedFor: TimeInterval = 0
     private static let interpolationDuration: TimeInterval = 0.5
+    static let gravity: CGFloat = 1100
+    static let jumpApex: CGFloat = 24
 
     init(id: String, name: String, isLocal: Bool) {
         self.id = id
@@ -43,7 +44,6 @@ final class CharacterNode: SKNode {
         label.fontColor = .white
         label.verticalAlignmentMode = .bottom
         label.position = CGPoint(x: 0, y: spriteDisplaySize / 2 + 2)
-        label.isHidden = true
         addChild(label)
 
         isUserInteractionEnabled = false
@@ -78,8 +78,10 @@ final class CharacterNode: SKNode {
         if isDragging { isWalking = false; return }
 
         if y > 0 || verticalSpeed != 0 {
-            verticalSpeed += -2400 * CGFloat(dt)
-            y += verticalSpeed * CGFloat(dt)
+            // 정수 적분은 12fps 에서 정점이 목표의 절반으로 줄어든다
+            let step = CGFloat(dt)
+            y += verticalSpeed * step - 0.5 * CharacterNode.gravity * step * step
+            verticalSpeed -= CharacterNode.gravity * step
             if y <= 0 { y = 0; verticalSpeed = 0 }
             isWalking = false
             return
@@ -88,7 +90,7 @@ final class CharacterNode: SKNode {
         if nextJumpAt == 0 { nextJumpAt = now + Double.random(in: 30...90) }
         if now >= nextJumpAt {
             nextJumpAt = now + Double.random(in: 30...90)
-            verticalSpeed = (2 * 2400 * 24).squareRoot()
+            verticalSpeed = (2 * CharacterNode.gravity * CharacterNode.jumpApex).squareRoot()
             return
         }
 
@@ -127,12 +129,11 @@ final class CharacterNode: SKNode {
     }
 
     /// bob 은 position 에만 더한다. y 에 섞으면 걸음마다 착지 먼지가 인다.
-    func render(placement: Placement, showName: Bool) {
+    func render(placement: Placement) {
         let bob: CGFloat = sin(bobPhase) > 0 ? 1 : 0
         position = CGPoint(x: placement.point.x, y: placement.point.y + bob)
         zPosition = x + CGFloat(stableHash(id) % 997) / 1000
         label.text = displayName
-        label.isHidden = !showName
     }
 }
 
@@ -288,23 +289,8 @@ final class World {
             visible.append((node, placement))
         }
 
-        let cursor = NSEvent.mouseLocation
-        var nearestID: String?
-        var nearestDistance = CGFloat.greatestFiniteMagnitude
         for (node, placement) in visible {
-            let frame = strip.frames[placement.screenIndex]
-            let global = CGPoint(x: frame.minX + placement.point.x,
-                                 y: frame.minY + placement.point.y)
-            let distance = hypot(global.x - cursor.x, global.y - cursor.y)
-            if distance <= 60, distance < nearestDistance {
-                nearestDistance = distance
-                nearestID = node.id
-            }
-        }
-
-        for (node, placement) in visible {
-            node.render(placement: placement,
-                        showName: node.id == nearestID || node.forceName)
+            node.render(placement: placement)
             node.clampBubble(sceneWidth: strip.frames[placement.screenIndex].width)
             if node === me {
                 let frame = strip.frames[placement.screenIndex]
@@ -341,7 +327,5 @@ extension World {
     func showBubble(id: String, text: String) {
         let node = id == myID ? me : peers[id]
         node?.showBubble(text: text)
-        node?.forceName = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 5) { node?.forceName = false }
     }
 }
