@@ -18,14 +18,16 @@ final class CharacterNode: SKNode {
     private var renderedName: String?
 
     private var verticalSpeed: CGFloat = 0
-    private var walkTarget: CGFloat = 0
-    private var restUntil: TimeInterval = 0
+    enum Motion {
+        case idle, walk, dash
+        var speed: CGFloat { self == .dash ? 90 : 20 }
+    }
+
+    private var motion: Motion = .idle
+    private var motionEnd: TimeInterval = 0
+    private var segmentTarget: CGFloat = 0
     private var nextJumpAt: TimeInterval = 0
-    private var nextDashAt: TimeInterval = 0
-    private var dashTarget: CGFloat?
-    private var dashDirection: CGFloat = 1
     private var airSpeed: CGFloat = 0
-    private var walkSpeed: CGFloat { dashTarget == nil ? 20 : 90 }
     private var isWalking = false
     /// 이동 방향. +1 오른쪽, -1 왼쪽
     private var facing: CGFloat = -1
@@ -86,21 +88,12 @@ final class CharacterNode: SKNode {
         image.texture = sheet.frames[.idle]?.first
     }
 
-    /// 도착 직후 쉬지 않고 이어 갈 목표. 매번 멈췄다 새로 고르면 목적 없이
-    /// 서성이는 것처럼 보인다.
-    private func targetAhead(_ strip: FloorStrip) -> CGFloat? {
-        let room = facing > 0 ? strip.maxX - x : x - strip.minX
-        guard room > 120, Double.random(in: 0...1) < 0.5 else { return nil }
-        let far = facing > 0 ? strip.maxX : strip.minX
-        return strip.clamp(x + (far - x) * CGFloat.random(in: 0.25...1))
-    }
-
     /// 점프는 세 가지다. 제자리·걷기·대시 순으로 높고 멀리 뛴다.
     private func startJump() {
         let apex: CGFloat
-        if dashTarget != nil {
+        if motion == .dash {
             apex = 72
-            airSpeed = dashDirection * 140
+            airSpeed = facing * 140
         } else if isWalking {
             apex = 52
             airSpeed = facing * 75
@@ -117,7 +110,8 @@ final class CharacterNode: SKNode {
         isDragging = true
         verticalSpeed = 0
         airSpeed = 0
-        dashTarget = nil
+        motion = .idle
+        motionEnd = 0
         hurtUntil = 0
         walkPhase = 0
         isWalking = false
@@ -142,7 +136,7 @@ final class CharacterNode: SKNode {
     func takeHit(now: TimeInterval) {
         hurtUntil = now + 0.6
         walkPhase = 0
-        dashTarget = nil
+        motion = .idle
         airSpeed = 0
     }
 
@@ -189,7 +183,8 @@ final class CharacterNode: SKNode {
         if isDragging { isWalking = false; return }
         if now < hurtUntil {
             isWalking = false
-            dashTarget = nil
+            motion = .idle
+            motionEnd = now + 0.6
             return
         }
 
@@ -210,49 +205,55 @@ final class CharacterNode: SKNode {
             return
         }
 
-        // 아주 가끔 멀리까지 빠르게 달린다
-        if nextDashAt == 0 { nextDashAt = now + Double.random(in: 15...45) }
-        if dashTarget == nil, now >= nextDashAt {
-            nextDashAt = now + Double.random(in: 15...45)
-            // 남은 공간이 넓은 쪽으로 달린다. 방향은 끝날 때까지 바꾸지 않는다
-            dashDirection = x < (strip.minX + strip.maxX) / 2 ? 1 : -1
-            dashTarget = strip.clamp(x + dashDirection * CGFloat.random(in: 220...420))
-            if Bool.random() { nextJumpAt = now + Double.random(in: 0.4...1.1) }
-        }
-        if let target = dashTarget {
-            x = strip.clamp(x + dashDirection * walkSpeed * CGFloat(dt))
-            let reached = dashDirection > 0 ? x >= target : x <= target
-            if reached {
-                dashTarget = nil
-                // 급정거하지 않고 같은 방향으로 조금 더 걸어 나간다
-                walkTarget = strip.clamp(x + dashDirection * CGFloat.random(in: 30...80))
-                restUntil = 0
-            }
-            isWalking = true
-            return
-        }
-
-        let delta = walkTarget - x
-        if abs(delta) > 1 {
-            isWalking = true
-            x = strip.clamp(x + (delta > 0 ? 1 : -1) * walkSpeed * CGFloat(dt))
-            return
-        }
-
-        isWalking = false
-        if restUntil == 0 {
-            // 도착 직후 한 번만 판단한다. 절반은 쉬지 않고 같은 방향으로 이어 간다
-            if let ahead = targetAhead(strip) {
-                walkTarget = ahead
+        switch motion {
+        case .idle:
+            isWalking = false
+            if now >= motionEnd { chooseNext(from: .idle, now: now, strip: strip) }
+        case .walk, .dash:
+            let delta = segmentTarget - x
+            if abs(delta) < 1 {
+                chooseNext(from: motion, now: now, strip: strip)
                 return
             }
-            restUntil = now + Double.random(in: 1...4)
+            isWalking = true
+            x = strip.clamp(x + (delta > 0 ? 1 : -1) * motion.speed * CGFloat(dt))
         }
-        if now >= restUntil {
-            // 서 있다 출발하므로 방향을 가리지 않는다
-            walkTarget = strip.clamp(CGFloat.random(in: strip.minX...strip.maxX))
-            restUntil = 0
+    }
+
+    /// 상태 전이표. 방향을 먼저 정하고 다음 상태를 고른다.
+    private func chooseNext(from: Motion, now: TimeInterval, strip: FloorStrip) {
+        var direction: CGFloat
+        switch from {
+        case .idle: direction = Bool.random() ? 1 : -1          // 좌우 50:50
+        case .walk: direction = Double.random(in: 0...1) < 0.8 ? facing : -facing
+        case .dash: direction = Double.random(in: 0...1) < 0.9 ? facing : -facing
         }
+        // 그쪽에 공간이 없으면 반대로 간다
+        if room(direction, strip) < 120 { direction = -direction }
+
+        let roll = Double.random(in: 0...1)
+        let next: Motion
+        switch from {
+        case .idle: next = roll < 0.7 ? .walk : .dash            // 걷기 70 / 뛰기 30
+        case .walk: next = roll < 0.45 ? .walk : (roll < 0.9 ? .dash : .idle)
+        case .dash: next = roll < 0.7 ? .walk : (roll < 0.85 ? .dash : .idle)
+        }
+
+        motion = next
+        switch next {
+        case .idle:
+            motionEnd = now + Double.random(in: 1...4)
+        case .walk:
+            segmentTarget = strip.clamp(x + direction * CGFloat.random(in: 80...250))
+        case .dash:
+            segmentTarget = strip.clamp(x + direction * CGFloat.random(in: 200...420))
+            // 달리는 도중 절반은 점프한다
+            if Bool.random() { nextJumpAt = now + Double.random(in: 0.4...1.1) }
+        }
+    }
+
+    private func room(_ direction: CGFloat, _ strip: FloorStrip) -> CGFloat {
+        direction > 0 ? strip.maxX - x : x - strip.minX
     }
 
     private func interpolate(dt: TimeInterval) {
