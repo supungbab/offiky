@@ -95,7 +95,7 @@ final class CharacterNode: SKNode {
             airSpeed = dashDirection * 140
         } else if isWalking {
             apex = 52
-            airSpeed = facing * 45
+            airSpeed = facing * 75
         } else {
             apex = CharacterNode.jumpApex
             airSpeed = 0
