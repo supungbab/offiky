@@ -25,6 +25,7 @@ final class CharacterNode: SKNode {
     private var nextDashAt: TimeInterval = 0
     private var dashTarget: CGFloat?
     private var dashDirection: CGFloat = 1
+    private var airSpeed: CGFloat = 0
     private var walkSpeed: CGFloat { dashTarget == nil ? 20 : 90 }
     private var isWalking = false
     /// 이동 방향. +1 오른쪽, -1 왼쪽
@@ -84,10 +85,27 @@ final class CharacterNode: SKNode {
         image.texture = sheet.frames[.idle]?.first
     }
 
+    /// 점프는 세 가지다. 제자리·걷기·대시 순으로 높고 멀리 뛴다.
+    private func startJump() {
+        let apex: CGFloat
+        if dashTarget != nil {
+            apex = 72
+            airSpeed = dashDirection * 140
+        } else if isWalking {
+            apex = 52
+            airSpeed = facing * 45
+        } else {
+            apex = CharacterNode.jumpApex
+            airSpeed = 0
+        }
+        verticalSpeed = (2 * CharacterNode.gravity * apex).squareRoot()
+    }
+
     func takeHit(now: TimeInterval) {
         hurtUntil = now + 0.6
         walkPhase = 0
         dashTarget = nil
+        airSpeed = 0
     }
 
     func setRemoteTarget(x newX: CGFloat, y newY: CGFloat) {
@@ -135,11 +153,15 @@ final class CharacterNode: SKNode {
         }
 
         if y > 0 || verticalSpeed != 0 {
-            // 정수 적분은 12fps 에서 정점이 목표의 절반으로 줄어든다
             let step = CGFloat(dt)
             y += verticalSpeed * step - 0.5 * CharacterNode.gravity * step * step
             verticalSpeed -= CharacterNode.gravity * step
-            if y <= 0 { y = 0; verticalSpeed = 0 }
+            if airSpeed != 0 {
+                let next = strip.clampToWall(x + airSpeed * step)
+                if abs(next - x) < 0.01 { airSpeed = 0 }   // 벽에 막혔다
+                x = next
+            }
+            if y <= 0 { y = 0; verticalSpeed = 0; airSpeed = 0 }
             isWalking = false
             return
         }
@@ -147,7 +169,7 @@ final class CharacterNode: SKNode {
         if nextJumpAt == 0 { nextJumpAt = now + Double.random(in: 30...90) }
         if now >= nextJumpAt {
             nextJumpAt = now + Double.random(in: 30...90)
-            verticalSpeed = (2 * CharacterNode.gravity * CharacterNode.jumpApex).squareRoot()
+            startJump()
             return
         }
 
@@ -163,6 +185,7 @@ final class CharacterNode: SKNode {
             if abs(target - x) >= 60 {
                 dashDirection = direction
                 dashTarget = target
+                if Bool.random() { nextJumpAt = now + Double.random(in: 0.4...1.1) }
             }
         }
         if let target = dashTarget {
