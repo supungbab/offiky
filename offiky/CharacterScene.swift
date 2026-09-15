@@ -260,7 +260,11 @@ final class CharacterNode: SKNode {
     }
 
     func render(placement: Placement) {
-        position = placement.point
+        // 픽셀 한 칸이 2pt 이므로 표시 위치를 2pt 격자에 맞춘다.
+        // 소수점 위치에 그리면 프레임마다 픽셀 폭이 달라져 몸이 일렁인다.
+        // 물리 좌표는 소수점 그대로 두어야 이동이 끊기지 않는다.
+        position = CGPoint(x: (placement.point.x / 2).rounded() * 2,
+                           y: (placement.point.y / 2).rounded() * 2)
 
         // 그림자는 캐릭터를 따라 뜨지 않고 바닥에 남는다
         // 발 위치보다 2pt 아래에 두어 캐릭터가 그림자를 밟고 선 것처럼 보이게 한다
