@@ -390,7 +390,13 @@ extension CharacterNode {
     }
 }
 
-final class CharacterScene: SKScene {}
+/// 갱신을 SpriteKit 의 렌더 루프에 맡긴다. 별도 타이머로 돌리면 두 시계가 어긋나
+/// 어떤 프레임은 같은 그림을 두 번 그리고 어떤 프레임은 두 칸씩 건너뛴다.
+final class CharacterScene: SKScene {
+    override func update(_ currentTime: TimeInterval) {
+        World.shared.tick(now: currentTime)
+    }
+}
 
 final class World {
     static let shared = World()
@@ -491,7 +497,10 @@ final class World {
 
     func tick(now: TimeInterval) {
         guard !scenes.isEmpty else { return }
-        let dt = lastTick == 0 ? 1.0 / 24 : min(0.25, now - lastTick)
+        // 화면마다 씬이 따로 부르므로 한 프레임에 여러 번 들어온다
+        let elapsed = now - lastTick
+        guard lastTick == 0 || elapsed >= 1.0 / 70 else { return }
+        let dt = lastTick == 0 ? 1.0 / 60 : min(0.25, elapsed)
         lastTick = now
 
         var visible: [(node: CharacterNode, placement: Placement)] = []

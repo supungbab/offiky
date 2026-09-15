@@ -7,7 +7,6 @@ final class OverlayController {
     private(set) var windows: [NSWindow] = []
     private(set) var scenes: [CharacterScene] = []
     private(set) var strip = FloorStrip(visibleFrames: [], main: nil)
-    private var timer: Timer?
     private var handle: NSWindow?
 
     private init() {}
@@ -17,9 +16,6 @@ final class OverlayController {
         NotificationCenter.default.addObserver(
             self, selector: #selector(screensChanged),
             name: NSApplication.didChangeScreenParametersNotification, object: nil)
-        timer = Timer.scheduledTimer(withTimeInterval: 1.0 / 24, repeats: true) { _ in
-            World.shared.tick(now: ProcessInfo.processInfo.systemUptime)
-        }
     }
 
     func setHidden(_ hidden: Bool) {
@@ -42,8 +38,10 @@ final class OverlayController {
             window.orderFrontRegardless()
             handle = window
         }
-        handle?.setFrameOrigin(CGPoint(x: point.x - spriteDisplaySize / 2,
-                                       y: point.y - spriteDisplaySize / 2))
+        let origin = CGPoint(x: point.x - spriteDisplaySize / 2,
+                             y: point.y - spriteDisplaySize / 2)
+        guard handle?.frame.origin != origin else { return }
+        handle?.setFrameOrigin(origin)
     }
 
     @objc private func screensChanged() { rebuild() }
@@ -70,7 +68,7 @@ final class OverlayController {
 
             let view = SKView(frame: CGRect(origin: .zero, size: frame.size))
             view.allowsTransparency = true
-            view.preferredFramesPerSecond = 24
+            view.preferredFramesPerSecond = 60
             let scene = CharacterScene(size: frame.size)
             scene.backgroundColor = .clear
             scene.scaleMode = .resizeFill
