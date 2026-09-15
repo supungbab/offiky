@@ -45,6 +45,7 @@ final class CharacterNode: SKNode {
     var hurtUntil: TimeInterval = 0
     private var wasAirborne = false
     private var peakY: CGFloat = 0
+    private var shadowStep = -1
 
     private var fromX: CGFloat = 0, fromY: CGFloat = 0
     private var toX: CGFloat = 0, toY: CGFloat = 0
@@ -59,12 +60,7 @@ final class CharacterNode: SKNode {
         self.isLocal = isLocal
         super.init()
 
-        // 레퍼런스 비율: 그림자 폭은 몸 너비와 같고 높이는 폭의 0.37배다.
-        // 필요한 픽셀 수로 타원을 만들어 캐릭터와 같은 2배로 그린다
-        let shadowPixels = Characters.shadowSize(bodyWidth: sheet.bodyWidth)
-        shadow.texture = Characters.shadowTexture(shadowPixels)
-        shadow.size = CGSize(width: CGFloat(shadowPixels.width) * 2,
-                             height: CGFloat(shadowPixels.height) * 2)
+        shadowStep = -1
         shadow.zPosition = -2
         addChild(shadow)
 
@@ -117,6 +113,22 @@ final class CharacterNode: SKNode {
         hurtUntil = 0
         walkPhase = 0
         isWalking = false
+    }
+
+    /// 높이에 따라 그림자를 줄인다. 연속 배율로 줄이면 픽셀 크기가 들쭉날쭉해지므로
+    /// 단계마다 그 크기의 타원을 따로 만든다.
+    static let shadowSteps: [CGFloat] = [1, 0.85, 0.7, 0.55]
+
+    private func applyShadow(step: Int) {
+        guard step != shadowStep else { return }
+        shadowStep = step
+        let base = Characters.shadowSize(bodyWidth: sheet.bodyWidth)
+        let factor = CharacterNode.shadowSteps[step]
+        let size = (width: max(4, Int((CGFloat(base.width) * factor).rounded())),
+                    height: max(3, Int((CGFloat(base.height) * factor).rounded())))
+        shadow.texture = Characters.shadowTexture(size)
+        shadow.size = CGSize(width: CGFloat(size.width) * 2,
+                             height: CGFloat(size.height) * 2)
     }
 
     func takeHit(now: TimeInterval) {
@@ -269,9 +281,10 @@ final class CharacterNode: SKNode {
         // 그림자는 캐릭터를 따라 뜨지 않고 바닥에 남는다
         // 발 위치보다 2pt 아래에 두어 캐릭터가 그림자를 밟고 선 것처럼 보이게 한다
         shadow.position = CGPoint(x: 0, y: -y - spriteDisplaySize / 2 - 2)
-        let height = min(1, y / 120)
-        shadow.setScale(1 - 0.45 * height)
-        shadow.alpha = 0.3 * (1 - 0.75 * height)
+        let lift = min(1, y / 120)
+        applyShadow(step: min(CharacterNode.shadowSteps.count - 1,
+                              Int(lift * CGFloat(CharacterNode.shadowSteps.count))))
+        shadow.alpha = 0.3 * (1 - 0.75 * lift)
         zPosition = x + CGFloat(stableHash(id) % 997) / 1000
         // 스프라이트는 오른쪽을 보고 그려져 있다
         image.xScale = facing
