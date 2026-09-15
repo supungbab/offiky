@@ -14,5 +14,7 @@ struct offikyApp: App {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         OverlayController.shared.start()
+        Session.shared.start()
+        Mesh.shared.start()
     }
 }

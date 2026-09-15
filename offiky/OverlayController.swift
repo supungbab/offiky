@@ -5,7 +5,10 @@ final class OverlayController {
     static let shared = OverlayController()
 
     private(set) var windows: [NSWindow] = []
-    private(set) var scenes: [SKScene] = []
+    private(set) var scenes: [CharacterScene] = []
+    private(set) var strip = FloorStrip(visibleFrames: [])
+    private var timer: Timer?
+    private var handle: NSWindow?
 
     private init() {}
 
@@ -14,6 +17,33 @@ final class OverlayController {
         NotificationCenter.default.addObserver(
             self, selector: #selector(screensChanged),
             name: NSApplication.didChangeScreenParametersNotification, object: nil)
+        timer = Timer.scheduledTimer(withTimeInterval: 1.0 / 12, repeats: true) { _ in
+            World.shared.tick(now: ProcessInfo.processInfo.systemUptime)
+        }
+    }
+
+    func setHidden(_ hidden: Bool) {
+        windows.forEach { $0.setIsVisible(!hidden) }
+        handle?.setIsVisible(!hidden)
+    }
+
+    /// 오버레이가 표시 전용이라 내 캐릭터 위에 겹쳐 두고 드래그를 받는다.
+    func moveHandle(toGlobal point: CGPoint) {
+        let size = CGSize(width: spriteDisplaySize, height: spriteDisplaySize)
+        if handle == nil {
+            let window = NSWindow(contentRect: CGRect(origin: point, size: size),
+                                  styleMask: .borderless, backing: .buffered, defer: false)
+            window.isOpaque = false
+            window.backgroundColor = .clear
+            window.hasShadow = false
+            window.level = NSWindow.Level(rawValue: NSWindow.Level.floating.rawValue + 1)
+            window.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
+            window.contentView = DragHandleView()
+            window.orderFrontRegardless()
+            handle = window
+        }
+        handle?.setFrameOrigin(CGPoint(x: point.x - spriteDisplaySize / 2,
+                                       y: point.y - spriteDisplaySize / 2))
     }
 
     @objc private func screensChanged() { rebuild() }
@@ -40,7 +70,7 @@ final class OverlayController {
             let view = SKView(frame: CGRect(origin: .zero, size: frame.size))
             view.allowsTransparency = true
             view.preferredFramesPerSecond = 12
-            let scene = SKScene(size: frame.size)
+            let scene = CharacterScene(size: frame.size)
             scene.backgroundColor = .clear
             scene.scaleMode = .resizeFill
             view.presentScene(scene)
@@ -52,5 +82,26 @@ final class OverlayController {
             windows.append(window)
             scenes.append(scene)
         }
+
+        strip = FloorStrip(visibleFrames: frames)
+        World.shared.attach(scenes: scenes, strip: strip)
+    }
+}
+
+final class DragHandleView: NSView {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    override func mouseDown(with event: NSEvent) {
+        World.shared.beginDrag()
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard World.shared.me.isDragging else { return }
+        World.shared.updateDrag(toGlobal: NSEvent.mouseLocation)
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        guard World.shared.me.isDragging else { return }
+        World.shared.endDrag()
     }
 }
