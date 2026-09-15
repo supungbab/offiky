@@ -7,14 +7,16 @@ struct offikyApp: App {
 
     var body: some Scene {
         MenuBarExtra("offiky", systemImage: "person.2.fill") {
-            Button("채팅 열기  \(Shortcut.description)") { ChatPanel.shared.show() }
-            Button("단축키 변경…") { HotKeyRecorder.shared.begin() }
+            Button("채팅 열기  ⌥T") { ChatPanel.shared.show() }
             Button("내 캐릭터…") { openCharacterPicker() }
             Button("내 이름 변경…") { changeName() }
             Toggle("캐릭터 숨기기", isOn: $hidden)
                 .onChange(of: hidden) { _, value in
                     OverlayController.shared.setHidden(value)
                 }
+            Divider()
+            Button("테스트: 50마리 풀기") { World.shared.spawnTestPeers(50) }
+            Button("테스트 캐릭터 제거") { World.shared.removeTestPeers() }
             Divider()
             Button("종료") { NSApplication.shared.terminate(nil) }
         }

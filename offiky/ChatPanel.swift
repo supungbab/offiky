@@ -2,70 +2,6 @@ import AppKit
 import Carbon.HIToolbox
 import SwiftUI
 
-enum Shortcut {
-    static let defaultKeyCode = UInt32(kVK_ANSI_C)
-    static let defaultModifiers = UInt32(controlKey | optionKey)
-
-    static var keyCode: UInt32 {
-        let stored = UserDefaults.standard.object(forKey: "hotKeyCode") as? Int
-        return stored.map(UInt32.init) ?? defaultKeyCode
-    }
-
-    static var modifiers: UInt32 {
-        let stored = UserDefaults.standard.object(forKey: "hotKeyModifiers") as? Int
-        return stored.map(UInt32.init) ?? defaultModifiers
-    }
-
-    static func save(keyCode: UInt32, modifiers: UInt32) {
-        UserDefaults.standard.set(Int(keyCode), forKey: "hotKeyCode")
-        UserDefaults.standard.set(Int(modifiers), forKey: "hotKeyModifiers")
-    }
-
-    static func carbonModifiers(from flags: NSEvent.ModifierFlags) -> UInt32 {
-        var result: UInt32 = 0
-        if flags.contains(.command) { result |= UInt32(cmdKey) }
-        if flags.contains(.shift) { result |= UInt32(shiftKey) }
-        if flags.contains(.option) { result |= UInt32(optionKey) }
-        if flags.contains(.control) { result |= UInt32(controlKey) }
-        return result
-    }
-
-    static var description: String {
-        var text = ""
-        let mods = modifiers
-        if mods & UInt32(controlKey) != 0 { text += "⌃" }
-        if mods & UInt32(optionKey) != 0 { text += "⌥" }
-        if mods & UInt32(shiftKey) != 0 { text += "⇧" }
-        if mods & UInt32(cmdKey) != 0 { text += "⌘" }
-        return text + keyName(keyCode)
-    }
-
-    private static let named: [UInt32: String] = [
-        UInt32(kVK_Space): "Space", UInt32(kVK_Return): "Return",
-        UInt32(kVK_Tab): "Tab", UInt32(kVK_Escape): "Esc",
-    ]
-
-    static func keyName(_ code: UInt32) -> String {
-        if let name = named[code] { return name }
-        guard let source = TISCopyCurrentASCIICapableKeyboardLayoutInputSource()?.takeRetainedValue(),
-              let raw = TISGetInputSourceProperty(source, kTISPropertyUnicodeKeyLayoutData)
-        else { return "키\(code)" }
-        let layout = unsafeBitCast(raw, to: CFData.self)
-        var dead: UInt32 = 0
-        var length = 0
-        var chars = [UniChar](repeating: 0, count: 4)
-        let status = CFDataGetBytePtr(layout).withMemoryRebound(
-            to: UCKeyboardLayout.self, capacity: 1
-        ) { pointer in
-            UCKeyTranslate(pointer, UInt16(code), UInt16(kUCKeyActionDisplay), 0,
-                           UInt32(LMGetKbdType()), UInt32(kUCKeyTranslateNoDeadKeysBit),
-                           &dead, chars.count, &length, &chars)
-        }
-        guard status == noErr, length > 0 else { return "키\(code)" }
-        return String(utf16CodeUnits: chars, count: length).uppercased()
-    }
-}
-
 final class HotKey {
     private static var registry: [UInt32: () -> Void] = [:]
     private static var nextID: UInt32 = 1
@@ -146,12 +82,8 @@ final class ChatPanel {
     private init() {}
 
     func install() {
-        reinstallHotKey()
-    }
-
-    func reinstallHotKey() {
-        hotKey = HotKey(keyCode: Shortcut.keyCode,
-                        modifiers: Shortcut.modifiers) { [weak self] in
+        hotKey = HotKey(keyCode: UInt32(kVK_ANSI_T),
+                        modifiers: UInt32(optionKey)) { [weak self] in
             self?.toggle()
         }
     }
@@ -215,68 +147,5 @@ final class ChatPanel {
         // macOS 14 부터 다른 앱을 그냥 activate 하면 시스템이 무시한다
         NSApp.yieldActivation(to: target)
         target.activate()
-    }
-}
-
-
-
-/// 다음에 누르는 조합을 새 단축키로 받는다
-final class HotKeyRecorder {
-    static let shared = HotKeyRecorder()
-
-    private var panel: KeyPanel?
-    private var monitor: Any?
-
-    private init() {}
-
-    func begin() {
-        finish()
-        let size = CGSize(width: 320, height: 96)
-        let screen = NSScreen.main ?? NSScreen.screens[0]
-        let panel = KeyPanel(
-            contentRect: CGRect(x: screen.frame.midX - size.width / 2,
-                                y: screen.frame.midY - size.height / 2,
-                                width: size.width, height: size.height),
-            styleMask: [.borderless, .nonactivatingPanel],
-            backing: .buffered, defer: false)
-        panel.isOpaque = false
-        panel.backgroundColor = .clear
-        panel.level = .modalPanel
-        panel.contentView = NSHostingView(rootView: RecorderView())
-        panel.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-        self.panel = panel
-
-        monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard let self else { return event }
-            if event.keyCode == UInt16(kVK_Escape) { self.finish(); return nil }
-            let modifiers = Shortcut.carbonModifiers(from: event.modifierFlags)
-            guard modifiers != 0 else { return nil }
-            Shortcut.save(keyCode: UInt32(event.keyCode), modifiers: modifiers)
-            ChatPanel.shared.reinstallHotKey()
-            self.finish()
-            return nil
-        }
-    }
-
-    private func finish() {
-        if let monitor { NSEvent.removeMonitor(monitor) }
-        monitor = nil
-        panel?.orderOut(nil)
-        panel = nil
-    }
-}
-
-private struct RecorderView: View {
-    var body: some View {
-        VStack(spacing: 6) {
-            Text("새 단축키를 누르세요")
-                .font(.headline)
-            Text("보조키를 하나 이상 포함해야 합니다. Esc 로 취소")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
     }
 }

@@ -210,7 +210,7 @@ final class CharacterNode: SKNode {
     private func detectLanding() {
         let airborne = y > 0
         if wasAirborne && !airborne {
-            if isLocal { World.shared.commitAnchor() }
+            if self === World.shared.me { World.shared.commitAnchor() }
             (scene as? CharacterScene)?.spawnDust(at: position, speed: abs(verticalSpeed))
             image.run(.sequence([
                 .scaleY(to: 0.85, duration: 0.05),
@@ -502,4 +502,35 @@ extension World {
         let node = id == myID ? me : peers[id]
         node?.showBubble(text: text)
     }
+}
+
+
+// MARK: - 테스트
+
+extension World {
+    /// 네트워크 없이 로컬에서 각자 움직이는 캐릭터를 푼다. 메뉴바에서 호출한다.
+    func spawnTestPeers(_ count: Int) {
+        removeTestPeers()
+        let length = max(strip.length, 1)
+        for i in 0..<count {
+            let id = "test-\(i)"
+            let node = CharacterNode(id: id, name: "테스트\(i + 1)", isLocal: true)
+            node.apply(Look(design: i % Characters.count,
+                            hue: Double.random(in: -0.5...0.5),
+                            saturation: Double.random(in: 0.6...1.4),
+                            brightness: Double.random(in: 0.8...1.2)))
+            node.x = strip.clampToWall(length * CGFloat(i + 1) / CGFloat(count + 1))
+            node.anchorX = node.x
+            peers[id] = node
+        }
+    }
+
+    func removeTestPeers() {
+        for (id, node) in peers where id.hasPrefix("test-") {
+            node.removeFromParent()
+            peers[id] = nil
+        }
+    }
+
+    var testPeerCount: Int { peers.keys.filter { $0.hasPrefix("test-") }.count }
 }
