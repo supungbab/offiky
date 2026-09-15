@@ -5,6 +5,8 @@ let protocolVersion = 1
 let spriteDisplaySize: CGFloat = 40
 /// 바닥을 화면 맨 아래에서 띄우는 높이. Dock 이나 화면 끝에 붙어 보이지 않게 한다
 let floorOffset: CGFloat = 8
+/// 좌표 전송·중계 주기. 점프가 0.6초라 0.5초로는 표본이 한두 개뿐이다
+let snapshotInterval: TimeInterval = 0.1
 
 enum Limits {
     static let maxMessageBytes = 16 * 1024

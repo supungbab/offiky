@@ -28,11 +28,11 @@ final class Session {
             DispatchQueue.main.async { self?.clientGone(key) }
         }
 
-        posTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
-            self?.sendPositionIfDue()
+        posTimer = Timer.scheduledTimer(withTimeInterval: snapshotInterval, repeats: true) {
+            [weak self] _ in self?.sendPositionIfDue()
         }
-        snapTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
-            self?.sendSnapshotIfHost()
+        snapTimer = Timer.scheduledTimer(withTimeInterval: snapshotInterval, repeats: true) {
+            [weak self] _ in self?.sendSnapshotIfHost()
         }
     }
 
@@ -47,12 +47,10 @@ final class Session {
         pending.forEach { Mesh.shared.sendToHost(encode($0)) }
     }
 
-    /// 바닥에 있으면 0.5초마다, y > 0 인 동안에는 100ms 마다 전송한다.
     private func sendPositionIfDue() {
         let now = ProcessInfo.processInfo.systemUptime
         let me = World.shared.me
-        let interval: TimeInterval = me.y > 0 ? 0.1 : 0.5
-        guard now - lastPosSentAt >= interval else { return }
+        guard now - lastPosSentAt >= snapshotInterval else { return }
         lastPosSentAt = now
 
         let msg = PosMsg(x: Double(me.x), y: me.y > 0 ? Double(me.y) : nil)

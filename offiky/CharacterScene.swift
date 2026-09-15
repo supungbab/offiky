@@ -49,10 +49,10 @@ final class CharacterNode: SKNode {
     private var peakY: CGFloat = 0
     private var shadowStep = -1
 
-    private var fromX: CGFloat = 0, fromY: CGFloat = 0
-    private var toX: CGFloat = 0, toY: CGFloat = 0
-    private var interpolatedFor: TimeInterval = 0
-    private static let interpolationDuration: TimeInterval = 0.5
+    private var samples: [(t: TimeInterval, x: CGFloat, y: CGFloat)] = []
+    /// 받은 표본 두 개 사이를 재생하려면 늘 이만큼 과거를 그려야 한다.
+    /// 스냅샷 간격의 두 배라 한 번 늦게 와도 끊기지 않는다
+    static let renderDelay: TimeInterval = 0.2
     static let gravity: CGFloat = 1100
     static let jumpApex: CGFloat = 48
 
@@ -141,17 +141,16 @@ final class CharacterNode: SKNode {
         airSpeed = 0
     }
 
-    func setRemoteTarget(x newX: CGFloat, y newY: CGFloat) {
-        fromX = x; fromY = y
-        toX = newX; toY = newY
-        interpolatedFor = 0
+    func setRemoteTarget(x newX: CGFloat, y newY: CGFloat, at now: TimeInterval) {
+        samples.append((now, newX, newY))
+        if samples.count > 8 { samples.removeFirst(samples.count - 8) }
     }
 
     func update(dt: TimeInterval, now: TimeInterval, strip: FloorStrip) {
         if isLocal {
             simulate(dt: dt, now: now, strip: strip)
         } else {
-            interpolate(dt: dt)
+            interpolate(now: now)
         }
         peakY = max(peakY, y)
         detectLanding(now: now)
@@ -279,12 +278,26 @@ final class CharacterNode: SKNode {
         direction > 0 ? strip.maxX - x : x - strip.minX
     }
 
-    private func interpolate(dt: TimeInterval) {
-        interpolatedFor = min(CharacterNode.interpolationDuration, interpolatedFor + dt)
-        let t = CGFloat(interpolatedFor / CharacterNode.interpolationDuration)
-        x = fromX + (toX - fromX) * t
-        y = fromY + (toY - fromY) * t
-        isWalking = abs(toX - fromX) > 1
+    /// 렌더 시각을 감싸는 두 표본 사이를 재생한다. 앞뒤를 다 쥐고 있으므로 추정하지 않는다.
+    /// 표본이 끊기면 마지막 자리에 세워 둔다
+    private func interpolate(now: TimeInterval) {
+        guard let last = samples.last else { return }
+        let renderAt = now - CharacterNode.renderDelay
+        while samples.count > 2, samples[1].t <= renderAt { samples.removeFirst() }
+
+        guard let a = samples.first, samples.count >= 2, a.t <= renderAt else {
+            let first = samples[0]
+            let stop = renderAt < first.t ? first : last
+            x = stop.x; y = stop.y
+            isWalking = false
+            return
+        }
+        let b = samples[1]
+        let span = b.t - a.t
+        let ratio = span > 0 ? CGFloat(min(1, (renderAt - a.t) / span)) : 1
+        x = a.x + (b.x - a.x) * ratio
+        y = a.y + (b.y - a.y) * ratio
+        isWalking = ratio < 1 && span > 0 && abs(b.x - a.x) / CGFloat(span) > 2
     }
 
     /// 낙하 속도는 프레임 간 높이 변화로 구한다. verticalSpeed 는 착지 직전에
@@ -548,7 +561,7 @@ extension World {
     }
 
     func setPeerTarget(id: String, x: CGFloat, y: CGFloat) {
-        peers[id]?.setRemoteTarget(x: x, y: y)
+        peers[id]?.setRemoteTarget(x: x, y: y, at: ProcessInfo.processInfo.systemUptime)
     }
 
     func showBubble(id: String, text: String) {
