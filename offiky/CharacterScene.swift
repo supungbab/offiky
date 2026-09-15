@@ -90,7 +90,7 @@ final class CharacterNode: SKNode {
     /// 목적 없이 서성이는 것처럼 보인다.
     private func nextTarget(_ strip: FloorStrip) -> CGFloat {
         let ahead = facing > 0 ? strip.maxX - x : x - strip.minX
-        guard ahead > 120, Double.random(in: 0...1) < 0.75 else {
+        guard ahead > 120, Double.random(in: 0...1) < 0.8 else {
             return strip.clamp(CGFloat.random(in: strip.minX...strip.maxX))
         }
         let far = facing > 0 ? strip.maxX : strip.minX
