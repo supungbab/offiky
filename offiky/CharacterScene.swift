@@ -23,6 +23,7 @@ final class CharacterNode: SKNode {
     private var nextWalkAt: TimeInterval = 0
     private var nextJumpAt: TimeInterval = 0
     private var isWalking = false
+    private var facing: CGFloat = 1
 
     private var bobPhase: CGFloat = 0
     private var wasAirborne = false
@@ -111,7 +112,8 @@ final class CharacterNode: SKNode {
             isWalking = false
         } else {
             isWalking = true
-            x = strip.clampToWall(x + (delta > 0 ? 1 : -1) * 20 * CGFloat(dt))
+            facing = delta > 0 ? 1 : -1
+            x = strip.clampToWall(x + facing * 20 * CGFloat(dt))
         }
     }
 
@@ -121,6 +123,7 @@ final class CharacterNode: SKNode {
         x = fromX + (toX - fromX) * t
         y = fromY + (toY - fromY) * t
         isWalking = abs(toX - fromX) > 1
+        if isWalking { facing = toX > fromX ? 1 : -1 }
     }
 
     private func detectLanding() {
@@ -148,6 +151,7 @@ final class CharacterNode: SKNode {
         shadow.setScale(1 - 0.45 * height)
         shadow.alpha = 0.3 * (1 - 0.75 * height)
         zPosition = x + CGFloat(stableHash(id) % 997) / 1000
+        image.xScale = facing
         updateNameLabel()
     }
 

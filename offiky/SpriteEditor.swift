@@ -17,6 +17,7 @@ struct SpriteEditorView: View {
 
     var body: some View {
         VStack(spacing: 12) {
+            designs
             grid
             presets
             HStack(spacing: 10) {
@@ -30,10 +31,6 @@ struct SpriteEditorView: View {
                     .foregroundStyle(.secondary)
             }
             HStack {
-                Button("기본 캐릭터로 초기화") {
-                    push()
-                    rows = Sprite.standard(for: World.installID).rows.map { Sprite.chunks(of: $0) }
-                }
                 Button("되돌리기") { undo() }
                     .keyboardShortcut("z", modifiers: .command)
                 Spacer()
@@ -41,6 +38,26 @@ struct SpriteEditorView: View {
             }
         }
         .padding(16)
+    }
+
+    private var designs: some View {
+        HStack(spacing: 4) {
+            ForEach(0..<Sprite.designCount, id: \.self) { index in
+                let sprite = Sprite.design(at: index)
+                Button {
+                    push()
+                    rows = sprite.rows.map { Sprite.chunks(of: $0) }
+                } label: {
+                    if let cg = sprite.cgImage() {
+                        Image(nsImage: NSImage(cgImage: cg, size: NSSize(width: 32, height: 32)))
+                            .interpolation(.none)
+                            .resizable()
+                            .frame(width: 32, height: 32)
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+        }
     }
 
     private var grid: some View {

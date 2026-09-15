@@ -66,8 +66,23 @@ struct SpriteTests {
         #expect(Sprite(encoded: a.encoded) == a)
     }
 
-    @Test func 기본_캐릭터의_바이저는_하늘색이다() {
-        #expect(Sprite.standard(for: "peer-1").color(x: 7, y: 5) == 0x29ADFF)
+    @Test func 기본_캐릭터_8종이_모두_유효하다() throws {
+        #expect(Sprite.designCount == 8)
+        for index in 0..<Sprite.designCount {
+            let sprite = Sprite.design(at: index)
+            #expect(Sprite(encoded: sprite.encoded) == sprite, "\(index)번이 유효하지 않다")
+            let opaque = (0..<16).flatMap { y in (0..<16).compactMap { sprite.color(x: $0, y: y) } }
+            #expect(opaque.count > 40, "\(index)번이 비어 있다")
+        }
+    }
+
+    @Test func 기본_캐릭터_8종은_서로_다르다() {
+        let all = Set((0..<Sprite.designCount).map { Sprite.design(at: $0).encoded })
+        #expect(all.count == Sprite.designCount)
+    }
+
+    @Test func 인덱스는_범위를_넘어도_안전하다() {
+        #expect(Sprite.design(at: 99) == Sprite.design(at: 99 % Sprite.designCount))
     }
 
     @Test func 기본_캐릭터는_id_에_따라_달라진다() {
