@@ -15,8 +15,6 @@ final class Session {
     private var snapTimer: Timer?
     private var lastPosSentAt: TimeInterval = 0
 
-    var onChat: ((String, String) -> Void)?
-
     var roster: [(id: String, name: String)] {
         ([(World.shared.myID, World.shared.me.displayName)]
          + profiles.map { ($0.key, $0.value.name) })
@@ -90,7 +88,6 @@ final class Session {
             pending.append(msg)
             Mesh.shared.sendToHost(encode(SayMsg(seq: seq, msg: body)))
         }
-        onChat?(World.shared.me.displayName, body)
         World.shared.showBubble(id: World.shared.myID, text: body)
     }
 
@@ -195,7 +192,6 @@ final class Session {
         }
         guard let id = msg.id, id != World.shared.myID,
               tracker.accept(id: id, seq: msg.seq) else { return }
-        onChat?(profiles[id]?.name ?? "?", body)
         World.shared.showBubble(id: id, text: body)
     }
 

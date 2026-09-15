@@ -39,16 +39,6 @@ final class HotKey {
     }
 }
 
-final class ChatLog {
-    static let shared = ChatLog()
-    private(set) var recent: [String] = []
-
-    func append(_ line: String) {
-        recent.append(line)
-        if recent.count > 50 { recent.removeFirst(recent.count - 50) }
-    }
-}
-
 /// borderless 윈도우는 기본적으로 키 윈도우가 되지 않아 입력을 받지 못한다.
 private final class KeyPanel: NSPanel {
     override var canBecomeKey: Bool { true }
@@ -94,9 +84,6 @@ final class ChatPanel {
     func install() {
         hotKey = HotKey(keyCode: UInt32(kVK_Space), modifiers: UInt32(optionKey)) { [weak self] in
             self?.toggle()
-        }
-        Session.shared.onChat = { name, body in
-            ChatLog.shared.append("\(name): \(body)")
         }
     }
 

@@ -13,15 +13,6 @@ struct offikyApp: App {
                 Text(peer.name)
             }
             Divider()
-            let recent = Array(ChatLog.shared.recent.suffix(50).reversed())
-            if recent.isEmpty {
-                Text("최근 메시지 없음")
-            } else {
-                ForEach(Array(recent.enumerated()), id: \.offset) { _, line in
-                    Text(line)
-                }
-            }
-            Divider()
             Button("채팅 열기  ⌥Space") { ChatPanel.shared.show() }
             Button("내 캐릭터 편집…") { openSpriteEditor() }
             Button("내 이름 변경…") { changeName() }
