@@ -523,7 +523,7 @@ extension World {
     /// 네트워크 없이 로컬에서 각자 움직이는 캐릭터를 푼다. 메뉴바에서 호출한다.
     func spawnTestPeers(_ count: Int) {
         removeTestPeers()
-        let length = max(strip.length, 1)
+        let span = strip.maxX - strip.minX
         for i in 0..<count {
             let id = "test-\(i)"
             let node = CharacterNode(id: id, name: "테스트\(i + 1)", isLocal: true)
@@ -531,7 +531,7 @@ extension World {
                             hue: Double.random(in: -0.5...0.5),
                             saturation: Double.random(in: 0.6...1.4),
                             brightness: Double.random(in: 0.8...1.2)))
-            node.x = strip.clamp(length * CGFloat(i + 1) / CGFloat(count + 1))
+            node.x = strip.clamp(strip.minX + span * CGFloat(i + 1) / CGFloat(count + 1))
             node.anchorX = node.x
             peers[id] = node
         }
