@@ -14,6 +14,8 @@ final class CharacterNode: SKNode {
 
     private let image = SKSpriteNode()
     private let label = SKLabelNode(fontNamed: "Helvetica")
+    private var nameBackground: SKShapeNode?
+    private var renderedName: String?
 
     private var verticalSpeed: CGFloat = 0
     private var walkTarget: CGFloat = 0
@@ -133,7 +135,24 @@ final class CharacterNode: SKNode {
         let bob: CGFloat = sin(bobPhase) > 0 ? 2 : 0
         position = CGPoint(x: placement.point.x, y: placement.point.y + bob)
         zPosition = x + CGFloat(stableHash(id) % 997) / 1000
+        updateNameLabel()
+    }
+
+    /// 이름이 바뀔 때만 배경을 다시 만든다
+    private func updateNameLabel() {
+        guard renderedName != displayName else { return }
+        renderedName = displayName
         label.text = displayName
+
+        nameBackground?.removeFromParent()
+        let size = CGSize(width: label.frame.width + 8, height: label.frame.height + 4)
+        let background = SKShapeNode(rectOf: size, cornerRadius: 3)
+        background.fillColor = NSColor(white: 0, alpha: 0.55)
+        background.strokeColor = .clear
+        background.zPosition = -1
+        background.position = CGPoint(x: 0, y: label.position.y + label.frame.height / 2)
+        addChild(background)
+        nameBackground = background
     }
 }
 
