@@ -193,12 +193,7 @@ final class CharacterNode: SKNode {
             let reached = dashDirection > 0 ? next >= target : next <= target
             let blocked = abs(next - x) < 0.01
             x = next
-            if blocked {
-                // 대시로 벽에 부딪히면 피격
-                takeHit(now: now)
-                anchorX = x
-                walkTarget = x
-            } else if reached {
+            if blocked || reached {
                 dashTarget = nil
                 anchorX = x
                 walkTarget = x
