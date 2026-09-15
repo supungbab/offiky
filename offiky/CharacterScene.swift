@@ -28,6 +28,7 @@ final class CharacterNode: SKNode {
 
     private var bobPhase: CGFloat = 0
     private var walkPhase: TimeInterval = 0
+    private var previousX: CGFloat = 0
     private var wasAirborne = false
 
     private var fromX: CGFloat = 0, fromY: CGFloat = 0
@@ -48,7 +49,8 @@ final class CharacterNode: SKNode {
         shadow.zPosition = -2
         addChild(shadow)
 
-        image.size = CGSize(width: spriteDisplaySize, height: spriteDisplaySize)
+        image.anchorPoint = CGPoint(x: 0.5, y: 0)
+        image.position = CGPoint(x: 0, y: -spriteDisplaySize / 2)
         addChild(image)
 
         label.fontSize = 10
@@ -62,16 +64,12 @@ final class CharacterNode: SKNode {
 
     required init?(coder: NSCoder) { fatalError() }
 
-    private var frames: [SKTexture] = []
+    private var sheet = Characters.Sheet(size: .zero, frames: [:])
 
-    func apply(_ sprites: [Sprite]) {
-        frames = sprites.compactMap { sprite in
-            guard let cg = sprite.cgImage() else { return nil }
-            let texture = SKTexture(cgImage: cg)
-            texture.filteringMode = .nearest
-            return texture
-        }
-        image.texture = frames.first
+    func apply(_ look: Look) {
+        sheet = Characters.sheet(look)
+        image.size = CGSize(width: sheet.size.width * 2, height: sheet.size.height * 2)
+        image.texture = sheet.frames[.idle]?.first
     }
 
     func setRemoteTarget(x newX: CGFloat, y newY: CGFloat) {
@@ -89,9 +87,18 @@ final class CharacterNode: SKNode {
         detectLanding()
         bobPhase += CGFloat(dt) * (isWalking ? 9 : 2)
 
-        if frames.count > 1 {
-            walkPhase += isWalking ? dt : 0
-            image.texture = frames[Int(walkPhase * 6) % frames.count]
+        let speed = abs(x - previousX) / CGFloat(max(dt, 0.001))
+        previousX = x
+        let animation: Animation
+        if y > 0 { animation = .jump }
+        else if speed > 80 { animation = .dash }
+        else if isWalking { animation = .walk }
+        else { animation = .idle }
+
+        walkPhase += dt
+        if let textures = sheet.frames[animation], !textures.isEmpty {
+            let rate: Double = animation == .idle ? 3 : (animation == .dash ? 12 : 8)
+            image.texture = textures[Int(walkPhase * rate) % textures.count]
         }
     }
 
@@ -258,7 +265,7 @@ final class CharacterScene: SKScene {
 
     func spawnDust(at point: CGPoint, speed: CGFloat) {
         let count = min(6, max(4, Int(speed / 400)))
-        let rgb = Palette.dust
+        let rgb: UInt32 = 0xAB5236
         let color = NSColor(
             red: CGFloat((rgb >> 16) & 0xFF) / 255,
             green: CGFloat((rgb >> 8) & 0xFF) / 255,
@@ -308,7 +315,7 @@ final class World {
     private init() {
         let stored = UserDefaults.standard.string(forKey: "name") ?? NSFullUserName()
         me = CharacterNode(id: myID, name: sanitizeName(stored), isLocal: true)
-        me.apply(World.myLook.frames)
+        me.apply(World.myLook)
     }
 
     static var myLook: Look {
@@ -320,7 +327,7 @@ final class World {
         }
         set {
             UserDefaults.standard.set(try? JSONEncoder().encode(newValue), forKey: "look")
-            shared.me.apply(newValue.frames)
+            shared.me.apply(newValue)
         }
     }
 
@@ -396,7 +403,7 @@ extension World {
     func addPeer(id: String, name: String, look: Look) {
         let node = peers[id] ?? CharacterNode(id: id, name: name, isLocal: false)
         node.displayName = name
-        node.apply(look.sanitized.frames)
+        node.apply(look.sanitized)
         peers[id] = node
     }
 

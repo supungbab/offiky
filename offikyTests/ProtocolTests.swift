@@ -29,7 +29,7 @@ struct FloorStripTests {
         let p = try #require(single.place(x: 0, y: 0))
         #expect(p.screenIndex == 0)
         #expect(p.point.x == 0)
-        #expect(p.point.y == 16)
+        #expect(p.point.y == 20)
     }
 
     @Test func 두번째_화면으로_넘어간다() throws {
@@ -44,24 +44,24 @@ struct FloorStripTests {
     }
 
     @Test func 걸쳐_있으면_표시한다() throws {
-        let p = try #require(single.place(x: 1010, y: 0))
+        let p = try #require(single.place(x: 1015, y: 0))
         #expect(p.screenIndex == 0)
-        #expect(p.point.x == 1010)
+        #expect(p.point.x == 1015)
     }
 
     @Test func 완전히_벗어나면_표시하지_않는다() {
-        #expect(single.place(x: 1017, y: 0) == nil)
-        #expect(single.place(x: -17, y: 0) == nil)
+        #expect(single.place(x: 1021, y: 0) == nil)
+        #expect(single.place(x: -21, y: 0) == nil)
     }
 
     @Test func 높이는_화면_안으로_제한된다() throws {
         let p = try #require(dual.place(x: 1200, y: 5000))
-        #expect(p.point.y == 16.0 + 568.0)
+        #expect(p.point.y == 20.0 + 560.0)
     }
 
     @Test func 벽은_스프라이트_중심_기준이다() {
-        #expect(single.clampToWall(-50) == 16)
-        #expect(single.clampToWall(5000) == 984)
+        #expect(single.clampToWall(-50) == 20)
+        #expect(single.clampToWall(5000) == 980)
         #expect(single.clampToWall(500) == 500)
     }
 

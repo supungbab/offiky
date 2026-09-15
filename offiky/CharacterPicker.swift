@@ -1,4 +1,5 @@
 import AppKit
+import SpriteKit
 import SwiftUI
 
 struct CharacterPickerView: View {
@@ -9,7 +10,7 @@ struct CharacterPickerView: View {
             Text("캐릭터").font(.headline)
             LazyVGrid(columns: Array(repeating: GridItem(.fixed(48), spacing: 6), count: 5),
                       spacing: 6) {
-                ForEach(0..<Sprite.designCount, id: \.self) { index in
+                ForEach(0..<Characters.count, id: \.self) { index in
                     thumbnail(index)
                 }
             }
@@ -40,7 +41,7 @@ struct CharacterPickerView: View {
         return Button {
             look.design = index
         } label: {
-            image(Sprite.design(at: index, frame: 0, tint: candidate), size: 44)
+            thumb(candidate, animation: .idle, frame: 0, size: 44)
                 .padding(2)
                 .background(look.design == index ? Color.accentColor.opacity(0.25) : .clear,
                             in: RoundedRectangle(cornerRadius: 5))
@@ -49,22 +50,29 @@ struct CharacterPickerView: View {
     }
 
     private var preview: some View {
-        HStack(spacing: 4) {
-            ForEach(0..<Sprite.frameCount, id: \.self) { frame in
-                image(Sprite.design(at: look.design, frame: frame, tint: look), size: 48)
+        HStack(spacing: 2) {
+            ForEach(0..<Animation.walk.frameCount, id: \.self) { frame in
+                thumb(look, animation: .walk, frame: frame, size: 40)
             }
         }
     }
 
-    private func image(_ sprite: Sprite, size: CGFloat) -> some View {
-        Group {
-            if let cg = sprite.cgImage() {
-                Image(nsImage: NSImage(cgImage: cg, size: NSSize(width: size, height: size)))
+    private func thumb(_ look: Look, animation: Animation,
+                       frame: Int, size: CGFloat) -> some View {
+        let sheet = Characters.sheet(look)
+        let textures = sheet.frames[animation] ?? []
+        let scale = size / max(sheet.size.width, sheet.size.height)
+        return Group {
+            if frame < textures.count,
+               let cg = textures[frame].cgImage() as CGImage? {
+                Image(nsImage: NSImage(cgImage: cg, size: NSSize(
+                    width: sheet.size.width * scale, height: sheet.size.height * scale)))
                     .interpolation(.none)
                     .resizable()
-                    .frame(width: size, height: size)
+                    .frame(width: sheet.size.width * scale, height: sheet.size.height * scale)
             }
         }
+        .frame(width: size, height: size)
     }
 
     private func slider(_ title: String, value: Binding<Double>,

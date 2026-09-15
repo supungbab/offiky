@@ -2,7 +2,7 @@ import CoreGraphics
 import Foundation
 
 let protocolVersion = 1
-let spriteDisplaySize: CGFloat = 32
+let spriteDisplaySize: CGFloat = 40
 
 enum Limits {
     static let maxMessageBytes = 16 * 1024
@@ -158,19 +158,16 @@ struct Look: Codable, Equatable {
     static let neutral = Look(design: 0, hue: 0, saturation: 1, brightness: 1)
 
     static func fallback(for id: String) -> Look {
-        Look(design: Int(stableHash(id) % UInt64(Sprite.designCount)),
+        Look(design: Int(stableHash(id) % UInt64(Characters.count)),
              hue: 0, saturation: 1, brightness: 1)
     }
 
     /// 수신값은 신뢰할 수 없으므로 범위 안으로 제한한다
     var sanitized: Look {
-        Look(design: ((design % Sprite.designCount) + Sprite.designCount) % Sprite.designCount,
+        Look(design: ((design % Characters.count) + Characters.count) % Characters.count,
              hue: min(max(hue, -0.5), 0.5),
              saturation: min(max(saturation, 0), 2),
              brightness: min(max(brightness, 0.5), 1.5))
     }
 
-    var frames: [Sprite] {
-        (0..<Sprite.frameCount).map { Sprite.design(at: design, frame: $0, tint: self) }
-    }
 }
