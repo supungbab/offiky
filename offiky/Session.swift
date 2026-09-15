@@ -102,12 +102,17 @@ final class Session {
         pending.removeAll()
     }
 
-    private func clientGone(_ key: String) {
-        guard let id = clientIDs.removeValue(forKey: key) else { return }
+    /// 나간 피어의 흔적을 지운다. 호스트가 사라졌을 때도 여기로 온다.
+    func peerGone(_ id: String) {
         profiles[id] = nil
         positions[id] = nil
         tracker.forget(id: id)
         World.shared.removePeer(id: id)
+    }
+
+    private func clientGone(_ key: String) {
+        guard let id = clientIDs.removeValue(forKey: key) else { return }
+        peerGone(id)
         Mesh.shared.broadcast(encode(LeaveMsg(id: id)))
     }
 
@@ -214,9 +219,6 @@ final class Session {
 
     private func handleLeave(_ data: Data) {
         guard let msg = try? JSONDecoder().decode(LeaveMsg.self, from: data) else { return }
-        profiles[msg.id] = nil
-        positions[msg.id] = nil
-        tracker.forget(id: msg.id)
-        World.shared.removePeer(id: msg.id)
+        peerGone(msg.id)
     }
 }

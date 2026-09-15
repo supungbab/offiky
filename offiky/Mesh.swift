@@ -35,8 +35,8 @@ final class Mesh {
     func stop() {
         listener?.cancel(); listener = nil
         browser?.cancel(); browser = nil
-        upstream?.cancel(); upstream = nil
-        clients.values.forEach { $0.cancel() }
+        cancelUpstream()
+        clients.values.forEach { $0.stateUpdateHandler = nil; $0.cancel() }
         clients.removeAll()
         buffers.removeAll()
         visible.removeAll()
@@ -110,7 +110,7 @@ final class Mesh {
         guard host != currentHost else { return }
         currentHost = host
 
-        upstream?.cancel(); upstream = nil
+        cancelUpstream()
         buffers["upstream"] = nil
         if !isHost { connectToHost(host) }
         DispatchQueue.main.async { Session.shared.hostChanged() }
@@ -120,7 +120,15 @@ final class Mesh {
     /// 비정상 종료 시 mDNS TTL 만료까지 수십 초가 걸린다.
     private func exclude(_ id: String) {
         excluded[id] = Date()
+        DispatchQueue.main.async { Session.shared.peerGone(id) }
         scheduleElection()
+    }
+
+    /// 우리가 끊는 것이므로 실패 처리가 돌면 안 된다. 살아 있는 호스트를 나간 것으로 지운다
+    private func cancelUpstream() {
+        upstream?.stateUpdateHandler = nil
+        upstream?.cancel()
+        upstream = nil
     }
 
     private func connectToHost(_ id: String) {
