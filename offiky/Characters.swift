@@ -111,24 +111,26 @@ enum Characters {
 
     private static var shadowCache: [String: SKTexture] = [:]
 
+    /// 레퍼런스 그림자(20×7)에서 잰 비율. 높이는 폭의 0.35배다.
     static func shadowSize(bodyWidth: CGFloat) -> (width: Int, height: Int) {
         let w = max(4, Int(bodyWidth))
-        return (w, max(3, Int((bodyWidth * 0.37).rounded())))
+        return (w, max(3, Int((bodyWidth * 0.35).rounded())))
     }
 
-    /// 필요한 픽셀 수만큼의 타원을 만든다. 고정 텍스처를 늘리면 배율이 정수가 아니어서
-    /// 픽셀 크기가 들쭉날쭉해지고 캐릭터의 격자와 어긋난다.
+    /// 레퍼런스 그림자의 윤곽을 그대로 쓴다. 가장자리 줄은 폭의 15%, 그다음 줄은 5% 만큼
+    /// 양옆이 들어간다. 수식 타원은 위아래가 뾰족해서 모양이 다르다.
     static func shadowTexture(_ size: (width: Int, height: Int)) -> SKTexture {
         let key = "\(size.width)x\(size.height)"
         if let hit = shadowCache[key] { return hit }
 
         var pixels = [UInt8](repeating: 0, count: size.width * size.height * 4)
-        let cx = Double(size.width - 1) / 2, cy = Double(size.height - 1) / 2
-        let rx = Double(size.width) / 2, ry = Double(size.height) / 2
+        let center = Double(size.height - 1) / 2
         for y in 0..<size.height {
-            for x in 0..<size.width {
-                let dx = (Double(x) - cx) / rx, dy = (Double(y) - cy) / ry
-                if dx * dx + dy * dy <= 1 { pixels[(y * size.width + x) * 4 + 3] = 255 }
+            let edge = center > 0 ? abs(Double(y) - center) / center : 0
+            let ratio = edge >= 0.85 ? 0.15 : (edge >= 0.5 ? 0.05 : 0)
+            let inset = Int((Double(size.width) * ratio).rounded())
+            for x in inset..<(size.width - inset) {
+                pixels[(y * size.width + x) * 4 + 3] = 255
             }
         }
         let made = texture(from: pixels, sheetW: size.width,
