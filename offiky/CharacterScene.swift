@@ -86,13 +86,11 @@ final class CharacterNode: SKNode {
         image.texture = sheet.frames[.idle]?.first
     }
 
-    /// 가던 방향을 이어가는 쪽을 선호한다. 매번 무작위로 고르면 절반이 뒤쪽에 잡혀
-    /// 목적 없이 서성이는 것처럼 보인다.
-    private func nextTarget(_ strip: FloorStrip) -> CGFloat {
-        let ahead = facing > 0 ? strip.maxX - x : x - strip.minX
-        guard ahead > 120, Double.random(in: 0...1) < 0.8 else {
-            return strip.clamp(CGFloat.random(in: strip.minX...strip.maxX))
-        }
+    /// 도착 직후 쉬지 않고 이어 갈 목표. 매번 멈췄다 새로 고르면 목적 없이
+    /// 서성이는 것처럼 보인다.
+    private func targetAhead(_ strip: FloorStrip) -> CGFloat? {
+        let room = facing > 0 ? strip.maxX - x : x - strip.minX
+        guard room > 120, Double.random(in: 0...1) < 0.5 else { return nil }
         let far = facing > 0 ? strip.maxX : strip.minX
         return strip.clamp(x + (far - x) * CGFloat.random(in: 0.25...1))
     }
@@ -228,20 +226,32 @@ final class CharacterNode: SKNode {
                 dashTarget = nil
                 // 급정거하지 않고 같은 방향으로 조금 더 걸어 나간다
                 walkTarget = strip.clamp(x + dashDirection * CGFloat.random(in: 30...80))
+                restUntil = 0
             }
             isWalking = true
             return
         }
 
-        // 띠 어디로든 간다. 도착하면 잠깐 쉬었다 다음 목표를 고른다
         let delta = walkTarget - x
         if abs(delta) > 1 {
             isWalking = true
             x = strip.clamp(x + (delta > 0 ? 1 : -1) * walkSpeed * CGFloat(dt))
+            return
+        }
+
+        isWalking = false
+        if restUntil == 0 {
+            // 도착 직후 한 번만 판단한다. 절반은 쉬지 않고 같은 방향으로 이어 간다
+            if let ahead = targetAhead(strip) {
+                walkTarget = ahead
+                return
+            }
             restUntil = now + Double.random(in: 1...4)
-        } else {
-            isWalking = false
-            if now >= restUntil { walkTarget = nextTarget(strip) }
+        }
+        if now >= restUntil {
+            // 서 있다 출발하므로 방향을 가리지 않는다
+            walkTarget = strip.clamp(CGFloat.random(in: strip.minX...strip.maxX))
+            restUntil = 0
         }
     }
 
