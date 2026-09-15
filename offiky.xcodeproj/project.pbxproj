@@ -14,19 +14,11 @@
 			remoteGlobalIDString = FA8247013058C45600EFFAB3;
 			remoteInfo = offiky;
 		};
-		FA82471C3058C45800EFFAB3 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = FA8246FA3058C45600EFFAB3 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = FA8247013058C45600EFFAB3;
-			remoteInfo = offiky;
-		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		FA8247023058C45600EFFAB3 /* offiky.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = offiky.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		FA8247113058C45800EFFAB3 /* offikyTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = offikyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		FA82471B3058C45800EFFAB3 /* offikyUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = offikyUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -53,11 +45,6 @@
 			path = offikyTests;
 			sourceTree = "<group>";
 		};
-		FA82471E3058C45800EFFAB3 /* offikyUITests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = offikyUITests;
-			sourceTree = "<group>";
-		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -75,13 +62,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		FA8247183058C45800EFFAB3 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -90,7 +70,6 @@
 			children = (
 				FA8247043058C45600EFFAB3 /* offiky */,
 				FA8247143058C45800EFFAB3 /* offikyTests */,
-				FA82471E3058C45800EFFAB3 /* offikyUITests */,
 				FA8247033058C45600EFFAB3 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -100,7 +79,6 @@
 			children = (
 				FA8247023058C45600EFFAB3 /* offiky.app */,
 				FA8247113058C45800EFFAB3 /* offikyTests.xctest */,
-				FA82471B3058C45800EFFAB3 /* offikyUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -153,29 +131,6 @@
 			productReference = FA8247113058C45800EFFAB3 /* offikyTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-		FA82471A3058C45800EFFAB3 /* offikyUITests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = FA82472B3058C45800EFFAB3 /* Build configuration list for PBXNativeTarget "offikyUITests" */;
-			buildPhases = (
-				FA8247173058C45800EFFAB3 /* Sources */,
-				FA8247183058C45800EFFAB3 /* Frameworks */,
-				FA8247193058C45800EFFAB3 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				FA82471D3058C45800EFFAB3 /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				FA82471E3058C45800EFFAB3 /* offikyUITests */,
-			);
-			name = offikyUITests;
-			packageProductDependencies = (
-			);
-			productName = offikyUITests;
-			productReference = FA82471B3058C45800EFFAB3 /* offikyUITests.xctest */;
-			productType = "com.apple.product-type.bundle.ui-testing";
-		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -190,10 +145,6 @@
 						CreatedOnToolsVersion = 26.0.1;
 					};
 					FA8247103058C45800EFFAB3 = {
-						CreatedOnToolsVersion = 26.0.1;
-						TestTargetID = FA8247013058C45600EFFAB3;
-					};
-					FA82471A3058C45800EFFAB3 = {
 						CreatedOnToolsVersion = 26.0.1;
 						TestTargetID = FA8247013058C45600EFFAB3;
 					};
@@ -215,7 +166,6 @@
 			targets = (
 				FA8247013058C45600EFFAB3 /* offiky */,
 				FA8247103058C45800EFFAB3 /* offikyTests */,
-				FA82471A3058C45800EFFAB3 /* offikyUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -229,13 +179,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		FA82470F3058C45800EFFAB3 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		FA8247193058C45800EFFAB3 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -259,13 +202,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		FA8247173058C45800EFFAB3 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -273,11 +209,6 @@
 			isa = PBXTargetDependency;
 			target = FA8247013058C45600EFFAB3 /* offiky */;
 			targetProxy = FA8247123058C45800EFFAB3 /* PBXContainerItemProxy */;
-		};
-		FA82471D3058C45800EFFAB3 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = FA8247013058C45600EFFAB3 /* offiky */;
-			targetProxy = FA82471C3058C45800EFFAB3 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -514,44 +445,6 @@
 			};
 			name = Release;
 		};
-		FA82472C3058C45800EFFAB3 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 75J3AS52HQ;
-				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.offikyUITests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TEST_TARGET_NAME = offiky;
-			};
-			name = Debug;
-		};
-		FA82472D3058C45800EFFAB3 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 75J3AS52HQ;
-				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.offikyUITests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TEST_TARGET_NAME = offiky;
-			};
-			name = Release;
-		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -578,15 +471,6 @@
 			buildConfigurations = (
 				FA8247293058C45800EFFAB3 /* Debug */,
 				FA82472A3058C45800EFFAB3 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		FA82472B3058C45800EFFAB3 /* Build configuration list for PBXNativeTarget "offikyUITests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				FA82472C3058C45800EFFAB3 /* Debug */,
-				FA82472D3058C45800EFFAB3 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
