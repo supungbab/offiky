@@ -137,7 +137,11 @@ final class ChatPanel {
 
         // 매번 새 뷰를 넣어 입력란을 비우고 포커스를 다시 잡는다
         presenting = true
-        previousApp = NSWorkspace.shared.frontmostApplication
+        // 우리 앱이 이미 앞에 있으면 직전 값을 유지한다. 덮어쓰면 복귀 대상이 자기 자신이 된다.
+        if let front = NSWorkspace.shared.frontmostApplication,
+           front.bundleIdentifier != Bundle.main.bundleIdentifier {
+            previousApp = front
+        }
         panel.contentView = NSHostingView(rootView: ChatInputView())
         panel.setFrame(CGRect(origin: origin, size: size), display: true)
         NSApp.activate(ignoringOtherApps: true)
@@ -148,13 +152,13 @@ final class ChatPanel {
     /// Esc·전송으로 닫을 때는 띄우기 직전의 앱으로 포커스를 되돌린다.
     /// 다른 앱을 클릭해 닫힌 경우에는 그 앱이 이미 앞에 있으므로 되돌리지 않는다.
     func hide(restoringFocus: Bool = true) {
-        panel?.orderOut(nil)
         let target = previousApp
         previousApp = nil
-        guard restoringFocus,
-              let target,
-              target.bundleIdentifier != Bundle.main.bundleIdentifier
-        else { return }
+        panel?.orderOut(nil)
+        guard restoringFocus, let target else { return }
+        // macOS 14 부터 다른 앱을 그냥 activate 하면 시스템이 무시한다
+        NSApp.yieldActivation(to: target)
         target.activate()
     }
 }
+
