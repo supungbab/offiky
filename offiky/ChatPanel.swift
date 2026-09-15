@@ -68,7 +68,7 @@ private struct ChatInputView: View {
             .overlay(RoundedRectangle(cornerRadius: 12)
                 .strokeBorder(.white.opacity(0.15), lineWidth: 1))
             .focused($focused)
-            .onAppear { focused = true }
+            .onAppear { DispatchQueue.main.async { focused = true } }
             .onSubmit {
                 Session.shared.sendSay(draft)
                 draft = ""
@@ -86,6 +86,7 @@ final class ChatPanel {
 
     private var panel: KeyPanel?
     private var hotKey: HotKey?
+    private var presenting = false
 
     private init() {}
 
@@ -125,16 +126,21 @@ final class ChatPanel {
             NotificationCenter.default.addObserver(
                 forName: NSWindow.didResignKeyNotification,
                 object: created, queue: .main
-            ) { [weak self] _ in self?.hide() }
+            ) { [weak self] _ in
+                guard let self, !self.presenting else { return }
+                self.hide()
+            }
             self.panel = created
             return created
         }()
 
         // 매번 새 뷰를 넣어 입력란을 비우고 포커스를 다시 잡는다
+        presenting = true
         panel.contentView = NSHostingView(rootView: ChatInputView())
         panel.setFrame(CGRect(origin: origin, size: size), display: true)
-        panel.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+        panel.makeKeyAndOrderFront(nil)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { self.presenting = false }
     }
 
     func hide() { panel?.orderOut(nil) }
