@@ -21,6 +21,7 @@ final class CharacterNode: SKNode {
     enum Motion {
         case idle, walk, dash
         var speed: CGFloat { self == .dash ? 90 : 20 }
+        var span: ClosedRange<CGFloat> { self == .dash ? 200...420 : 80...250 }
     }
 
     private var motion: Motion = .idle
@@ -231,34 +232,36 @@ final class CharacterNode: SKNode {
 
     /// 상태 전이표. 방향을 먼저 정하고 다음 상태를 고른다.
     private func chooseNext(from: Motion, now: TimeInterval, strip: FloorStrip) {
+        let roll = Double.random(in: 0...1)
+        var next: Motion
+        switch from {
+        case .idle: next = roll < 0.7 ? .walk : .dash            // 걷기 70 / 뛰기 30
+        case .walk: next = roll < 0.7 ? .walk : (roll < 0.85 ? .dash : .idle)
+        case .dash: next = roll < 0.7 ? .walk : (roll < 0.85 ? .dash : .idle)
+        }
+        if next == .idle {
+            motion = .idle
+            motionEnd = now + Double.random(in: 4...8)
+            return
+        }
+
         var direction: CGFloat
         switch from {
         case .idle: direction = Bool.random() ? 1 : -1          // 좌우 50:50
         case .walk: direction = Double.random(in: 0...1) < 0.8 ? facing : -facing
         case .dash: direction = Double.random(in: 0...1) < 0.9 ? facing : -facing
         }
-        // 그쪽에 공간이 없으면 반대로 간다
-        if room(direction, strip) < 120 { direction = -direction }
-
-        let roll = Double.random(in: 0...1)
-        let next: Motion
-        switch from {
-        case .idle: next = roll < 0.7 ? .walk : .dash            // 걷기 70 / 뛰기 30
-        case .walk: next = roll < 0.7 ? .walk : (roll < 0.85 ? .dash : .idle)
-        case .dash: next = roll < 0.7 ? .walk : (roll < 0.85 ? .dash : .idle)
+        // 구간 최소 거리를 못 채우면 반대로 간다. 양쪽 다 좁으면 뛰지 않고 걷는다
+        if room(direction, strip) < next.span.lowerBound,
+           room(-direction, strip) < next.span.lowerBound, next == .dash {
+            next = .walk
         }
+        if room(direction, strip) < next.span.lowerBound { direction = -direction }
 
         motion = next
-        switch next {
-        case .idle:
-            motionEnd = now + Double.random(in: 4...8)
-        case .walk:
-            segmentTarget = strip.clamp(x + direction * CGFloat.random(in: 80...250))
-        case .dash:
-            segmentTarget = strip.clamp(x + direction * CGFloat.random(in: 200...420))
-            // 달리는 도중 절반은 점프한다
-            if Bool.random() { nextJumpAt = now + Double.random(in: 0.4...1.1) }
-        }
+        segmentTarget = strip.clamp(x + direction * CGFloat.random(in: next.span))
+        // 달리는 도중 절반은 점프한다
+        if next == .dash, Bool.random() { nextJumpAt = now + Double.random(in: 0.4...1.1) }
     }
 
     private func room(_ direction: CGFloat, _ strip: FloorStrip) -> CGFloat {
