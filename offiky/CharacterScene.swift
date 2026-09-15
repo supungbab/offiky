@@ -208,8 +208,8 @@ final class CharacterNode: SKNode {
         shadow.setScale(1 - 0.45 * height)
         shadow.alpha = 0.3 * (1 - 0.75 * height)
         zPosition = x + CGFloat(stableHash(id) % 997) / 1000
-        // 기본 캐릭터는 왼쪽을 보고 그려져 있다
-        image.xScale = -facing
+        // 스프라이트는 오른쪽을 보고 그려져 있다
+        image.xScale = facing
         updateNameLabel()
     }
 

@@ -17,17 +17,28 @@ struct CharacterPickerView: View {
 
             Divider()
 
-            Text("색").font(.headline)
+            HStack {
+                Text("색").font(.headline)
+                Spacer()
+                Button {
+                    look.hue = 0; look.saturation = 1; look.brightness = 1
+                } label: {
+                    Label("초기화", systemImage: "arrow.counterclockwise")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(isNeutral)
+            }
+
             slider("색상", value: $look.hue, range: -0.5...0.5)
             slider("채도", value: $look.saturation, range: 0...2)
             slider("밝기", value: $look.brightness, range: 0.5...1.5)
 
+            Divider()
             HStack {
-                Button("색 초기화") {
-                    look.hue = 0; look.saturation = 1; look.brightness = 1
-                }
                 Spacer()
                 preview
+                Spacer()
             }
         }
         .padding(16)
@@ -73,6 +84,10 @@ struct CharacterPickerView: View {
             }
         }
         .frame(width: size, height: size)
+    }
+
+    private var isNeutral: Bool {
+        look.hue == 0 && look.saturation == 1 && look.brightness == 1
     }
 
     private func slider(_ title: String, value: Binding<Double>,
