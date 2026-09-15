@@ -8,7 +8,6 @@ final class CharacterNode: SKNode {
 
     var x: CGFloat = 0
     var y: CGFloat = 0
-    var anchorX: CGFloat = 0
 
     var isDragging = false
 
@@ -20,7 +19,7 @@ final class CharacterNode: SKNode {
 
     private var verticalSpeed: CGFloat = 0
     private var walkTarget: CGFloat = 0
-    private var nextWalkAt: TimeInterval = 0
+    private var restUntil: TimeInterval = 0
     private var nextJumpAt: TimeInterval = 0
     private var nextDashAt: TimeInterval = 0
     private var dashTarget: CGFloat?
@@ -218,23 +217,22 @@ final class CharacterNode: SKNode {
                 dashTarget = nil
                 // 급정거하지 않고 같은 방향으로 조금 더 걸어 나간다
                 walkTarget = strip.clamp(x + dashDirection * CGFloat.random(in: 30...80))
-                anchorX = walkTarget
-                nextWalkAt = now + Double.random(in: 3...7)
             }
             isWalking = true
             return
         }
 
-        if now >= nextWalkAt {
-            nextWalkAt = now + Double.random(in: 2...6)
-            walkTarget = strip.clamp(anchorX + CGFloat.random(in: -400...400))
-        }
+        // 띠 어디로든 간다. 도착하면 잠깐 쉬었다 다음 목표를 고른다
         let delta = walkTarget - x
-        if abs(delta) < 1 {
-            isWalking = false
-        } else {
+        if abs(delta) > 1 {
             isWalking = true
             x = strip.clamp(x + (delta > 0 ? 1 : -1) * walkSpeed * CGFloat(dt))
+            restUntil = now + Double.random(in: 1...4)
+        } else {
+            isWalking = false
+            if now >= restUntil {
+                walkTarget = strip.clamp(CGFloat.random(in: strip.minX...strip.maxX))
+            }
         }
     }
 
@@ -261,7 +259,6 @@ final class CharacterNode: SKNode {
         let airborne = y > 0
         if wasAirborne && !airborne {
             let impact = (2 * CharacterNode.gravity * peakY).squareRoot()
-            if self === World.shared.me { World.shared.commitAnchor() }
             // 점프 정점(48pt)에서 떨어지면 약 320pt/s 다. 그보다 높은 데서
             // 떨어졌을 때만 피격한다
             if impact > 500 { takeHit(now: now) }
@@ -380,13 +377,8 @@ final class World {
         me = CharacterNode(id: myID, name: sanitizeName(stored), isLocal: true)
         me.apply(World.myLook)
 
-        // 거점은 절대 좌표라 띠를 몰라도 정할 수 있다.
-        // 처음 실행하면 원점 ±400 안에 분산시킨다
-        let anchor = UserDefaults.standard.object(forKey: "anchorX") as? Double
-            ?? Double(stableHash(World.installID) % 800) - 400
-        UserDefaults.standard.set(anchor, forKey: "anchorX")
-        me.anchorX = CGFloat(anchor)
-        me.x = me.anchorX
+        // 시작 위치만 분산시킨다. 이후로는 띠 전체를 자유롭게 돌아다닌다
+        me.x = CGFloat(stableHash(World.installID) % 800) - 400
     }
 
     static var myLook: Look {
@@ -403,7 +395,7 @@ final class World {
     }
 
     /// 화면 구성이 바뀌면 위치를 새 띠 안으로 당기기만 한다.
-    /// 거점으로 되돌리면 노트북을 열고 닫을 때마다 캐릭터가 순간이동한다.
+    /// 되돌리면 노트북을 열고 닫을 때마다 캐릭터가 순간이동한다.
     func attach(scenes: [CharacterScene], strip: FloorStrip) {
         self.scenes = scenes
         self.strip = strip
@@ -411,7 +403,6 @@ final class World {
         guard !strip.frames.isEmpty else { return }
         // 로컬에서 도는 캐릭터만 당긴다. 동료 좌표는 그쪽이 기준이다
         for node in [me] + peers.values.filter(\.isLocal) {
-            node.anchorX = strip.clamp(node.anchorX)
             node.x = strip.clamp(node.x)
         }
         // 씬을 새로 만들었으므로 눈금도 다시 그린다
@@ -453,11 +444,6 @@ final class World {
                 b.takeHit(now: now)
             }
         }
-    }
-
-    func commitAnchor() {
-        me.anchorX = me.x
-        UserDefaults.standard.set(Double(me.x), forKey: "anchorX")
     }
 
     func tick(now: TimeInterval) {
@@ -535,7 +521,6 @@ extension World {
                             saturation: Double.random(in: 0.6...1.4),
                             brightness: Double.random(in: 0.8...1.2)))
             node.x = strip.clamp(strip.minX + span * CGFloat(i + 1) / CGFloat(count + 1))
-            node.anchorX = node.x
             peers[id] = node
         }
     }
