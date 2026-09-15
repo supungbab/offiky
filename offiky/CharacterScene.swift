@@ -86,6 +86,17 @@ final class CharacterNode: SKNode {
         image.texture = sheet.frames[.idle]?.first
     }
 
+    /// 가던 방향을 이어가는 쪽을 선호한다. 매번 무작위로 고르면 절반이 뒤쪽에 잡혀
+    /// 목적 없이 서성이는 것처럼 보인다.
+    private func nextTarget(_ strip: FloorStrip) -> CGFloat {
+        let ahead = facing > 0 ? strip.maxX - x : x - strip.minX
+        guard ahead > 120, Double.random(in: 0...1) < 0.75 else {
+            return strip.clamp(CGFloat.random(in: strip.minX...strip.maxX))
+        }
+        let far = facing > 0 ? strip.maxX : strip.minX
+        return strip.clamp(x + (far - x) * CGFloat.random(in: 0.25...1))
+    }
+
     /// 점프는 세 가지다. 제자리·걷기·대시 순으로 높고 멀리 뛴다.
     private func startJump() {
         let apex: CGFloat
@@ -230,9 +241,7 @@ final class CharacterNode: SKNode {
             restUntil = now + Double.random(in: 1...4)
         } else {
             isWalking = false
-            if now >= restUntil {
-                walkTarget = strip.clamp(CGFloat.random(in: strip.minX...strip.maxX))
-            }
+            if now >= restUntil { walkTarget = nextTarget(strip) }
         }
     }
 
