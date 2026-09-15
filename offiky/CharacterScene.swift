@@ -59,8 +59,9 @@ final class CharacterNode: SKNode {
         self.isLocal = isLocal
         super.init()
 
-        shadow.size = CGSize(width: spriteDisplaySize,
-                             height: spriteDisplaySize * 5 / 16)
+        // 레퍼런스 비율: 그림자 폭은 몸 너비와 거의 같고 높이는 폭의 0.37 배다
+        let shadowWidth = (sheet.bodyWidth * 2).rounded()
+        shadow.size = CGSize(width: shadowWidth, height: (shadowWidth * 0.37).rounded())
         shadow.zPosition = -2
         addChild(shadow)
 
@@ -79,7 +80,7 @@ final class CharacterNode: SKNode {
 
     required init?(coder: NSCoder) { fatalError() }
 
-    private var sheet = Characters.Sheet(size: .zero, frames: [:])
+    private var sheet = Characters.Sheet(size: .zero, bodyWidth: 16, frames: [:])
 
     func apply(_ look: Look) {
         sheet = Characters.sheet(look)
@@ -259,7 +260,8 @@ final class CharacterNode: SKNode {
         position = placement.point
 
         // 그림자는 캐릭터를 따라 뜨지 않고 바닥에 남는다
-        shadow.position = CGPoint(x: 0, y: -y - spriteDisplaySize / 2 + 3)
+        // 발 위치보다 2pt 아래에 두어 캐릭터가 그림자를 밟고 선 것처럼 보이게 한다
+        shadow.position = CGPoint(x: 0, y: -y - spriteDisplaySize / 2 - 2)
         let height = min(1, y / 120)
         shadow.setScale(1 - 0.45 * height)
         shadow.alpha = 0.3 * (1 - 0.75 * height)

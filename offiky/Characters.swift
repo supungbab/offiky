@@ -26,6 +26,8 @@ enum Characters {
 
     struct Sheet {
         let size: CGSize
+        /// 대기 자세의 실제 몸 너비(픽셀). 프레임 폭에는 대시 자세의 여백이 들어 있다
+        let bodyWidth: CGFloat
         let frames: [Animation: [SKTexture]]
     }
 
@@ -44,7 +46,7 @@ enum Characters {
     private static func build(_ look: Look) -> Sheet {
         guard let image = NSImage(named: names[look.design]),
               let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil)
-        else { return Sheet(size: CGSize(width: 16, height: 16), frames: [:]) }
+        else { return Sheet(size: CGSize(width: 16, height: 16), bodyWidth: 16, frames: [:]) }
 
         let sheetW = cg.width, sheetH = cg.height
         var pixels = [UInt8](repeating: 0, count: sheetW * sheetH * 4)
@@ -67,7 +69,22 @@ enum Characters {
                         width: frameW, height: frameH)
             }
         }
-        return Sheet(size: CGSize(width: frameW, height: frameH), frames: frames)
+        return Sheet(size: CGSize(width: frameW, height: frameH),
+                     bodyWidth: bodyWidth(pixels, sheetW: sheetW, width: frameW, height: frameH),
+                     frames: frames)
+    }
+
+    /// 대기 첫 프레임에서 불투명한 픽셀의 가로 범위를 잰다
+    private static func bodyWidth(_ pixels: [UInt8], sheetW: Int,
+                                  width: Int, height: Int) -> CGFloat {
+        var first = width, last = -1
+        for y in 0..<height {
+            for x in 0..<width where pixels[(y * sheetW + x) * 4 + 3] > 0 {
+                first = min(first, x)
+                last = max(last, x)
+            }
+        }
+        return last >= first ? CGFloat(last - first + 1) : CGFloat(width)
     }
 
     /// 픽셀 전체에 같은 HSB 변환을 적용해 명암 관계를 유지한다
