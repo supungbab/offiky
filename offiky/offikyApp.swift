@@ -11,18 +11,26 @@ struct offikyApp: App {
             Button("채팅 열기  ⌥T") { ChatPanel.shared.show() }
             Button("내 캐릭터…") { openCharacterPicker() }
             Button("내 이름 변경…") { changeName() }
-            Toggle("캐릭터 숨기기", isOn: $hidden)
-                .onChange(of: hidden) { _, value in
-                    OverlayController.shared.setHidden(value)
-                }
+            Toggle("캐릭터 숨기기", isOn: binding($hidden) {
+                OverlayController.shared.setHidden($0)
+            })
             Divider()
-            Toggle("테스트: 좌표 표시", isOn: $showCoords)
-                .onChange(of: showCoords) { _, value in World.shared.showCoordinates(value) }
+            Toggle("테스트: 좌표 표시", isOn: binding($showCoords) {
+                World.shared.showCoordinates($0)
+            })
             Button("테스트: 50마리 풀기") { World.shared.spawnTestPeers(50) }
             Button("테스트 캐릭터 제거") { World.shared.removeTestPeers() }
             Divider()
             Button("종료") { NSApplication.shared.terminate(nil) }
         }
+    }
+
+    /// 메뉴가 닫혀 있으면 뷰가 갱신되지 않아 onChange 가 다음 열 때까지 미뤄진다.
+    /// setter 에서 바로 실행한다.
+    private func binding(_ source: Binding<Bool>,
+                         perform: @escaping (Bool) -> Void) -> Binding<Bool> {
+        Binding(get: { source.wrappedValue },
+                set: { source.wrappedValue = $0; perform($0) })
     }
 
     private func changeName() {
