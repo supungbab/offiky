@@ -29,7 +29,7 @@ struct FloorStripTests {
         let p = try #require(single.place(x: 0, y: 0))
         #expect(p.screenIndex == 0)
         #expect(p.point.x == 0)
-        #expect(p.point.y == 20)
+        #expect(p.point.y == 28)
     }
 
     @Test func 두번째_화면으로_넘어간다() throws {
@@ -56,7 +56,7 @@ struct FloorStripTests {
 
     @Test func 높이는_화면_안으로_제한된다() throws {
         let p = try #require(dual.place(x: 1200, y: 5000))
-        #expect(p.point.y == 20.0 + 560.0)
+        #expect(p.point.y == 8.0 + 20.0 + 552.0)
     }
 
     @Test func 띠_밖으로_나가지_않는다() {

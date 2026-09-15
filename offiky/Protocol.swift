@@ -3,6 +3,8 @@ import Foundation
 
 let protocolVersion = 1
 let spriteDisplaySize: CGFloat = 40
+/// 바닥을 화면 맨 아래에서 띄우는 높이. Dock 이나 화면 끝에 붙어 보이지 않게 한다
+let floorOffset: CGFloat = 8
 
 enum Limits {
     static let maxMessageBytes = 16 * 1024
@@ -35,10 +37,10 @@ struct FloorStrip {
         var accumulated: CGFloat = 0
         for (index, frame) in frames.enumerated() {
             if x < accumulated + frame.width || index == frames.count - 1 {
-                let maxY = max(0, frame.height - spriteDisplaySize)
+                let maxY = max(0, frame.height - spriteDisplaySize - floorOffset)
                 return Placement(
                     screenIndex: index,
-                    point: CGPoint(x: x - accumulated, y: half + min(y, maxY)))
+                    point: CGPoint(x: x - accumulated, y: floorOffset + half + min(y, maxY)))
             }
             accumulated += frame.width
         }

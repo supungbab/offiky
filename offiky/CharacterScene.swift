@@ -420,7 +420,7 @@ final class World {
         for frame in strip.frames {
             if frame.contains(point) {
                 me.x = strip.clamp(accumulated + point.x - frame.minX)
-                me.y = max(0, point.y - frame.minY - spriteDisplaySize / 2)
+                me.y = max(0, point.y - frame.minY - floorOffset - spriteDisplaySize / 2)
                 return
             }
             accumulated += frame.width
