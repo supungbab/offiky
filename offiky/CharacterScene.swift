@@ -243,7 +243,6 @@ final class CharacterNode: SKNode {
         if wasAirborne && !airborne {
             let impact = abs(previousY - y) / CGFloat(max(dt, 0.001))
             if self === World.shared.me { World.shared.commitAnchor() }
-            (scene as? CharacterScene)?.spawnDust(at: position, speed: impact, now: now)
             image.run(.sequence([
                 .scaleY(to: 0.85, duration: 0.05),
                 .scaleY(to: 1.0, duration: 0.08),
@@ -356,49 +355,7 @@ extension CharacterNode {
     }
 }
 
-final class CharacterScene: SKScene {
-    static let dustName = "dust"
-
-    /// 액션에 기대지 않고 시간으로 치운다. 씬 렌더링이 멈추면 fadeOut 이 중간에
-    /// 얼어붙어 점이 그대로 남는다.
-    func sweepDust(now: TimeInterval) {
-        for node in children where node.name == CharacterScene.dustName {
-            guard let born = node.userData?["born"] as? TimeInterval else {
-                node.removeFromParent(); continue
-            }
-            if now - born > 1 { node.removeFromParent() }
-        }
-    }
-
-
-    func spawnDust(at point: CGPoint, speed: CGFloat, now: TimeInterval) {
-        let count = min(8, max(3, Int(speed / 220)))
-        let rgb: UInt32 = 0xAB5236
-        let color = NSColor(
-            red: CGFloat((rgb >> 16) & 0xFF) / 255,
-            green: CGFloat((rgb >> 8) & 0xFF) / 255,
-            blue: CGFloat(rgb & 0xFF) / 255,
-            alpha: 1)
-
-        for _ in 0..<count {
-            let dot = SKSpriteNode(color: color, size: CGSize(width: 2, height: 2))
-            dot.name = CharacterScene.dustName
-            dot.userData = ["born": now]
-            dot.position = CGPoint(x: point.x, y: point.y - spriteDisplaySize / 2)
-            dot.alpha = 0.7
-            dot.zPosition = 10_000
-            addChild(dot)
-            dot.run(.sequence([
-                .group([
-                    .moveBy(x: CGFloat.random(in: -16...16), y: CGFloat.random(in: 2...8),
-                            duration: 0.3),
-                    .fadeOut(withDuration: 0.3),
-                ]),
-                .removeFromParent(),
-            ]))
-        }
-    }
-}
+final class CharacterScene: SKScene {}
 
 final class World {
     static let shared = World()
@@ -516,7 +473,6 @@ final class World {
         }
 
         resolveCollisions(now: now)
-        scenes.forEach { $0.sweepDust(now: now) }
 
         for (node, placement) in visible {
             node.render(placement: placement)
