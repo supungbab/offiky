@@ -155,6 +155,8 @@ final class Session {
               msg.y == nil || (msg.y! >= 0 && msg.y! <= Limits.maxY)
         else { return }
         positions[id] = PeerPos(id: id, x: msg.x, y: msg.y)
+        // 호스트는 자기가 보낸 스냅샷을 받지 않으므로 여기서 직접 반영한다
+        World.shared.setPeerTarget(id: id, x: CGFloat(msg.x), y: CGFloat(msg.y ?? 0))
     }
 
     private func handleSnap(_ data: Data) {
