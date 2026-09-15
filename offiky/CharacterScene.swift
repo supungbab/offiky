@@ -102,7 +102,7 @@ final class CharacterNode: SKNode {
         } else {
             interpolate(dt: dt)
         }
-        detectLanding()
+        detectLanding(now: now)
         bobPhase += CGFloat(dt) * (isWalking ? 9 : 2)
 
         let moved = x - previousX
@@ -111,15 +111,17 @@ final class CharacterNode: SKNode {
         let speed = abs(moved) / CGFloat(max(dt, 0.001))
 
         let animation: Animation
-        if now < hurtUntil { animation = .hurt }
+        if isDragging { animation = .idle }          // 들려 있는 동안은 가만히 서 있는다
+        else if now < hurtUntil { animation = .hurt }
         else if y > 0 { animation = .jump }
         else if speed > 70 { animation = .dash }
         else if isWalking { animation = .walk }
         else { animation = .idle }
 
-        walkPhase += dt
+        if !isDragging { walkPhase += dt }
         if let textures = sheet.frames[animation], !textures.isEmpty {
-            image.texture = textures[Int(walkPhase * animation.fps) % textures.count]
+            let index = isDragging ? 0 : Int(walkPhase * animation.fps) % textures.count
+            image.texture = textures[index]
         }
         lastAnimation = animation
     }
@@ -212,11 +214,11 @@ final class CharacterNode: SKNode {
         isWalking = abs(toX - fromX) > 1
     }
 
-    private func detectLanding() {
+    private func detectLanding(now: TimeInterval) {
         let airborne = y > 0
         if wasAirborne && !airborne {
             if self === World.shared.me { World.shared.commitAnchor() }
-            (scene as? CharacterScene)?.spawnDust(at: position, speed: abs(verticalSpeed))
+            (scene as? CharacterScene)?.spawnDust(at: position, speed: abs(verticalSpeed), now: now)
             image.run(.sequence([
                 .scaleY(to: 0.85, duration: 0.05),
                 .scaleY(to: 1.0, duration: 0.08),
@@ -329,8 +331,21 @@ extension CharacterNode {
 }
 
 final class CharacterScene: SKScene {
+    static let dustName = "dust"
 
-    func spawnDust(at point: CGPoint, speed: CGFloat) {
+    /// 액션에 기대지 않고 시간으로 치운다. 씬 렌더링이 멈추면 fadeOut 이 중간에
+    /// 얼어붙어 점이 그대로 남는다.
+    func sweepDust(now: TimeInterval) {
+        for node in children where node.name == CharacterScene.dustName {
+            guard let born = node.userData?["born"] as? TimeInterval else {
+                node.removeFromParent(); continue
+            }
+            if now - born > 1 { node.removeFromParent() }
+        }
+    }
+
+
+    func spawnDust(at point: CGPoint, speed: CGFloat, now: TimeInterval) {
         let count = min(6, max(4, Int(speed / 400)))
         let rgb: UInt32 = 0xAB5236
         let color = NSColor(
@@ -341,6 +356,8 @@ final class CharacterScene: SKScene {
 
         for _ in 0..<count {
             let dot = SKSpriteNode(color: color, size: CGSize(width: 2, height: 2))
+            dot.name = CharacterScene.dustName
+            dot.userData = ["born": now]
             dot.position = CGPoint(x: point.x, y: point.y - spriteDisplaySize / 2)
             dot.alpha = 0.7
             dot.zPosition = 10_000
@@ -474,6 +491,7 @@ final class World {
         }
 
         resolveDashCollisions(now: now)
+        scenes.forEach { $0.sweepDust(now: now) }
 
         for (node, placement) in visible {
             node.render(placement: placement)
