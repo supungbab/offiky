@@ -107,7 +107,8 @@ final class CharacterNode: SKNode {
 
         let moved = x - previousX
         previousX = x
-        if abs(moved) > 0.1 { face(moved) }
+        // 들려 있는 동안은 처음 들었을 때의 방향을 유지한다
+        if !isDragging, abs(moved) > 0.1 { face(moved) }
         let speed = abs(moved) / CGFloat(max(dt, 0.001))
 
         let animation: Animation
@@ -436,9 +437,7 @@ final class World {
         var accumulated: CGFloat = 0
         for frame in strip.frames {
             if frame.contains(point) {
-                let next = strip.clampToWall(accumulated + point.x - frame.minX)
-                if abs(next - me.x) > 0.1 { me.face(next - me.x) }
-                me.x = next
+                me.x = strip.clampToWall(accumulated + point.x - frame.minX)
                 me.y = max(0, point.y - frame.minY - spriteDisplaySize / 2)
                 return
             }
