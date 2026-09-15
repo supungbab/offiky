@@ -211,12 +211,16 @@ final class CharacterNode: SKNode {
             if now >= motionEnd { chooseNext(from: .idle, now: now, strip: strip) }
         case .walk, .dash:
             let delta = segmentTarget - x
-            if abs(delta) < 1 {
+            let step = motion.speed * CGFloat(dt)
+            // 한 걸음이 남은 거리보다 크면 목표에 딱 맞춘다.
+            // 거리로만 판정하면 뛸 때 목표를 넘나들며 제자리에서 떤다
+            if abs(delta) <= step {
+                x = strip.clamp(segmentTarget)
                 chooseNext(from: motion, now: now, strip: strip)
                 return
             }
             isWalking = true
-            x = strip.clamp(x + (delta > 0 ? 1 : -1) * motion.speed * CGFloat(dt))
+            x = strip.clamp(x + (delta > 0 ? 1 : -1) * step)
         }
     }
 
