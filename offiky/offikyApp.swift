@@ -1,32 +1,18 @@
-//
-//  offikyApp.swift
-//  offiky
-//
-//  Created by Kyle on 9/15/26.
-//
-
 import SwiftUI
-import SwiftData
 
 @main
 struct offikyApp: App {
-    var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            Item.self,
-        ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-
-        do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
-        } catch {
-            fatalError("Could not create ModelContainer: \(error)")
-        }
-    }()
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
 
     var body: some Scene {
-        WindowGroup {
-            ContentView()
+        MenuBarExtra("offiky", systemImage: "person.2.fill") {
+            Button("종료") { NSApplication.shared.terminate(nil) }
         }
-        .modelContainer(sharedModelContainer)
+    }
+}
+
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        OverlayController.shared.start()
     }
 }
