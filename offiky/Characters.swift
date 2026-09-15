@@ -112,7 +112,8 @@ enum Characters {
     private static var shadowCache: [String: SKTexture] = [:]
 
     static func shadowSize(bodyWidth: CGFloat) -> (width: Int, height: Int) {
-        let w = max(4, Int(bodyWidth))
+        // 몸 너비보다 좌우 1픽셀씩 넓게 깔린다
+        let w = max(4, Int(bodyWidth)) + 2
         return (w, max(3, Int((bodyWidth * 0.37).rounded())))
     }
 
