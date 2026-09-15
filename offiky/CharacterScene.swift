@@ -194,7 +194,16 @@ final class CharacterNode: SKNode {
             y += verticalSpeed * step - 0.5 * CharacterNode.gravity * step * step
             verticalSpeed -= CharacterNode.gravity * step
             if airSpeed != 0 { x = strip.clamp(x + airSpeed * step) }
-            if y <= 0 { y = 0; verticalSpeed = 0; airSpeed = 0 }
+            if y <= 0 {
+                y = 0
+                verticalSpeed = 0
+                airSpeed = 0
+                // 점프한 만큼 나아갔으니 착지 지점에서 가던 방향으로 새 구간을 고른다.
+                // 예전 목표로 되돌아가면 뒤돌아 걷는다
+                if motion != .idle {
+                    chooseNext(from: motion, now: now, strip: strip, keepFacing: true)
+                }
+            }
             isWalking = false
             return
         }
@@ -231,7 +240,8 @@ final class CharacterNode: SKNode {
     }
 
     /// 상태 전이표. 방향을 먼저 정하고 다음 상태를 고른다.
-    private func chooseNext(from: Motion, now: TimeInterval, strip: FloorStrip) {
+    private func chooseNext(from: Motion, now: TimeInterval, strip: FloorStrip,
+                           keepFacing: Bool = false) {
         let roll = Double.random(in: 0...1)
         var next: Motion
         switch from {
@@ -247,7 +257,8 @@ final class CharacterNode: SKNode {
 
         var direction: CGFloat
         switch from {
-        case .idle: direction = Bool.random() ? 1 : -1          // 좌우 50:50
+        case _ where keepFacing: direction = facing              // 착지 뒤에는 방향을 바꾸지 않는다
+        case .idle: direction = Bool.random() ? 1 : -1           // 좌우 50:50
         case .walk: direction = Double.random(in: 0...1) < 0.8 ? facing : -facing
         case .dash: direction = Double.random(in: 0...1) < 0.9 ? facing : -facing
         }
