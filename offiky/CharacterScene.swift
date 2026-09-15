@@ -247,10 +247,6 @@ final class CharacterNode: SKNode {
         if wasAirborne && !airborne {
             let impact = (2 * CharacterNode.gravity * peakY).squareRoot()
             if self === World.shared.me { World.shared.commitAnchor() }
-            image.run(.sequence([
-                .scaleY(to: 0.85, duration: 0.05),
-                .scaleY(to: 1.0, duration: 0.08),
-            ]))
             // 점프 정점(48pt)에서 떨어지면 약 320pt/s 다. 그보다 높은 데서
             // 떨어졌을 때만 피격한다
             if impact > 500 { takeHit(now: now) }
