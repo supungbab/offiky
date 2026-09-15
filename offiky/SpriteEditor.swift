@@ -2,25 +2,38 @@ import AppKit
 import SwiftUI
 
 struct SpriteEditorView: View {
-    @State private var rows: [[Character]]
-    @State private var selected: Character = "0"
-    @State private var undoStack: [[[Character]]] = []
+    /// 각 칸은 "RRGGBB" 또는 Sprite.transparent
+    @State private var rows: [[String]]
+    @State private var selected: String = "000000"
+    @State private var picked: Color = .black
+    @State private var undoStack: [[[String]]] = []
     @State private var strokeOpen = false
 
     private let cell: CGFloat = 22
 
     init() {
-        _rows = State(initialValue: World.storedSprite(for: World.shared.myID).rows.map(Array.init))
+        let sprite = World.storedSprite(for: World.shared.myID)
+        _rows = State(initialValue: sprite.rows.map { Sprite.chunks(of: $0) })
     }
 
     var body: some View {
         VStack(spacing: 12) {
             grid
-            palette
+            presets
+            HStack(spacing: 10) {
+                ColorPicker("색", selection: $picked, supportsOpacity: false)
+                    .labelsHidden()
+                    .onChange(of: picked) { _, value in selected = Self.hex(value) }
+                swatch(Sprite.transparent, fill: .clear, label: "지우개")
+                Spacer()
+                Text("#\(selected.uppercased())")
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.secondary)
+            }
             HStack {
                 Button("기본 캐릭터로 초기화") {
                     push()
-                    rows = Sprite.standard(for: World.shared.myID).rows.map(Array.init)
+                    rows = Sprite.standard(for: World.shared.myID).rows.map { Sprite.chunks(of: $0) }
                 }
                 Button("되돌리기") { undo() }
                     .keyboardShortcut("z", modifiers: .command)
@@ -37,7 +50,7 @@ struct SpriteEditorView: View {
                 HStack(spacing: 0) {
                     ForEach(0..<16, id: \.self) { x in
                         Rectangle()
-                            .fill(color(rows[y][x]))
+                            .fill(Self.color(rows[y][x]))
                             .frame(width: cell, height: cell)
                             .border(Color.gray.opacity(0.3), width: 0.5)
                     }
@@ -58,32 +71,42 @@ struct SpriteEditorView: View {
         rows[y][x] = selected
     }
 
-    private var palette: some View {
+    private var presets: some View {
         HStack(spacing: 4) {
-            ForEach(0..<16, id: \.self) { index in
-                let ch = Character(String(index, radix: 16))
-                swatch(ch, fill: color(ch))
+            ForEach(Palette.presets, id: \.self) { rgb in
+                let hex = String(format: "%06x", rgb)
+                swatch(hex, fill: Self.color(hex), label: nil)
             }
-            swatch(".", fill: .clear)
         }
     }
 
-    private func swatch(_ ch: Character, fill: Color) -> some View {
+    private func swatch(_ value: String, fill: Color, label: String?) -> some View {
         Rectangle()
             .fill(fill)
             .frame(width: 20, height: 20)
             .overlay(Rectangle().stroke(
-                selected == ch ? Color.accentColor : .gray.opacity(0.4),
-                lineWidth: selected == ch ? 3 : 1))
-            .onTapGesture { selected = ch }
+                selected == value ? Color.accentColor : .gray.opacity(0.4),
+                lineWidth: selected == value ? 3 : 1))
+            .help(label ?? "#\(value.uppercased())")
+            .onTapGesture {
+                selected = value
+                if value != Sprite.transparent { picked = Self.color(value) }
+            }
     }
 
-    private func color(_ ch: Character) -> Color {
-        guard let index = ch.hexDigitValue, index < Palette.rgb.count else { return .clear }
-        let rgb = Palette.rgb[index]
+    private static func color(_ value: String) -> Color {
+        guard value != Sprite.transparent, let rgb = UInt32(value, radix: 16) else { return .clear }
         return Color(red: Double((rgb >> 16) & 0xFF) / 255,
                      green: Double((rgb >> 8) & 0xFF) / 255,
                      blue: Double(rgb & 0xFF) / 255)
+    }
+
+    private static func hex(_ color: Color) -> String {
+        let ns = NSColor(color).usingColorSpace(.sRGB) ?? .black
+        return String(format: "%02x%02x%02x",
+                      Int((ns.redComponent * 255).rounded()),
+                      Int((ns.greenComponent * 255).rounded()),
+                      Int((ns.blueComponent * 255).rounded()))
     }
 
     private func push() {
@@ -94,9 +117,8 @@ struct SpriteEditorView: View {
     private func undo() { if let last = undoStack.popLast() { rows = last } }
 
     private func save() {
-        let lines: [String] = rows.map { String($0) }
-        let encoded = lines.joined(separator: "\n")
-        guard let sprite = Sprite(encoded: encoded) else { return }
+        let lines = rows.map { $0.joined() }
+        guard let sprite = Sprite(encoded: lines.joined(separator: "\n")) else { return }
         UserDefaults.standard.set(sprite.encoded, forKey: "sprite")
         World.shared.me.apply(sprite: sprite)
         Session.shared.sendProfile()
@@ -111,7 +133,7 @@ func openSpriteEditor() {
         NSApp.activate(ignoringOtherApps: true)
         return
     }
-    let window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 400, height: 500),
+    let window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 420, height: 520),
                           styleMask: [.titled, .closable], backing: .buffered, defer: false)
     window.title = "내 캐릭터"
     window.contentView = NSHostingView(rootView: SpriteEditorView())

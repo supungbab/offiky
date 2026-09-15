@@ -91,6 +91,12 @@ final class OverlayController {
 final class DragHandleView: NSView {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
+    /// 완전히 비어 있으면 hit-test 대상이 되지 않는다.
+    override func draw(_ dirtyRect: NSRect) {
+        NSColor(white: 0, alpha: 0.01).setFill()
+        dirtyRect.fill()
+    }
+
     override func mouseDown(with event: NSEvent) {
         World.shared.beginDrag()
     }

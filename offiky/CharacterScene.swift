@@ -182,7 +182,7 @@ final class CharacterScene: SKScene {
 
     func spawnDust(at point: CGPoint, speed: CGFloat) {
         let count = min(6, max(4, Int(speed / 400)))
-        let rgb = Palette.rgb[Palette.dustIndex]
+        let rgb = Palette.dust
         let color = NSColor(
             red: CGFloat((rgb >> 16) & 0xFF) / 255,
             green: CGFloat((rgb >> 8) & 0xFF) / 255,
