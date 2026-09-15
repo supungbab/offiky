@@ -7,7 +7,7 @@ final class Session {
     private var seq = 0
     private var pending: [SayMsg] = []
     private var tracker = SeqTracker()
-    private var profiles: [String: (name: String, sprite: String)] = [:]
+    private var profiles: [String: (name: String, look: Look)] = [:]
     private var positions: [String: PeerPos] = [:]
     private var clientIDs: [String: String] = [:]
 
@@ -43,8 +43,7 @@ final class Session {
     private func sendHello() {
         let me = World.shared.me
         Mesh.shared.sendToHost(encode(HelloMsg(
-            id: World.shared.myID, name: me.displayName,
-            sprite: World.mySprite.encoded)))
+            id: World.shared.myID, name: me.displayName, look: World.myLook)))
         pending.forEach { Mesh.shared.sendToHost(encode($0)) }
     }
 
@@ -87,13 +86,12 @@ final class Session {
 
     func sendProfile() {
         let me = World.shared.me
-        let encoded = World.mySprite.encoded
+        let look = World.myLook
         if Mesh.shared.isHost {
             Mesh.shared.broadcast(encode(
-                ProfileMsg(id: World.shared.myID, name: me.displayName, sprite: encoded)))
+                ProfileMsg(id: World.shared.myID, name: me.displayName, look: look)))
         } else {
-            Mesh.shared.sendToHost(encode(
-                ProfileMsg(name: me.displayName, sprite: encoded)))
+            Mesh.shared.sendToHost(encode(ProfileMsg(name: me.displayName, look: look)))
         }
     }
 
@@ -128,10 +126,6 @@ final class Session {
         }
     }
 
-    private func sanitizedSprite(_ encoded: String, for id: String) -> String {
-        Sprite(encoded: encoded)?.encoded ?? Sprite.standard(for: id).encoded
-    }
-
     private func handleHello(_ data: Data, key: String?) {
         guard Mesh.shared.isHost, let key,
               let msg = try? JSONDecoder().decode(HelloMsg.self, from: data),
@@ -140,19 +134,18 @@ final class Session {
 
         clientIDs[key] = msg.id
         let name = sanitizeName(msg.name)
-        let sprite = sanitizedSprite(msg.sprite, for: msg.id)
-        profiles[msg.id] = (name, sprite)
+        let look = msg.look.sanitized
+        profiles[msg.id] = (name, look)
 
         let me = World.shared.me
         Mesh.shared.send(encode(JoinMsg(
-            id: World.shared.myID, name: me.displayName,
-            sprite: World.mySprite.encoded)), toClient: key)
+            id: World.shared.myID, name: me.displayName, look: World.myLook)), toClient: key)
         for (id, profile) in profiles where id != msg.id {
             Mesh.shared.send(encode(JoinMsg(
-                id: id, name: profile.name, sprite: profile.sprite)), toClient: key)
+                id: id, name: profile.name, look: profile.look)), toClient: key)
         }
-        Mesh.shared.broadcast(encode(JoinMsg(id: msg.id, name: name, sprite: sprite)))
-        World.shared.addPeer(id: msg.id, name: name, sprite: sprite)
+        Mesh.shared.broadcast(encode(JoinMsg(id: msg.id, name: name, look: look)))
+        World.shared.addPeer(id: msg.id, name: name, look: look)
     }
 
     private func handlePos(_ data: Data, key: String?) {
@@ -199,22 +192,22 @@ final class Session {
         if Mesh.shared.isHost, let key, let id = clientIDs[key] {
             msg.id = id
             Mesh.shared.broadcast(encode(
-                ProfileMsg(id: id, name: msg.name, sprite: msg.sprite)))
+                ProfileMsg(id: id, name: msg.name, look: msg.look)))
         }
         guard let id = msg.id, id != World.shared.myID else { return }
         let name = sanitizeName(msg.name)
-        let sprite = sanitizedSprite(msg.sprite, for: id)
-        profiles[id] = (name, sprite)
-        World.shared.addPeer(id: id, name: name, sprite: sprite)
+        let look = msg.look.sanitized
+        profiles[id] = (name, look)
+        World.shared.addPeer(id: id, name: name, look: look)
     }
 
     private func handleJoin(_ data: Data) {
         guard let msg = try? JSONDecoder().decode(JoinMsg.self, from: data),
               msg.id != World.shared.myID else { return }
         let name = sanitizeName(msg.name)
-        let sprite = sanitizedSprite(msg.sprite, for: msg.id)
-        profiles[msg.id] = (name, sprite)
-        World.shared.addPeer(id: msg.id, name: name, sprite: sprite)
+        let look = msg.look.sanitized
+        profiles[msg.id] = (name, look)
+        World.shared.addPeer(id: msg.id, name: name, look: look)
     }
 
     private func handleLeave(_ data: Data) {

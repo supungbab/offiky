@@ -27,6 +27,7 @@ final class CharacterNode: SKNode {
     private var facing: CGFloat = -1
 
     private var bobPhase: CGFloat = 0
+    private var walkPhase: TimeInterval = 0
     private var wasAirborne = false
 
     private var fromX: CGFloat = 0, fromY: CGFloat = 0
@@ -61,11 +62,16 @@ final class CharacterNode: SKNode {
 
     required init?(coder: NSCoder) { fatalError() }
 
-    func apply(sprite: Sprite) {
-        guard let cg = sprite.cgImage() else { return }
-        let texture = SKTexture(cgImage: cg)
-        texture.filteringMode = .nearest
-        image.texture = texture
+    private var frames: [SKTexture] = []
+
+    func apply(_ sprites: [Sprite]) {
+        frames = sprites.compactMap { sprite in
+            guard let cg = sprite.cgImage() else { return nil }
+            let texture = SKTexture(cgImage: cg)
+            texture.filteringMode = .nearest
+            return texture
+        }
+        image.texture = frames.first
     }
 
     func setRemoteTarget(x newX: CGFloat, y newY: CGFloat) {
@@ -82,6 +88,11 @@ final class CharacterNode: SKNode {
         }
         detectLanding()
         bobPhase += CGFloat(dt) * (isWalking ? 9 : 2)
+
+        if frames.count > 1 {
+            walkPhase += isWalking ? dt : 0
+            image.texture = frames[Int(walkPhase * 6) % frames.count]
+        }
     }
 
     private func simulate(dt: TimeInterval, now: TimeInterval, strip: FloorStrip) {
@@ -297,16 +308,20 @@ final class World {
     private init() {
         let stored = UserDefaults.standard.string(forKey: "name") ?? NSFullUserName()
         me = CharacterNode(id: myID, name: sanitizeName(stored), isLocal: true)
-        me.apply(sprite: World.mySprite)
+        me.apply(World.myLook.frames)
     }
 
-    /// 저장된 것이 있으면 그것, 없으면 설치 고유 id 로 만든 기본 캐릭터
-    static var mySprite: Sprite {
-        if let encoded = UserDefaults.standard.string(forKey: "sprite"),
-           let sprite = Sprite(encoded: encoded) {
-            return sprite
+    static var myLook: Look {
+        get {
+            guard let data = UserDefaults.standard.data(forKey: "look"),
+                  let look = try? JSONDecoder().decode(Look.self, from: data)
+            else { return .fallback(for: installID) }
+            return look.sanitized
         }
-        return Sprite.standard(for: installID)
+        set {
+            UserDefaults.standard.set(try? JSONEncoder().encode(newValue), forKey: "look")
+            shared.me.apply(newValue.frames)
+        }
     }
 
     func attach(scenes: [CharacterScene], strip: FloorStrip) {
@@ -378,15 +393,10 @@ final class World {
 }
 
 extension World {
-    func addPeer(id: String, name: String, sprite encoded: String) {
-        let sprite = Sprite(encoded: encoded) ?? Sprite.standard(for: id)
-        if let existing = peers[id] {
-            existing.displayName = name
-            existing.apply(sprite: sprite)
-            return
-        }
-        let node = CharacterNode(id: id, name: name, isLocal: false)
-        node.apply(sprite: sprite)
+    func addPeer(id: String, name: String, look: Look) {
+        let node = peers[id] ?? CharacterNode(id: id, name: name, isLocal: false)
+        node.displayName = name
+        node.apply(look.sanitized.frames)
         peers[id] = node
     }
 

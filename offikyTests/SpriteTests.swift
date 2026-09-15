@@ -66,28 +66,52 @@ struct SpriteTests {
         #expect(Sprite(encoded: a.encoded) == a)
     }
 
-    @Test func 기본_캐릭터_8종이_모두_유효하다() throws {
-        #expect(Sprite.designCount == 8)
+    @Test func 기본_캐릭터_9종이_모두_유효하다() {
+        #expect(Sprite.designCount == 9)
         for index in 0..<Sprite.designCount {
-            let sprite = Sprite.design(at: index)
-            #expect(Sprite(encoded: sprite.encoded) == sprite, "\(index)번이 유효하지 않다")
-            let opaque = (0..<16).flatMap { y in (0..<16).compactMap { sprite.color(x: $0, y: y) } }
-            #expect(opaque.count > 40, "\(index)번이 비어 있다")
+            for frame in 0..<Sprite.frameCount {
+                let sprite = Sprite.design(at: index, frame: frame)
+                #expect(Sprite(encoded: sprite.encoded) == sprite, "\(index)-\(frame) 무효")
+                let filled = (0..<16).flatMap { y in (0..<16).compactMap { sprite.color(x: $0, y: y) } }
+                #expect(filled.count > 40, "\(index)-\(frame) 비어 있다")
+            }
         }
     }
 
-    @Test func 기본_캐릭터_8종은_서로_다르다() {
+    @Test func 기본_캐릭터는_서로_다르다() {
         let all = Set((0..<Sprite.designCount).map { Sprite.design(at: $0).encoded })
         #expect(all.count == Sprite.designCount)
     }
 
-    @Test func 인덱스는_범위를_넘어도_안전하다() {
-        #expect(Sprite.design(at: 99) == Sprite.design(at: 99 % Sprite.designCount))
+    @Test func 걷기_두_프레임은_다르다() {
+        for index in 0..<Sprite.designCount {
+            #expect(Sprite.design(at: index, frame: 0) != Sprite.design(at: index, frame: 1),
+                    "\(index)번 두 프레임이 같다")
+        }
     }
 
-    @Test func 기본_캐릭터는_id_에_따라_달라진다() {
-        let variants = Set((0..<40).map { Sprite.standard(for: "peer-\($0)").encoded })
-        #expect(variants.count > 1)
+    @Test func 인덱스는_범위를_넘어도_안전하다() {
+        #expect(Sprite.design(at: 99) == Sprite.design(at: 99 % Sprite.designCount))
+        #expect(Sprite.design(at: -1) == Sprite.design(at: Sprite.designCount - 1))
+    }
+
+    @Test func 색_조정이_반영된다() {
+        let plain = Sprite.design(at: 0)
+        var tint = Look.neutral
+        tint.hue = 0.3
+        #expect(Sprite.design(at: 0, frame: 0, tint: tint) != plain)
+    }
+
+    @Test func 중립_조정은_원본과_같다() {
+        #expect(Sprite.design(at: 3, frame: 0, tint: .neutral) == Sprite.design(at: 3))
+    }
+
+    @Test func 범위를_벗어난_조정값은_제한된다() {
+        let wild = Look(design: 99, hue: 9, saturation: -3, brightness: 99).sanitized
+        #expect(wild.design == 99 % Sprite.designCount)
+        #expect(wild.hue == 0.5)
+        #expect(wild.saturation == 0)
+        #expect(wild.brightness == 1.5)
     }
 
     @Test func 고정_해시는_실행과_무관하게_같다() {

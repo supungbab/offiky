@@ -100,7 +100,7 @@ struct HelloMsg: Codable {
     var pv = protocolVersion
     let id: String
     let name: String
-    let sprite: String
+    let look: Look
 }
 
 struct PosMsg: Codable {
@@ -120,14 +120,14 @@ struct ProfileMsg: Codable {
     var t = "profile"
     var id: String?
     let name: String
-    let sprite: String
+    let look: Look
 }
 
 struct JoinMsg: Codable {
     var t = "join"
     let id: String
     let name: String
-    let sprite: String
+    let look: Look
 }
 
 struct LeaveMsg: Codable {
@@ -143,4 +143,34 @@ struct SnapMsg: Codable {
 struct AckMsg: Codable {
     var t = "ack"
     let seq: Int
+}
+
+/// 캐릭터 외형. 내장 9종 중 하나에 색 조정값을 더한 것이다.
+struct Look: Codable, Equatable {
+    var design: Int
+    /// -0.5 ~ 0.5 색상 회전
+    var hue: Double
+    /// 0 ~ 2 채도 배율
+    var saturation: Double
+    /// 0.5 ~ 1.5 밝기 배율
+    var brightness: Double
+
+    static let neutral = Look(design: 0, hue: 0, saturation: 1, brightness: 1)
+
+    static func fallback(for id: String) -> Look {
+        Look(design: Int(stableHash(id) % UInt64(Sprite.designCount)),
+             hue: 0, saturation: 1, brightness: 1)
+    }
+
+    /// 수신값은 신뢰할 수 없으므로 범위 안으로 제한한다
+    var sanitized: Look {
+        Look(design: ((design % Sprite.designCount) + Sprite.designCount) % Sprite.designCount,
+             hue: min(max(hue, -0.5), 0.5),
+             saturation: min(max(saturation, 0), 2),
+             brightness: min(max(brightness, 0.5), 1.5))
+    }
+
+    var frames: [Sprite] {
+        (0..<Sprite.frameCount).map { Sprite.design(at: design, frame: $0, tint: self) }
+    }
 }

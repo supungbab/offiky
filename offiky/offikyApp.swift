@@ -9,7 +9,7 @@ struct offikyApp: App {
         MenuBarExtra("offiky", systemImage: "person.2.fill") {
             Button("채팅 열기  \(Shortcut.description)") { ChatPanel.shared.show() }
             Button("단축키 변경…") { HotKeyRecorder.shared.begin() }
-            Button("내 캐릭터 편집…") { openSpriteEditor() }
+            Button("내 캐릭터…") { openCharacterPicker() }
             Button("내 이름 변경…") { changeName() }
             Toggle("캐릭터 숨기기", isOn: $hidden)
                 .onChange(of: hidden) { _, value in
