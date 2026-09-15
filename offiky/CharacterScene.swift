@@ -31,6 +31,11 @@ final class CharacterNode: SKNode {
     private var facing: CGFloat = -1
     var facingSign: CGFloat { facing }
 
+    func face(_ direction: CGFloat) {
+        guard direction != 0 else { return }
+        facing = direction > 0 ? 1 : -1
+    }
+
     private var bobPhase: CGFloat = 0
     private var walkPhase: TimeInterval = 0
     private var previousX: CGFloat = 0
@@ -102,7 +107,7 @@ final class CharacterNode: SKNode {
 
         let moved = x - previousX
         previousX = x
-        if abs(moved) > 0.3 { facing = moved > 0 ? 1 : -1 }
+        if abs(moved) > 0.1 { face(moved) }
         let speed = abs(moved) / CGFloat(max(dt, 0.001))
 
         let animation: Animation
@@ -414,7 +419,9 @@ final class World {
         var accumulated: CGFloat = 0
         for frame in strip.frames {
             if frame.contains(point) {
-                me.x = strip.clampToWall(accumulated + point.x - frame.minX)
+                let next = strip.clampToWall(accumulated + point.x - frame.minX)
+                if abs(next - me.x) > 0.1 { me.face(next - me.x) }
+                me.x = next
                 me.y = max(0, point.y - frame.minY - spriteDisplaySize / 2)
                 return
             }
