@@ -378,6 +378,14 @@ final class World {
         let stored = UserDefaults.standard.string(forKey: "name") ?? NSFullUserName()
         me = CharacterNode(id: myID, name: sanitizeName(stored), isLocal: true)
         me.apply(World.myLook)
+
+        // 거점은 절대 좌표라 띠를 몰라도 정할 수 있다.
+        // 처음 실행하면 원점 ±400 안에 분산시킨다
+        let anchor = UserDefaults.standard.object(forKey: "anchorX") as? Double
+            ?? Double(stableHash(World.installID) % 800) - 400
+        UserDefaults.standard.set(anchor, forKey: "anchorX")
+        me.anchorX = CGFloat(anchor)
+        me.x = me.anchorX
     }
 
     static var myLook: Look {
@@ -393,15 +401,13 @@ final class World {
         }
     }
 
+    /// 화면 구성이 바뀌면 위치를 새 띠 안으로 당기기만 한다.
+    /// 거점으로 되돌리면 노트북을 열고 닫을 때마다 캐릭터가 순간이동한다.
     func attach(scenes: [CharacterScene], strip: FloorStrip) {
         self.scenes = scenes
         self.strip = strip
-
-        if UserDefaults.standard.object(forKey: "anchorX") == nil {
-            UserDefaults.standard.set(Double(stableHash(World.installID) % 800) - 400, forKey: "anchorX")
-        }
-        me.anchorX = strip.clamp(CGFloat(UserDefaults.standard.double(forKey: "anchorX")))
-        me.x = me.anchorX
+        me.anchorX = strip.clamp(me.anchorX)
+        me.x = strip.clamp(me.x)
     }
 
     func beginDrag() { me.beginDrag() }
@@ -537,3 +543,49 @@ extension World {
 }
 
 
+
+
+// MARK: - 좌표 표시 (임시)
+
+extension World {
+    /// 바닥에 200포인트 간격으로 눈금과 x 값을 그린다
+    func showCoordinates(_ show: Bool) {
+        for scene in scenes {
+            for node in scene.children where node.name == "coord" { node.removeFromParent() }
+        }
+        guard show, !strip.frames.isEmpty else { return }
+
+        var value = (strip.minX / 200).rounded(.up) * 200
+        while value <= strip.maxX {
+            mark(value, title: value == 0 ? "0  (원점)" : "\(Int(value))",
+                 color: value == 0 ? .systemRed : .systemBlue)
+            value += 200
+        }
+        mark(strip.minX, title: "끝 \(Int(strip.minX))", color: .systemOrange)
+        mark(strip.maxX, title: "끝 \(Int(strip.maxX))", color: .systemOrange)
+    }
+
+    private func mark(_ value: CGFloat, title: String, color: NSColor) {
+        guard let spot = strip.place(x: value, y: 0) else { return }
+        let scene = scenes[spot.screenIndex]
+        let isOrigin = value == 0
+
+        let tick = SKSpriteNode(color: color,
+                                size: CGSize(width: isOrigin ? 3 : 1, height: isOrigin ? 60 : 30))
+        tick.name = "coord"
+        tick.anchorPoint = CGPoint(x: 0.5, y: 0)
+        tick.position = CGPoint(x: spot.point.x, y: floorOffset)
+        tick.alpha = 0.7
+        tick.zPosition = 30_000
+        scene.addChild(tick)
+
+        let label = SKLabelNode(fontNamed: "Helvetica-Bold")
+        label.name = "coord"
+        label.text = title
+        label.fontSize = 10
+        label.fontColor = color
+        label.position = CGPoint(x: spot.point.x, y: floorOffset + (isOrigin ? 64 : 34))
+        label.zPosition = 30_000
+        scene.addChild(label)
+    }
+}
