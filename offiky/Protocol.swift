@@ -45,7 +45,8 @@ struct FloorStrip {
         return nil
     }
 
-    func clampToWall(_ x: CGFloat) -> CGFloat {
+    /// 캐릭터가 띠를 벗어나지 않게 한다
+    func clamp(_ x: CGFloat) -> CGFloat {
         let half = spriteDisplaySize / 2
         guard length > spriteDisplaySize else { return min(max(x, 0), length) }
         return min(max(x, half), length - half)

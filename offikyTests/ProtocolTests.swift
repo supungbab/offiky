@@ -59,17 +59,17 @@ struct FloorStripTests {
         #expect(p.point.y == 20.0 + 560.0)
     }
 
-    @Test func 벽은_스프라이트_중심_기준이다() {
-        #expect(single.clampToWall(-50) == 20)
-        #expect(single.clampToWall(5000) == 980)
-        #expect(single.clampToWall(500) == 500)
+    @Test func 띠_밖으로_나가지_않는다() {
+        #expect(single.clamp(-50) == 20)
+        #expect(single.clamp(5000) == 980)
+        #expect(single.clamp(500) == 500)
     }
 
     @Test func 화면이_없어도_무너지지_않는다() {
         let empty = FloorStrip(visibleFrames: [])
         #expect(empty.length == 0)
         #expect(empty.place(x: 0, y: 0) == nil)
-        #expect(empty.clampToWall(100) == 0)
+        #expect(empty.clamp(100) == 0)
     }
 }
 

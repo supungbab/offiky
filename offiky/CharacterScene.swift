@@ -160,11 +160,7 @@ final class CharacterNode: SKNode {
             let step = CGFloat(dt)
             y += verticalSpeed * step - 0.5 * CharacterNode.gravity * step * step
             verticalSpeed -= CharacterNode.gravity * step
-            if airSpeed != 0 {
-                let next = strip.clampToWall(x + airSpeed * step)
-                if abs(next - x) < 0.01 { airSpeed = 0 }   // 벽에 막혔다
-                x = next
-            }
+            if airSpeed != 0 { x = strip.clamp(x + airSpeed * step) }
             if y <= 0 { y = 0; verticalSpeed = 0; airSpeed = 0 }
             isWalking = false
             return
@@ -181,23 +177,15 @@ final class CharacterNode: SKNode {
         if nextDashAt == 0 { nextDashAt = now + Double.random(in: 25...70) }
         if dashTarget == nil, now >= nextDashAt {
             nextDashAt = now + Double.random(in: 25...70)
-            let distance = CGFloat.random(in: 220...420)
-            // 방향은 시작할 때 정하고 끝날 때까지 바꾸지 않는다
-            var direction: CGFloat = Bool.random() ? 1 : -1
-            if abs(strip.clampToWall(x + direction * distance) - x) < 60 { direction *= -1 }
-            let target = strip.clampToWall(x + direction * distance)
-            if abs(target - x) >= 60 {
-                dashDirection = direction
-                dashTarget = target
-                if Bool.random() { nextJumpAt = now + Double.random(in: 0.4...1.1) }
-            }
+            // 남은 공간이 넓은 쪽으로 달린다. 방향은 끝날 때까지 바꾸지 않는다
+            dashDirection = x < strip.length / 2 ? 1 : -1
+            dashTarget = strip.clamp(x + dashDirection * CGFloat.random(in: 220...420))
+            if Bool.random() { nextJumpAt = now + Double.random(in: 0.4...1.1) }
         }
         if let target = dashTarget {
-            let next = strip.clampToWall(x + dashDirection * walkSpeed * CGFloat(dt))
-            let reached = dashDirection > 0 ? next >= target : next <= target
-            let blocked = abs(next - x) < 0.01
-            x = next
-            if blocked || reached {
+            x = strip.clamp(x + dashDirection * walkSpeed * CGFloat(dt))
+            let reached = dashDirection > 0 ? x >= target : x <= target
+            if reached {
                 dashTarget = nil
                 anchorX = x
                 walkTarget = x
@@ -211,20 +199,14 @@ final class CharacterNode: SKNode {
 
         if now >= nextWalkAt {
             nextWalkAt = now + Double.random(in: 3...9)
-            walkTarget = strip.clampToWall(anchorX + CGFloat.random(in: -150...150))
+            walkTarget = strip.clamp(anchorX + CGFloat.random(in: -150...150))
         }
         let delta = walkTarget - x
         if abs(delta) < 1 {
             isWalking = false
         } else {
             isWalking = true
-            let step: CGFloat = delta > 0 ? 1 : -1
-            let next = strip.clampToWall(x + step * walkSpeed * CGFloat(dt))
-            if abs(next - x) < 0.01 {
-                // 벽에 닿았다. 방향만 바꾼다
-                walkTarget = strip.clampToWall(x - step * CGFloat.random(in: 60...150))
-            }
-            x = next
+            x = strip.clamp(x + (delta > 0 ? 1 : -1) * walkSpeed * CGFloat(dt))
         }
     }
 
@@ -448,7 +430,7 @@ final class World {
         if UserDefaults.standard.object(forKey: "anchorX") == nil {
             UserDefaults.standard.set(Double(stableHash(World.installID) % 1200), forKey: "anchorX")
         }
-        me.anchorX = strip.clampToWall(CGFloat(UserDefaults.standard.double(forKey: "anchorX")))
+        me.anchorX = strip.clamp(CGFloat(UserDefaults.standard.double(forKey: "anchorX")))
         me.x = me.anchorX
     }
 
@@ -456,13 +438,13 @@ final class World {
 
     func endDrag() { me.isDragging = false }
 
-    /// 전역 커서 좌표를 띠 좌표로 바꾼다. 가로는 벽으로, 세로는 커서가 있는 화면의
+    /// 전역 커서 좌표를 띠 좌표로 바꾼다. 세로는 커서가 있는 화면의
     /// 바닥을 기준으로 잡는다.
     func updateDrag(toGlobal point: CGPoint) {
         var accumulated: CGFloat = 0
         for frame in strip.frames {
             if frame.contains(point) {
-                me.x = strip.clampToWall(accumulated + point.x - frame.minX)
+                me.x = strip.clamp(accumulated + point.x - frame.minX)
                 me.y = max(0, point.y - frame.minY - spriteDisplaySize / 2)
                 return
             }
@@ -569,7 +551,7 @@ extension World {
                             hue: Double.random(in: -0.5...0.5),
                             saturation: Double.random(in: 0.6...1.4),
                             brightness: Double.random(in: 0.8...1.2)))
-            node.x = strip.clampToWall(length * CGFloat(i + 1) / CGFloat(count + 1))
+            node.x = strip.clamp(length * CGFloat(i + 1) / CGFloat(count + 1))
             node.anchorX = node.x
             peers[id] = node
         }
