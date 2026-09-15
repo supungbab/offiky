@@ -1,115 +1,108 @@
 import AppKit
-import Carbon.HIToolbox
+import Combine
+import SwiftUI
 
-final class HotKey {
-    private static var registry: [UInt32: () -> Void] = [:]
-    private static var nextID: UInt32 = 1
-    private static var handlerInstalled = false
-
-    private var ref: EventHotKeyRef?
-
-    init(keyCode: UInt32, modifiers: UInt32, action: @escaping () -> Void) {
-        HotKey.installHandlerIfNeeded()
-        let id = HotKey.nextID
-        HotKey.nextID += 1
-        HotKey.registry[id] = action
-        let hotKeyID = EventHotKeyID(signature: OSType(0x4F464659), id: id)
-        RegisterEventHotKey(keyCode, modifiers, hotKeyID,
-                            GetApplicationEventTarget(), 0, &ref)
-    }
-
-    deinit { if let ref { UnregisterEventHotKey(ref) } }
-
-    private static func installHandlerIfNeeded() {
-        guard !handlerInstalled else { return }
-        handlerInstalled = true
-        var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard),
-                                 eventKind: UInt32(kEventHotKeyPressed))
-        InstallEventHandler(GetApplicationEventTarget(), { _, event, _ -> OSStatus in
-            guard let event else { return noErr }
-            var id = EventHotKeyID()
-            GetEventParameter(event, EventParamName(kEventParamDirectObject),
-                              EventParamType(typeEventHotKeyID), nil,
-                              MemoryLayout<EventHotKeyID>.size, nil, &id)
-            DispatchQueue.main.async { HotKey.registry[id.id]?() }
-            return noErr
-        }, 1, &spec, nil, nil)
-    }
-}
-
-final class ChatLog {
+final class ChatLog: ObservableObject {
     static let shared = ChatLog()
-    private(set) var recent: [String] = []
+    @Published private(set) var recent: [Line] = []
 
-    func append(_ line: String) {
-        recent.append(line)
+    struct Line: Identifiable {
+        let id = UUID()
+        let name: String
+        let body: String
+    }
+
+    func append(name: String, body: String) {
+        recent.append(Line(name: name, body: body))
         if recent.count > 50 { recent.removeFirst(recent.count - 50) }
     }
 }
 
-final class ChatPanel: NSObject, NSTextFieldDelegate {
+struct ChatView: View {
+    @ObservedObject private var log = ChatLog.shared
+    @State private var draft = ""
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 4) {
+                        ForEach(log.recent) { line in
+                            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                                Text(line.name)
+                                    .font(.caption.bold())
+                                    .foregroundStyle(.secondary)
+                                Text(line.body)
+                                    .font(.callout)
+                                    .textSelection(.enabled)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .id(line.id)
+                        }
+                    }
+                    .padding(10)
+                }
+                .onChange(of: log.recent.count) { _, _ in
+                    if let last = log.recent.last { proxy.scrollTo(last.id, anchor: .bottom) }
+                }
+            }
+            Divider()
+            TextField("메시지", text: $draft)
+                .textFieldStyle(.plain)
+                .padding(10)
+                .onSubmit {
+                    Session.shared.sendSay(draft)
+                    draft = ""
+                }
+        }
+        .frame(minWidth: 240, minHeight: 160)
+    }
+}
+
+final class ChatPanel {
     static let shared = ChatPanel()
 
     private var panel: NSPanel?
-    private var hotKey: HotKey?
+
+    private init() {}
 
     func install() {
-        hotKey = HotKey(keyCode: UInt32(kVK_Space),
-                        modifiers: UInt32(controlKey | optionKey)) { [weak self] in
-            self?.toggle()
-        }
         Session.shared.onChat = { name, body in
-            ChatLog.shared.append("\(name): \(body)")
+            ChatLog.shared.append(name: name, body: body)
         }
+        show()
     }
 
-    func toggle() {
-        if panel != nil { close(); return }
+    var isVisible: Bool { panel?.isVisible ?? false }
 
-        let screen = NSScreen.screens.first { $0.frame.contains(NSEvent.mouseLocation) }
-            ?? NSScreen.main ?? NSScreen.screens[0]
-        let size = CGSize(width: 420, height: 44)
-        let origin = CGPoint(x: screen.frame.midX - size.width / 2,
-                             y: screen.frame.midY - size.height / 2)
-
-        let panel = NSPanel(contentRect: CGRect(origin: origin, size: size),
-                            styleMask: [.titled, .fullSizeContentView],
-                            backing: .buffered, defer: false)
-        panel.titleVisibility = .hidden
-        panel.titlebarAppearsTransparent = true
+    func show() {
+        if let panel {
+            panel.makeKeyAndOrderFront(nil)
+            return
+        }
+        let panel = NSPanel(
+            contentRect: CGRect(x: 0, y: 0, width: 300, height: 220),
+            styleMask: [.titled, .closable, .utilityWindow, .nonactivatingPanel],
+            backing: .buffered, defer: false)
+        panel.title = "offiky"
         panel.isFloatingPanel = true
-        panel.level = .modalPanel
+        panel.level = .floating
         panel.hidesOnDeactivate = false
-
-        let field = NSTextField(frame: CGRect(x: 12, y: 9, width: size.width - 24, height: 26))
-        field.placeholderString = "한 줄 입력하고 Enter"
-        field.delegate = self
-        field.focusRingType = .none
-        panel.contentView?.addSubview(field)
-
-        panel.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-        panel.makeFirstResponder(field)
+        panel.becomesKeyOnlyIfNeeded = true
+        panel.isReleasedWhenClosed = false
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        panel.contentView = NSHostingView(rootView: ChatView())
+        panel.setFrameAutosaveName("chat")
+        if panel.frame.origin == .zero, let screen = NSScreen.main {
+            panel.setFrameOrigin(CGPoint(x: screen.visibleFrame.maxX - 320,
+                                         y: screen.visibleFrame.minY + 60))
+        }
+        panel.orderFrontRegardless()
         self.panel = panel
     }
 
-    private func close() {
-        panel?.orderOut(nil)
-        panel = nil
-    }
+    /// 닫기 버튼은 숨기기다. 메뉴에서 다시 연다.
+    func hide() { panel?.orderOut(nil) }
 
-    func control(_ control: NSControl, textView: NSTextView,
-                 doCommandBy selector: Selector) -> Bool {
-        switch selector {
-        case #selector(NSResponder.insertNewline(_:)):
-            Session.shared.sendSay(textView.string)
-            close()
-            return true
-        case #selector(NSResponder.cancelOperation(_:)):
-            close()
-            return true
-        default:
-            return false
-        }
-    }
+    func toggle() { isVisible ? hide() : show() }
 }
