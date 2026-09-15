@@ -6,7 +6,7 @@ final class OverlayController {
 
     private(set) var windows: [NSWindow] = []
     private(set) var scenes: [CharacterScene] = []
-    private(set) var strip = FloorStrip(visibleFrames: [])
+    private(set) var strip = FloorStrip(visibleFrames: [], main: nil)
     private var timer: Timer?
     private var handle: NSWindow?
 
@@ -53,9 +53,10 @@ final class OverlayController {
         windows.removeAll()
         scenes.removeAll()
 
-        let frames = NSScreen.screens
-            .map(\.visibleFrame)
-            .sorted { ($0.minX, $0.minY) < ($1.minX, $1.minY) }
+        let screens = NSScreen.screens
+        let built = FloorStrip(visibleFrames: screens.map(\.visibleFrame),
+                               main: screens.first?.visibleFrame)
+        let frames = built.frames
 
         for frame in frames {
             let window = NSWindow(contentRect: frame, styleMask: .borderless,
@@ -83,7 +84,7 @@ final class OverlayController {
             scenes.append(scene)
         }
 
-        strip = FloorStrip(visibleFrames: frames)
+        strip = built
         World.shared.attach(scenes: scenes, strip: strip)
     }
 }

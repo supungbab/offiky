@@ -10,7 +10,7 @@ enum Limits {
     static let maxMessageBytes = 16 * 1024
     static let maxName = 20
     static let maxChat = 200
-    static let maxX: Double = 20_000
+    static let maxX: Double = 10_000
     static let maxY: Double = 4_000
 }
 
@@ -20,27 +20,45 @@ struct Placement: Equatable {
 }
 
 struct FloorStrip {
+    /// 주 디스플레이 기준으로 좌우에 배치한 화면들
     let frames: [CGRect]
+    /// 띠 왼쪽 끝에서 원점(x = 0)까지의 거리
+    let originOffset: CGFloat
 
-    init(visibleFrames: [CGRect]) {
-        self.frames = visibleFrames.sorted { ($0.minX, $0.minY) < ($1.minX, $1.minY) }
+    init(visibleFrames: [CGRect], main: CGRect?) {
+        guard let main = main ?? visibleFrames.first, !visibleFrames.isEmpty else {
+            frames = []
+            originOffset = 0
+            return
+        }
+        // 세로로 붙은 화면도 가로 중심이 어느 쪽으로 치우쳤는지만 본다.
+        // 정확히 가운데면 오른쪽에 잇는다.
+        let others = visibleFrames.filter { $0 != main }
+        let left = others.filter { $0.midX < main.midX }.sorted { $0.midX < $1.midX }
+        let right = others.filter { $0.midX >= main.midX }.sorted { $0.midX < $1.midX }
+        frames = left + [main] + right
+        originOffset = left.reduce(0) { $0 + $1.width } + main.width / 2
     }
 
     var length: CGFloat { frames.reduce(0) { $0 + $1.width } }
+    /// 원점은 주 디스플레이 한가운데이므로 왼쪽은 음수다
+    var minX: CGFloat { -originOffset }
+    var maxX: CGFloat { length - originOffset }
 
     /// `x` 는 스프라이트 중심, `y` 는 바닥으로부터의 높이. 둘 다 포인트.
     func place(x: CGFloat, y: CGFloat) -> Placement? {
         guard !frames.isEmpty else { return nil }
         let half = spriteDisplaySize / 2
-        guard x + half >= 0, x - half <= length else { return nil }
+        guard x + half >= minX, x - half <= maxX else { return nil }
 
-        var accumulated: CGFloat = 0
+        var accumulated = minX
         for (index, frame) in frames.enumerated() {
             if x < accumulated + frame.width || index == frames.count - 1 {
-                let maxY = max(0, frame.height - spriteDisplaySize - floorOffset)
+                let maxLift = max(0, frame.height - spriteDisplaySize - floorOffset)
                 return Placement(
                     screenIndex: index,
-                    point: CGPoint(x: x - accumulated, y: floorOffset + half + min(y, maxY)))
+                    point: CGPoint(x: x - accumulated,
+                                   y: floorOffset + half + min(y, maxLift)))
             }
             accumulated += frame.width
         }
@@ -50,8 +68,8 @@ struct FloorStrip {
     /// 캐릭터가 띠를 벗어나지 않게 한다
     func clamp(_ x: CGFloat) -> CGFloat {
         let half = spriteDisplaySize / 2
-        guard length > spriteDisplaySize else { return min(max(x, 0), length) }
-        return min(max(x, half), length - half)
+        guard length > spriteDisplaySize else { return min(max(x, minX), maxX) }
+        return min(max(x, minX + half), maxX - half)
     }
 }
 

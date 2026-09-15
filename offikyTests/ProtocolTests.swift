@@ -5,68 +5,101 @@ import Testing
 
 struct FloorStripTests {
 
+    private let main = CGRect(x: 0, y: 0, width: 1000, height: 800)
+
     private var single: FloorStrip {
-        FloorStrip(visibleFrames: [CGRect(x: 0, y: 0, width: 1000, height: 800)])
+        FloorStrip(visibleFrames: [main], main: main)
     }
 
-    private var dual: FloorStrip {
-        FloorStrip(visibleFrames: [
-            CGRect(x: 1000, y: 100, width: 500, height: 600),
-            CGRect(x: 0, y: 0, width: 1000, height: 800),
-        ])
+    /// 주 화면 오른쪽에 500×600
+    private var rightSide: FloorStrip {
+        let second = CGRect(x: 1000, y: 100, width: 500, height: 600)
+        return FloorStrip(visibleFrames: [second, main], main: main)
     }
 
-    @Test func 띠_길이는_폭의_합이다() {
-        #expect(single.length == 1000)
-        #expect(dual.length == 1500)
+    /// 주 화면 왼쪽에 800×600
+    private var leftSide: FloorStrip {
+        let second = CGRect(x: -800, y: 0, width: 800, height: 600)
+        return FloorStrip(visibleFrames: [second, main], main: main)
     }
 
-    @Test func 정렬은_minX_오름차순이다() {
-        #expect(dual.frames.map(\.width) == [1000, 500])
+    /// 주 화면 바로 위에 1000×600. 가로 중심이 같으므로 오른쪽에 잇는다
+    private var stacked: FloorStrip {
+        let second = CGRect(x: 0, y: 800, width: 1000, height: 600)
+        return FloorStrip(visibleFrames: [second, main], main: main)
     }
 
-    @Test func 왼쪽_끝은_첫_화면의_왼쪽이다() throws {
+    @Test func 원점은_주_디스플레이_한가운데다() {
+        #expect(single.minX == -500)
+        #expect(single.maxX == 500)
+    }
+
+    @Test func 오른쪽_화면은_오른쪽에_이어진다() {
+        #expect(rightSide.frames.map(\.width) == [1000, 500])
+        #expect(rightSide.minX == -500)
+        #expect(rightSide.maxX == 1000)
+    }
+
+    @Test func 왼쪽_화면은_왼쪽에_이어진다() {
+        #expect(leftSide.frames.map(\.width) == [800, 1000])
+        #expect(leftSide.minX == -1300)
+        #expect(leftSide.maxX == 500)
+    }
+
+    @Test func 세로로_붙은_화면은_오른쪽에_이어진다() {
+        #expect(stacked.frames.map(\.height) == [800, 600])
+        #expect(stacked.maxX == 1500)
+    }
+
+    @Test func 원점은_주_화면_한가운데에_놓인다() throws {
         let p = try #require(single.place(x: 0, y: 0))
         #expect(p.screenIndex == 0)
-        #expect(p.point.x == 0)
+        #expect(p.point.x == 500)
         #expect(p.point.y == 28)
     }
 
+    @Test func 왼쪽_끝과_오른쪽_끝() throws {
+        #expect(try #require(single.place(x: -500, y: 0)).point.x == 0)
+        #expect(try #require(single.place(x: 500, y: 0)).point.x == 1000)
+    }
+
     @Test func 두번째_화면으로_넘어간다() throws {
-        let p = try #require(dual.place(x: 1200, y: 0))
+        let p = try #require(rightSide.place(x: 700, y: 0))
         #expect(p.screenIndex == 1)
         #expect(p.point.x == 200)
     }
 
-    @Test func 화면_경계는_앞_화면에_속한다() throws {
-        let p = try #require(dual.place(x: 999, y: 0))
+    @Test func 왼쪽_화면의_좌표는_음수다() throws {
+        let p = try #require(leftSide.place(x: -1000, y: 0))
         #expect(p.screenIndex == 0)
+        #expect(p.point.x == 300)
     }
 
     @Test func 걸쳐_있으면_표시한다() throws {
-        let p = try #require(single.place(x: 1015, y: 0))
+        let p = try #require(single.place(x: 515, y: 0))
         #expect(p.screenIndex == 0)
         #expect(p.point.x == 1015)
     }
 
     @Test func 완전히_벗어나면_표시하지_않는다() {
-        #expect(single.place(x: 1021, y: 0) == nil)
-        #expect(single.place(x: -21, y: 0) == nil)
+        #expect(single.place(x: 521, y: 0) == nil)
+        #expect(single.place(x: -521, y: 0) == nil)
     }
 
     @Test func 높이는_화면_안으로_제한된다() throws {
-        let p = try #require(dual.place(x: 1200, y: 5000))
+        // 두 번째 화면 높이 600, 스프라이트 40, 바닥 띄움 8 -> 최대 552
+        let p = try #require(rightSide.place(x: 700, y: 5000))
         #expect(p.point.y == 8.0 + 20.0 + 552.0)
     }
 
     @Test func 띠_밖으로_나가지_않는다() {
-        #expect(single.clamp(-50) == 20)
-        #expect(single.clamp(5000) == 980)
-        #expect(single.clamp(500) == 500)
+        #expect(single.clamp(-5000) == -480)
+        #expect(single.clamp(5000) == 480)
+        #expect(single.clamp(100) == 100)
     }
 
     @Test func 화면이_없어도_무너지지_않는다() {
-        let empty = FloorStrip(visibleFrames: [])
+        let empty = FloorStrip(visibleFrames: [], main: nil)
         #expect(empty.length == 0)
         #expect(empty.place(x: 0, y: 0) == nil)
         #expect(empty.clamp(100) == 0)

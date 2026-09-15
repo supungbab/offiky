@@ -151,7 +151,7 @@ final class Session {
     private func handlePos(_ data: Data, key: String?) {
         guard Mesh.shared.isHost, let key, let id = clientIDs[key],
               let msg = try? JSONDecoder().decode(PosMsg.self, from: data),
-              msg.x >= 0, msg.x <= Limits.maxX,
+              abs(msg.x) <= Limits.maxX,
               msg.y == nil || (msg.y! >= 0 && msg.y! <= Limits.maxY)
         else { return }
         positions[id] = PeerPos(id: id, x: msg.x, y: msg.y)
@@ -161,7 +161,7 @@ final class Session {
         guard let msg = try? JSONDecoder().decode(SnapMsg.self, from: data) else { return }
         for p in msg.p {
             guard p.id != World.shared.myID,
-                  p.x >= 0, p.x <= Limits.maxX,
+                  abs(p.x) <= Limits.maxX,
                   p.y == nil || (p.y! >= 0 && p.y! <= Limits.maxY)
             else { continue }
             World.shared.setPeerTarget(id: p.id, x: CGFloat(p.x), y: CGFloat(p.y ?? 0))

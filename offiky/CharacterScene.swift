@@ -207,7 +207,7 @@ final class CharacterNode: SKNode {
         if dashTarget == nil, now >= nextDashAt {
             nextDashAt = now + Double.random(in: 25...70)
             // 남은 공간이 넓은 쪽으로 달린다. 방향은 끝날 때까지 바꾸지 않는다
-            dashDirection = x < strip.length / 2 ? 1 : -1
+            dashDirection = x < (strip.minX + strip.maxX) / 2 ? 1 : -1
             dashTarget = strip.clamp(x + dashDirection * CGFloat.random(in: 220...420))
             if Bool.random() { nextJumpAt = now + Double.random(in: 0.4...1.1) }
         }
@@ -369,7 +369,7 @@ final class World {
 
     private(set) var me: CharacterNode
     private(set) var peers: [String: CharacterNode] = [:]
-    private(set) var strip = FloorStrip(visibleFrames: [])
+    private(set) var strip = FloorStrip(visibleFrames: [], main: nil)
 
     private var scenes: [CharacterScene] = []
     private var lastTick: TimeInterval = 0
@@ -398,7 +398,7 @@ final class World {
         self.strip = strip
 
         if UserDefaults.standard.object(forKey: "anchorX") == nil {
-            UserDefaults.standard.set(Double(stableHash(World.installID) % 1200), forKey: "anchorX")
+            UserDefaults.standard.set(Double(stableHash(World.installID) % 800) - 400, forKey: "anchorX")
         }
         me.anchorX = strip.clamp(CGFloat(UserDefaults.standard.double(forKey: "anchorX")))
         me.x = me.anchorX
