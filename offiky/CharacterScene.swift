@@ -44,7 +44,7 @@ final class CharacterNode: SKNode {
     private(set) var isCharging = false
     var hurtUntil: TimeInterval = 0
     private var wasAirborne = false
-    private var previousY: CGFloat = 0
+    private var peakY: CGFloat = 0
 
     private var fromX: CGFloat = 0, fromY: CGFloat = 0
     private var toX: CGFloat = 0, toY: CGFloat = 0
@@ -134,7 +134,8 @@ final class CharacterNode: SKNode {
         } else {
             interpolate(dt: dt)
         }
-        detectLanding(now: now, dt: dt)
+        peakY = max(peakY, y)
+        detectLanding(now: now)
 
         let moved = x - previousX
         previousX = x
@@ -232,16 +233,19 @@ final class CharacterNode: SKNode {
 
     /// 낙하 속도는 프레임 간 높이 변화로 구한다. verticalSpeed 는 착지 직전에
     /// 0으로 초기화되고, 원격 캐릭터에는 아예 없다.
-    private func detectLanding(now: TimeInterval, dt: TimeInterval) {
+    /// 착지 속도는 최고 높이에서 구한다. 자유낙하는 v = sqrt(2gh) 이므로
+    /// 프레임 타이밍과 무관하고 원격 캐릭터에도 그대로 적용된다.
+    /// 마지막 프레임의 높이로 계산하면 착지 직전 프레임이 어디에 걸리느냐에 따라
+    /// 같은 높이에서 떨어져도 결과가 널뛴다.
+    private func detectLanding(now: TimeInterval) {
         // 드래그 중에는 착지가 아니다. 커서를 바닥으로 내리면 낙하로 오인한다
         guard !isDragging else {
             wasAirborne = y > 0
-            previousY = y
             return
         }
         let airborne = y > 0
         if wasAirborne && !airborne {
-            let impact = abs(previousY - y) / CGFloat(max(dt, 0.001))
+            let impact = (2 * CharacterNode.gravity * peakY).squareRoot()
             if self === World.shared.me { World.shared.commitAnchor() }
             image.run(.sequence([
                 .scaleY(to: 0.85, duration: 0.05),
@@ -251,8 +255,8 @@ final class CharacterNode: SKNode {
             // 떨어졌을 때만 피격한다
             if impact > 500 { takeHit(now: now) }
         }
+        if !airborne { peakY = 0 }
         wasAirborne = airborne
-        previousY = y
     }
 
     func render(placement: Placement) {
@@ -540,3 +544,5 @@ extension World {
 
     var testPeerCount: Int { peers.keys.filter { $0.hasPrefix("test-") }.count }
 }
+
+
