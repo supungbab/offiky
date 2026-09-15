@@ -151,6 +151,8 @@ struct JoinMsg: Codable {
     let id: String
     let name: String
     let look: Look
+    /// 스냅샷에서 이 피어를 가리키는 번호. 호스트가 접속 순서대로 부여한다
+    var n: Int?
 }
 
 struct LeaveMsg: Codable {
@@ -158,9 +160,12 @@ struct LeaveMsg: Codable {
     let id: String
 }
 
+/// 한 건은 `[번호, x]` 또는 `[번호, x, y]` 다. 좌표는 포인트 단위 정수로 내림한다.
+/// 표시는 2포인트 격자에 맞추므로 정밀도 손실이 화면에 나타나지 않는다.
+/// id 를 그대로 싣던 때는 한 건이 56바이트였고 지금은 8바이트다
 struct SnapMsg: Codable {
     var t = "snap"
-    let p: [PeerPos]
+    let p: [[Int]]
 }
 
 struct AckMsg: Codable {

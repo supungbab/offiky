@@ -10,6 +10,9 @@ final class Session {
     private var profiles: [String: (name: String, look: Look)] = [:]
     private var positions: [String: PeerPos] = [:]
     private var clientIDs: [String: String] = [:]
+    /// 호스트가 부여한 번호. 스냅샷에서 36자 UUID 대신 이걸 싣는다
+    private var indexes: [String: Int] = [:]
+    private var idByIndex: [Int: String] = [:]
 
     private var posTimer: Timer?
     private var snapTimer: Timer?
@@ -47,6 +50,15 @@ final class Session {
         pending.forEach { Mesh.shared.sendToHost(encode($0)) }
     }
 
+    private func index(for id: String) -> Int {
+        if let n = indexes[id] { return n }
+        let used = Set(indexes.values)
+        var n = 0
+        while used.contains(n) { n += 1 }
+        indexes[id] = n
+        return n
+    }
+
     private func sendPositionIfDue() {
         let now = ProcessInfo.processInfo.systemUptime
         let me = World.shared.me
@@ -66,7 +78,15 @@ final class Session {
         let me = World.shared.me
         positions[World.shared.myID] = PeerPos(
             id: World.shared.myID, x: Double(me.x), y: me.y > 0 ? Double(me.y) : nil)
-        Mesh.shared.broadcast(encode(SnapMsg(p: Array(positions.values))))
+
+        var entries: [[Int]] = []
+        entries.reserveCapacity(positions.count)
+        for (peer, p) in positions {
+            var entry = [index(for: peer), Int(p.x.rounded())]
+            if let y = p.y, y > 0 { entry.append(Int(y.rounded())) }
+            entries.append(entry)
+        }
+        Mesh.shared.broadcast(encode(SnapMsg(p: entries)))
     }
 
     func sendSay(_ text: String) {
@@ -95,6 +115,9 @@ final class Session {
 
     /// 대기열을 가진 클라이언트가 스스로 호스트가 되면 재전송할 상대가 없다.
     func hostChanged() {
+        // 번호는 호스트가 부여하므로 호스트가 바뀌면 체계가 새로 시작된다
+        indexes.removeAll()
+        idByIndex.removeAll()
         guard Mesh.shared.isHost else { return }
         pending.forEach { Mesh.shared.broadcast(encode($0)) }
         pending.removeAll()
@@ -104,6 +127,8 @@ final class Session {
     func peerGone(_ id: String) {
         profiles[id] = nil
         positions[id] = nil
+        if let n = indexes.removeValue(forKey: id) { idByIndex[n] = nil }
+        idByIndex = idByIndex.filter { $0.value != id }
         tracker.forget(id: id)
         World.shared.removePeer(id: id)
     }
@@ -142,12 +167,15 @@ final class Session {
 
         let me = World.shared.me
         Mesh.shared.send(encode(JoinMsg(
-            id: World.shared.myID, name: me.displayName, look: World.myLook)), toClient: key)
+            id: World.shared.myID, name: me.displayName, look: World.myLook,
+            n: index(for: World.shared.myID))), toClient: key)
         for (id, profile) in profiles where id != msg.id {
             Mesh.shared.send(encode(JoinMsg(
-                id: id, name: profile.name, look: profile.look)), toClient: key)
+                id: id, name: profile.name, look: profile.look,
+                n: index(for: id))), toClient: key)
         }
-        Mesh.shared.broadcast(encode(JoinMsg(id: msg.id, name: name, look: look)))
+        Mesh.shared.broadcast(encode(JoinMsg(
+            id: msg.id, name: name, look: look, n: index(for: msg.id))))
         World.shared.addPeer(id: msg.id, name: name, look: look)
     }
 
@@ -164,12 +192,14 @@ final class Session {
 
     private func handleSnap(_ data: Data) {
         guard let msg = try? JSONDecoder().decode(SnapMsg.self, from: data) else { return }
-        for p in msg.p {
-            guard p.id != World.shared.myID,
-                  abs(p.x) <= Limits.maxX,
-                  p.y == nil || (p.y! >= 0 && p.y! <= Limits.maxY)
+        for entry in msg.p {
+            guard entry.count >= 2,
+                  let id = idByIndex[entry[0]], id != World.shared.myID
             else { continue }
-            World.shared.setPeerTarget(id: p.id, x: CGFloat(p.x), y: CGFloat(p.y ?? 0))
+            let x = Double(entry[1])
+            let y = entry.count > 2 ? Double(entry[2]) : 0
+            guard abs(x) <= Limits.maxX, y >= 0, y <= Limits.maxY else { continue }
+            World.shared.setPeerTarget(id: id, x: CGFloat(x), y: CGFloat(y))
         }
     }
 
@@ -209,6 +239,7 @@ final class Session {
     private func handleJoin(_ data: Data) {
         guard let msg = try? JSONDecoder().decode(JoinMsg.self, from: data),
               msg.id != World.shared.myID else { return }
+        if let n = msg.n { idByIndex[n] = msg.id }
         let name = sanitizeName(msg.name)
         let look = msg.look.sanitized
         profiles[msg.id] = (name, look)

@@ -198,8 +198,32 @@ struct MessageTests {
     }
 
     @Test func 종류를_먼저_읽을_수_있다() throws {
-        let json = #"{"t":"snap","p":[{"id":"a","x":1}]}"#
+        let json = #"{"t":"snap","p":[[3,862,48]]}"#
         let env = try JSONDecoder().decode(Envelope.self, from: Data(json.utf8))
         #expect(env.t == "snap")
+    }
+
+    @Test func 스냅샷은_번호와_정수_좌표로_싣는다() throws {
+        let data = try JSONEncoder().encode(SnapMsg(p: [[7, 862, 48], [3, -120]]))
+        #expect(String(decoding: data, as: UTF8.self).contains("[[7,862,48],[3,-120]]"))
+        let back = try JSONDecoder().decode(SnapMsg.self, from: data)
+        #expect(back.p == [[7, 862, 48], [3, -120]])
+    }
+
+    /// id 를 그대로 싣던 때는 같은 인원이 2.8KB 였다
+    @Test func 오십명_스냅샷이_1KB_아래다() throws {
+        let entries = (0..<50).map { i -> [Int] in
+            let x = -4000 + i * 160
+            return i % 9 == 0 ? [i, x, 48] : [i, x]
+        }
+        let data = try JSONEncoder().encode(SnapMsg(p: entries))
+        #expect(data.count < 1000)
+    }
+
+    @Test func 번호를_모르는_피어의_좌표는_버린다() throws {
+        let json = #"{"t":"snap","p":[[99,10],[3]]}"#
+        let msg = try JSONDecoder().decode(SnapMsg.self, from: Data(json.utf8))
+        #expect(msg.p.count == 2)
+        #expect(msg.p[1].count == 1)      // 좌표가 없으면 handleSnap 이 건너뛴다
     }
 }
