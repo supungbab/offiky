@@ -2,7 +2,7 @@ import CoreGraphics
 import Foundation
 
 let protocolVersion = 1
-let spriteDisplaySize: CGFloat = 16
+let spriteDisplaySize: CGFloat = 32
 
 enum Limits {
     static let maxMessageBytes = 16 * 1024

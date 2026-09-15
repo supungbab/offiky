@@ -29,7 +29,7 @@ final class CharacterNode: SKNode {
     private var interpolatedFor: TimeInterval = 0
     private static let interpolationDuration: TimeInterval = 0.5
     static let gravity: CGFloat = 1100
-    static let jumpApex: CGFloat = 24
+    static let jumpApex: CGFloat = 48
 
     init(id: String, name: String, isLocal: Bool) {
         self.id = id
@@ -130,7 +130,7 @@ final class CharacterNode: SKNode {
 
     /// bob 은 position 에만 더한다. y 에 섞으면 걸음마다 착지 먼지가 인다.
     func render(placement: Placement) {
-        let bob: CGFloat = sin(bobPhase) > 0 ? 1 : 0
+        let bob: CGFloat = sin(bobPhase) > 0 ? 2 : 0
         position = CGPoint(x: placement.point.x, y: placement.point.y + bob)
         zPosition = x + CGFloat(stableHash(id) % 997) / 1000
         label.text = displayName
@@ -211,7 +211,17 @@ final class CharacterScene: SKScene {
 final class World {
     static let shared = World()
 
+    /// 이 실행에서만 유효하다. 호스트 선출 기준이자 seq 의 짝이다.
     let myID = UUID().uuidString
+
+    /// 외형과 첫 위치를 정한다. myID 에 묶으면 실행할 때마다 색이 바뀐다.
+    static let installID: String = {
+        let key = "installID"
+        if let stored = UserDefaults.standard.string(forKey: key) { return stored }
+        let fresh = UUID().uuidString
+        UserDefaults.standard.set(fresh, forKey: key)
+        return fresh
+    }()
 
     private(set) var me: CharacterNode
     private(set) var peers: [String: CharacterNode] = [:]
@@ -223,15 +233,16 @@ final class World {
     private init() {
         let stored = UserDefaults.standard.string(forKey: "name") ?? NSFullUserName()
         me = CharacterNode(id: myID, name: sanitizeName(stored), isLocal: true)
-        me.apply(sprite: World.storedSprite(for: myID))
+        me.apply(sprite: World.mySprite)
     }
 
-    static func storedSprite(for id: String) -> Sprite {
+    /// 저장된 것이 있으면 그것, 없으면 설치 고유 id 로 만든 기본 캐릭터
+    static var mySprite: Sprite {
         if let encoded = UserDefaults.standard.string(forKey: "sprite"),
            let sprite = Sprite(encoded: encoded) {
             return sprite
         }
-        return Sprite.standard(for: id)
+        return Sprite.standard(for: installID)
     }
 
     func attach(scenes: [CharacterScene], strip: FloorStrip) {
@@ -239,7 +250,7 @@ final class World {
         self.strip = strip
 
         if UserDefaults.standard.object(forKey: "anchorX") == nil {
-            UserDefaults.standard.set(Double(stableHash(myID) % 1200), forKey: "anchorX")
+            UserDefaults.standard.set(Double(stableHash(World.installID) % 1200), forKey: "anchorX")
         }
         me.anchorX = strip.clampToWall(CGFloat(UserDefaults.standard.double(forKey: "anchorX")))
         me.x = me.anchorX

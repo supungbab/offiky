@@ -12,8 +12,7 @@ struct SpriteEditorView: View {
     private let cell: CGFloat = 22
 
     init() {
-        let sprite = World.storedSprite(for: World.shared.myID)
-        _rows = State(initialValue: sprite.rows.map { Sprite.chunks(of: $0) })
+        _rows = State(initialValue: World.mySprite.rows.map { Sprite.chunks(of: $0) })
     }
 
     var body: some View {
@@ -33,7 +32,7 @@ struct SpriteEditorView: View {
             HStack {
                 Button("기본 캐릭터로 초기화") {
                     push()
-                    rows = Sprite.standard(for: World.shared.myID).rows.map { Sprite.chunks(of: $0) }
+                    rows = Sprite.standard(for: World.installID).rows.map { Sprite.chunks(of: $0) }
                 }
                 Button("되돌리기") { undo() }
                     .keyboardShortcut("z", modifiers: .command)

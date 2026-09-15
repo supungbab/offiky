@@ -52,7 +52,7 @@ final class Session {
         let me = World.shared.me
         Mesh.shared.sendToHost(encode(HelloMsg(
             id: World.shared.myID, name: me.displayName,
-            sprite: World.storedSprite(for: World.shared.myID).encoded)))
+            sprite: World.mySprite.encoded)))
         pending.forEach { Mesh.shared.sendToHost(encode($0)) }
     }
 
@@ -96,7 +96,7 @@ final class Session {
 
     func sendProfile() {
         let me = World.shared.me
-        let encoded = World.storedSprite(for: World.shared.myID).encoded
+        let encoded = World.mySprite.encoded
         if Mesh.shared.isHost {
             Mesh.shared.broadcast(encode(
                 ProfileMsg(id: World.shared.myID, name: me.displayName, sprite: encoded)))
@@ -155,7 +155,7 @@ final class Session {
         let me = World.shared.me
         Mesh.shared.send(encode(JoinMsg(
             id: World.shared.myID, name: me.displayName,
-            sprite: World.storedSprite(for: World.shared.myID).encoded)), toClient: key)
+            sprite: World.mySprite.encoded)), toClient: key)
         for (id, profile) in profiles where id != msg.id {
             Mesh.shared.send(encode(JoinMsg(
                 id: id, name: profile.name, sprite: profile.sprite)), toClient: key)
