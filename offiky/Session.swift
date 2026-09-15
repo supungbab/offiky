@@ -15,12 +15,6 @@ final class Session {
     private var snapTimer: Timer?
     private var lastPosSentAt: TimeInterval = 0
 
-    var roster: [(id: String, name: String)] {
-        ([(World.shared.myID, World.shared.me.displayName)]
-         + profiles.map { ($0.key, $0.value.name) })
-            .sorted { $0.1 < $1.1 }
-    }
-
     private init() {}
 
     func start() {

@@ -7,12 +7,6 @@ struct offikyApp: App {
 
     var body: some Scene {
         MenuBarExtra("offiky", systemImage: "person.2.fill") {
-            let roster = Session.shared.roster
-            Text("접속자 \(roster.count)명")
-            ForEach(roster, id: \.id) { peer in
-                Text(peer.name)
-            }
-            Divider()
             Button("채팅 열기  ⌥Space") { ChatPanel.shared.show() }
             Button("내 캐릭터 편집…") { openSpriteEditor() }
             Button("내 이름 변경…") { changeName() }
