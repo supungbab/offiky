@@ -36,7 +36,6 @@ final class CharacterNode: SKNode {
         facing = direction > 0 ? 1 : -1
     }
 
-    private var bobPhase: CGFloat = 0
     private var walkPhase: TimeInterval = 0
     private var previousX: CGFloat = 0
     private(set) var lastAnimation: Animation = .idle
@@ -104,7 +103,6 @@ final class CharacterNode: SKNode {
             interpolate(dt: dt)
         }
         detectLanding(now: now, dt: dt)
-        bobPhase += CGFloat(dt) * (isWalking ? 9 : 2)
 
         let moved = x - previousX
         previousX = x
@@ -236,14 +234,11 @@ final class CharacterNode: SKNode {
         previousY = y
     }
 
-    /// bob 은 position 에만 더한다. y 에 섞으면 걸음마다 착지 먼지가 인다.
     func render(placement: Placement) {
-        let bob: CGFloat = sin(bobPhase) > 0 ? 2 : 0
-        position = CGPoint(x: placement.point.x, y: placement.point.y + bob)
+        position = placement.point
 
         // 그림자는 캐릭터를 따라 뜨지 않고 바닥에 남는다
-        let lift = y + bob
-        shadow.position = CGPoint(x: 0, y: -lift - spriteDisplaySize / 2 + 3)
+        shadow.position = CGPoint(x: 0, y: -y - spriteDisplaySize / 2 + 3)
         let height = min(1, y / 120)
         shadow.setScale(1 - 0.45 * height)
         shadow.alpha = 0.3 * (1 - 0.75 * height)
