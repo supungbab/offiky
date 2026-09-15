@@ -107,8 +107,8 @@ final class CharacterNode: SKNode {
 
         let moved = x - previousX
         previousX = x
-        // 들려 있는 동안은 처음 들었을 때의 방향을 유지한다
-        if !isDragging, abs(moved) > 0.1 { face(moved) }
+        // 바닥에 있을 때만 방향을 갱신한다. 들려 있거나 공중에 있는 동안은 유지한다
+        if !isDragging, y <= 0, abs(moved) > 0.1 { face(moved) }
         let speed = abs(moved) / CGFloat(max(dt, 0.001))
 
         let animation: Animation
