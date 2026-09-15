@@ -251,7 +251,7 @@ final class CharacterNode: SKNode {
         motion = next
         switch next {
         case .idle:
-            motionEnd = now + Double.random(in: 1...4)
+            motionEnd = now + Double.random(in: 4...8)
         case .walk:
             segmentTarget = strip.clamp(x + direction * CGFloat.random(in: 80...250))
         case .dash:
