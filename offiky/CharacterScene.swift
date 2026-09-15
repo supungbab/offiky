@@ -24,6 +24,7 @@ final class CharacterNode: SKNode {
     private var nextJumpAt: TimeInterval = 0
     private var nextDashAt: TimeInterval = 0
     private var dashTarget: CGFloat?
+    private var dashDirection: CGFloat = 1
     private var walkSpeed: CGFloat { dashTarget == nil ? 20 : 90 }
     private var isWalking = false
     /// 이동 방향. +1 오른쪽, -1 왼쪽
@@ -147,19 +148,31 @@ final class CharacterNode: SKNode {
         if nextDashAt == 0 { nextDashAt = now + Double.random(in: 25...70) }
         if dashTarget == nil, now >= nextDashAt {
             nextDashAt = now + Double.random(in: 25...70)
-            let away: CGFloat = Bool.random() ? 1 : -1
-            dashTarget = strip.clampToWall(x + away * CGFloat.random(in: 220...420))
+            let distance = CGFloat.random(in: 220...420)
+            // 방향은 시작할 때 정하고 끝날 때까지 바꾸지 않는다
+            var direction: CGFloat = Bool.random() ? 1 : -1
+            if abs(strip.clampToWall(x + direction * distance) - x) < 60 { direction *= -1 }
+            let target = strip.clampToWall(x + direction * distance)
+            if abs(target - x) >= 60 {
+                dashDirection = direction
+                dashTarget = target
+            }
         }
         if let target = dashTarget {
-            if abs(target - x) < 4 {
+            let next = strip.clampToWall(x + dashDirection * walkSpeed * CGFloat(dt))
+            let reached = dashDirection > 0 ? next >= target : next <= target
+            let blocked = abs(next - x) < 0.01
+            x = next
+            if reached || blocked {
                 dashTarget = nil
                 anchorX = x
-                nextWalkAt = 0
+                walkTarget = x
+                nextWalkAt = now + Double.random(in: 1...3)
+                isWalking = false
             } else {
                 isWalking = true
-                x = strip.clampToWall(x + (target > x ? 1 : -1) * walkSpeed * CGFloat(dt))
-                return
             }
+            return
         }
 
         if now >= nextWalkAt {
