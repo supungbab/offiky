@@ -244,7 +244,7 @@ final class CharacterNode: SKNode {
         let next: Motion
         switch from {
         case .idle: next = roll < 0.7 ? .walk : .dash            // 걷기 70 / 뛰기 30
-        case .walk: next = roll < 0.45 ? .walk : (roll < 0.9 ? .dash : .idle)
+        case .walk: next = roll < 0.7 ? .walk : (roll < 0.85 ? .dash : .idle)
         case .dash: next = roll < 0.7 ? .walk : (roll < 0.85 ? .dash : .idle)
         }
 
