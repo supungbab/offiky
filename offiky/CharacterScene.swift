@@ -163,7 +163,12 @@ final class CharacterNode: SKNode {
             let reached = dashDirection > 0 ? next >= target : next <= target
             let blocked = abs(next - x) < 0.01
             x = next
-            if reached || blocked {
+            if blocked {
+                // 대시로 벽에 부딪히면 피격
+                takeHit(now: now)
+                anchorX = x
+                walkTarget = x
+            } else if reached {
                 dashTarget = nil
                 anchorX = x
                 walkTarget = x
@@ -184,7 +189,13 @@ final class CharacterNode: SKNode {
             isWalking = false
         } else {
             isWalking = true
-            x = strip.clampToWall(x + (delta > 0 ? 1 : -1) * walkSpeed * CGFloat(dt))
+            let step: CGFloat = delta > 0 ? 1 : -1
+            let next = strip.clampToWall(x + step * walkSpeed * CGFloat(dt))
+            if abs(next - x) < 0.01 {
+                // 벽에 닿았다. 방향만 바꾼다
+                walkTarget = strip.clampToWall(x - step * CGFloat.random(in: 60...150))
+            }
+            x = next
         }
     }
 
