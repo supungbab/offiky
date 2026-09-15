@@ -409,8 +409,11 @@ final class World {
         self.strip = strip
         // 화면이 하나도 없는 순간에는 건드리지 않는다. 띠 길이가 0이라 좌표가 전부 0이 된다
         guard !strip.frames.isEmpty else { return }
-        me.anchorX = strip.clamp(me.anchorX)
-        me.x = strip.clamp(me.x)
+        // 로컬에서 도는 캐릭터만 당긴다. 동료 좌표는 그쪽이 기준이다
+        for node in [me] + peers.values.filter(\.isLocal) {
+            node.anchorX = strip.clamp(node.anchorX)
+            node.x = strip.clamp(node.x)
+        }
         // 씬을 새로 만들었으므로 눈금도 다시 그린다
         if coordinatesVisible { showCoordinates(true) }
     }
