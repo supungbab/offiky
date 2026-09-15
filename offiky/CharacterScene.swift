@@ -23,7 +23,8 @@ final class CharacterNode: SKNode {
     private var nextWalkAt: TimeInterval = 0
     private var nextJumpAt: TimeInterval = 0
     private var isWalking = false
-    private var facing: CGFloat = 1
+    /// 이동 방향. +1 오른쪽, -1 왼쪽
+    private var facing: CGFloat = -1
 
     private var bobPhase: CGFloat = 0
     private var wasAirborne = false
@@ -151,7 +152,8 @@ final class CharacterNode: SKNode {
         shadow.setScale(1 - 0.45 * height)
         shadow.alpha = 0.3 * (1 - 0.75 * height)
         zPosition = x + CGFloat(stableHash(id) % 997) / 1000
-        image.xScale = facing
+        // 기본 캐릭터는 왼쪽을 보고 그려져 있다
+        image.xScale = -facing
         updateNameLabel()
     }
 
