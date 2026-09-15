@@ -11,10 +11,17 @@ struct CharacterTests {
     }
 
     @Test func 애니메이션_프레임_수() {
+        #expect(Animation.allCases.count == 5)
         #expect(Animation.idle.frameCount == 4)
         #expect(Animation.walk.frameCount == 6)
+        #expect(Animation.hurt.frameCount == 4)
         #expect(Animation.jump.frameCount == 3)
         #expect(Animation.dash.frameCount == 6)
+    }
+
+    @Test func 대시가_가장_빠르게_재생된다() {
+        #expect(Animation.dash.fps > Animation.walk.fps)
+        #expect(Animation.walk.fps > Animation.idle.fps)
     }
 
     @Test func 모든_캐릭터의_모든_애니메이션이_로드된다() {

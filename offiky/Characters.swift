@@ -13,8 +13,9 @@ func stableHash(_ s: String) -> UInt64 {
 }
 
 enum Animation: Int, CaseIterable {
-    case idle = 0, walk = 1, jump = 2, dash = 3
-    var frameCount: Int { [4, 6, 3, 6][rawValue] }
+    case idle = 0, walk = 1, hurt = 2, jump = 3, dash = 4
+    var frameCount: Int { [4, 6, 4, 3, 6][rawValue] }
+    var fps: Double { [3, 8, 10, 8, 14][rawValue] }
 }
 
 /// 에셋의 스프라이트 시트를 잘라 색을 입힌 텍스처로 만든다

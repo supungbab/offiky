@@ -22,13 +22,19 @@ final class CharacterNode: SKNode {
     private var walkTarget: CGFloat = 0
     private var nextWalkAt: TimeInterval = 0
     private var nextJumpAt: TimeInterval = 0
+    private var nextDashAt: TimeInterval = 0
+    private var dashTarget: CGFloat?
+    private var walkSpeed: CGFloat { dashTarget == nil ? 20 : 160 }
     private var isWalking = false
     /// 이동 방향. +1 오른쪽, -1 왼쪽
     private var facing: CGFloat = -1
+    var facingSign: CGFloat { facing }
 
     private var bobPhase: CGFloat = 0
     private var walkPhase: TimeInterval = 0
     private var previousX: CGFloat = 0
+    private(set) var lastAnimation: Animation = .idle
+    var hurtUntil: TimeInterval = 0
     private var wasAirborne = false
 
     private var fromX: CGFloat = 0, fromY: CGFloat = 0
@@ -72,6 +78,12 @@ final class CharacterNode: SKNode {
         image.texture = sheet.frames[.idle]?.first
     }
 
+    func takeHit(now: TimeInterval) {
+        hurtUntil = now + 0.6
+        walkPhase = 0
+        dashTarget = nil
+    }
+
     func setRemoteTarget(x newX: CGFloat, y newY: CGFloat) {
         fromX = x; fromY = y
         toX = newX; toY = newY
@@ -87,23 +99,32 @@ final class CharacterNode: SKNode {
         detectLanding()
         bobPhase += CGFloat(dt) * (isWalking ? 9 : 2)
 
-        let speed = abs(x - previousX) / CGFloat(max(dt, 0.001))
+        let moved = x - previousX
         previousX = x
+        if abs(moved) > 0.3 { facing = moved > 0 ? 1 : -1 }
+        let speed = abs(moved) / CGFloat(max(dt, 0.001))
+
         let animation: Animation
-        if y > 0 { animation = .jump }
-        else if speed > 80 { animation = .dash }
+        if now < hurtUntil { animation = .hurt }
+        else if y > 0 { animation = .jump }
+        else if speed > 70 { animation = .dash }
         else if isWalking { animation = .walk }
         else { animation = .idle }
 
         walkPhase += dt
         if let textures = sheet.frames[animation], !textures.isEmpty {
-            let rate: Double = animation == .idle ? 3 : (animation == .dash ? 12 : 8)
-            image.texture = textures[Int(walkPhase * rate) % textures.count]
+            image.texture = textures[Int(walkPhase * animation.fps) % textures.count]
         }
+        lastAnimation = animation
     }
 
     private func simulate(dt: TimeInterval, now: TimeInterval, strip: FloorStrip) {
         if isDragging { isWalking = false; return }
+        if now < hurtUntil {
+            isWalking = false
+            dashTarget = nil
+            return
+        }
 
         if y > 0 || verticalSpeed != 0 {
             // 정수 적분은 12fps 에서 정점이 목표의 절반으로 줄어든다
@@ -122,6 +143,25 @@ final class CharacterNode: SKNode {
             return
         }
 
+        // 아주 가끔 멀리까지 빠르게 달린다
+        if nextDashAt == 0 { nextDashAt = now + Double.random(in: 25...70) }
+        if dashTarget == nil, now >= nextDashAt {
+            nextDashAt = now + Double.random(in: 25...70)
+            let away: CGFloat = Bool.random() ? 1 : -1
+            dashTarget = strip.clampToWall(x + away * CGFloat.random(in: 220...420))
+        }
+        if let target = dashTarget {
+            if abs(target - x) < 4 {
+                dashTarget = nil
+                anchorX = x
+                nextWalkAt = 0
+            } else {
+                isWalking = true
+                x = strip.clampToWall(x + (target > x ? 1 : -1) * walkSpeed * CGFloat(dt))
+                return
+            }
+        }
+
         if now >= nextWalkAt {
             nextWalkAt = now + Double.random(in: 3...9)
             walkTarget = strip.clampToWall(anchorX + CGFloat.random(in: -150...150))
@@ -131,8 +171,7 @@ final class CharacterNode: SKNode {
             isWalking = false
         } else {
             isWalking = true
-            facing = delta > 0 ? 1 : -1
-            x = strip.clampToWall(x + facing * 20 * CGFloat(dt))
+            x = strip.clampToWall(x + (delta > 0 ? 1 : -1) * walkSpeed * CGFloat(dt))
         }
     }
 
@@ -142,7 +181,6 @@ final class CharacterNode: SKNode {
         x = fromX + (toX - fromX) * t
         y = fromY + (toY - fromY) * t
         isWalking = abs(toX - fromX) > 1
-        if isWalking { facing = toX > fromX ? 1 : -1 }
     }
 
     private func detectLanding() {
@@ -360,6 +398,24 @@ final class World {
         }
     }
 
+    /// 대시로 달리는 캐릭터끼리 정면으로 부딪히면 둘 다 피격 동작을 재생한다.
+    /// 좌표는 모두가 공유하므로 각자 같은 판정을 내린다. 평소에는 서로 통과한다.
+    private func resolveDashCollisions(now: TimeInterval) {
+        let dashing = ([me] + Array(peers.values)).filter { $0.lastAnimation == .dash }
+        guard dashing.count > 1 else { return }
+        for (i, a) in dashing.enumerated() {
+            for b in dashing.dropFirst(i + 1) {
+                guard now >= a.hurtUntil, now >= b.hurtUntil,
+                      abs(a.x - b.x) < 22,
+                      a.facingSign != b.facingSign,
+                      (b.x - a.x) * a.facingSign > 0
+                else { continue }
+                a.takeHit(now: now)
+                b.takeHit(now: now)
+            }
+        }
+    }
+
     func commitAnchor() {
         me.anchorX = me.x
         UserDefaults.standard.set(Double(me.x), forKey: "anchorX")
@@ -385,6 +441,8 @@ final class World {
             }
             visible.append((node, placement))
         }
+
+        resolveDashCollisions(now: now)
 
         for (node, placement) in visible {
             node.render(placement: placement)
