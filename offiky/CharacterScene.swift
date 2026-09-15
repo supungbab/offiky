@@ -406,6 +406,8 @@ final class World {
     func attach(scenes: [CharacterScene], strip: FloorStrip) {
         self.scenes = scenes
         self.strip = strip
+        // 화면이 하나도 없는 순간에는 건드리지 않는다. 띠 길이가 0이라 좌표가 전부 0이 된다
+        guard !strip.frames.isEmpty else { return }
         me.anchorX = strip.clamp(me.anchorX)
         me.x = strip.clamp(me.x)
     }
