@@ -1,8 +1,31 @@
+# macOS
 .DS_Store
-.serena/
+._*
+.Spotlight-V100
+.Trashes
 
-# Xcode
+# Xcode — 사용자별 상태
 xcuserdata/
 *.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+
+# Xcode — 빌드 산출물
 DerivedData/
 build/
+*.hmap
+*.ipa
+*.dSYM
+*.dSYM.zip
+*.moved-aside
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# 도구
+.serena/
+
+# 편집기
+*.swp
+*~
