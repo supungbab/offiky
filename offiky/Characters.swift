@@ -107,6 +107,37 @@ enum Characters {
         }
     }
 
+    // MARK: 그림자
+
+    private static var shadowCache: [String: SKTexture] = [:]
+
+    static func shadowSize(bodyWidth: CGFloat) -> (width: Int, height: Int) {
+        let w = max(4, Int(bodyWidth))
+        return (w, max(3, Int((bodyWidth * 0.37).rounded())))
+    }
+
+    /// 필요한 픽셀 수만큼의 타원을 만든다. 고정 텍스처를 늘리면 배율이 정수가 아니어서
+    /// 픽셀 크기가 들쭉날쭉해지고 캐릭터의 격자와 어긋난다.
+    static func shadowTexture(_ size: (width: Int, height: Int)) -> SKTexture {
+        let key = "\(size.width)x\(size.height)"
+        if let hit = shadowCache[key] { return hit }
+
+        var pixels = [UInt8](repeating: 0, count: size.width * size.height * 4)
+        let cx = Double(size.width - 1) / 2, cy = Double(size.height - 1) / 2
+        let rx = Double(size.width) / 2, ry = Double(size.height) / 2
+        for y in 0..<size.height {
+            for x in 0..<size.width {
+                let dx = (Double(x) - cx) / rx, dy = (Double(y) - cy) / ry
+                if dx * dx + dy * dy <= 1 { pixels[(y * size.width + x) * 4 + 3] = 255 }
+            }
+        }
+        let made = texture(from: pixels, sheetW: size.width,
+                           x: 0, y: 0, width: size.width, height: size.height)
+            ?? SKTexture()
+        shadowCache[key] = made
+        return made
+    }
+
     private static func texture(from pixels: [UInt8], sheetW: Int,
                                 x: Int, y: Int, width: Int, height: Int) -> SKTexture? {
         var cut = [UInt8](repeating: 0, count: width * height * 4)
