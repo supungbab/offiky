@@ -121,6 +121,11 @@ final class ChatPanel {
             created.hidesOnDeactivate = false
             created.isReleasedWhenClosed = false
             created.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+            // 스포트라이트처럼 다른 곳을 클릭하면 사라진다
+            NotificationCenter.default.addObserver(
+                forName: NSWindow.didResignKeyNotification,
+                object: created, queue: .main
+            ) { [weak self] _ in self?.hide() }
             self.panel = created
             return created
         }()
