@@ -203,9 +203,9 @@ final class CharacterNode: SKNode {
         }
 
         // 아주 가끔 멀리까지 빠르게 달린다
-        if nextDashAt == 0 { nextDashAt = now + Double.random(in: 25...70) }
+        if nextDashAt == 0 { nextDashAt = now + Double.random(in: 15...45) }
         if dashTarget == nil, now >= nextDashAt {
-            nextDashAt = now + Double.random(in: 25...70)
+            nextDashAt = now + Double.random(in: 15...45)
             // 남은 공간이 넓은 쪽으로 달린다. 방향은 끝날 때까지 바꾸지 않는다
             dashDirection = x < (strip.minX + strip.maxX) / 2 ? 1 : -1
             dashTarget = strip.clamp(x + dashDirection * CGFloat.random(in: 220...420))
@@ -226,8 +226,8 @@ final class CharacterNode: SKNode {
         }
 
         if now >= nextWalkAt {
-            nextWalkAt = now + Double.random(in: 3...9)
-            walkTarget = strip.clamp(anchorX + CGFloat.random(in: -150...150))
+            nextWalkAt = now + Double.random(in: 2...6)
+            walkTarget = strip.clamp(anchorX + CGFloat.random(in: -400...400))
         }
         let delta = walkTarget - x
         if abs(delta) < 1 {
