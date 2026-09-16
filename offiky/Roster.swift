@@ -44,18 +44,15 @@ struct RosterView: View {
     }
 
     private func thumbnail(_ look: Look, size: CGFloat) -> some View {
-        let sheet = Characters.sheet(look)
-        let textures = sheet.frames[.idle] ?? []
-        let scale = size / max(sheet.size.width, sheet.size.height)
-        return Group {
-            if let cg = textures.first?.cgImage() as CGImage? {
-                Image(nsImage: NSImage(cgImage: cg, size: NSSize(width: sheet.size.width,
-                                                                 height: sheet.size.height)))
+        Group {
+            if let image = Characters.thumbnail(look) {
+                Image(nsImage: image)
                     .interpolation(.none)
                     .resizable()
-                    .frame(width: sheet.size.width * scale, height: sheet.size.height * scale)
+                    .scaledToFit()
             }
         }
+        .frame(width: size, height: size)
     }
 
     private func refresh() {

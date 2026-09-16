@@ -133,6 +133,20 @@ enum Characters {
         return (CGFloat(last - first + 1), CGFloat(height - 1 - bottom))
     }
 
+    private static var thumbCache: [Int: NSImage] = [:]
+
+    /// 목록에 쓰는 대기 첫 장. SKTexture.cgImage() 는 부를 때마다 GPU 에서 읽어 오므로
+    /// 캐시가 없으면 화면을 다시 그릴 때마다 40장을 새로 만든다 — 실측 192ms
+    static func thumbnail(_ look: Look) -> NSImage? {
+        let design = look.sanitized.design
+        if let hit = thumbCache[design] { return hit }
+        let sheet = sheet(look)
+        guard let cg = sheet.frames[.idle]?.first?.cgImage() as CGImage? else { return nil }
+        let made = NSImage(cgImage: cg, size: sheet.size)
+        thumbCache[design] = made
+        return made
+    }
+
     // MARK: 그림자
 
     private static var shadowCache: [String: SKTexture] = [:]

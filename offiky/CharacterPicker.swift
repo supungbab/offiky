@@ -11,18 +11,19 @@ struct CharacterPickerView: View {
     private static let gap: CGFloat = 6
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("캐릭터").font(.headline)
+        VStack(alignment: .leading, spacing: 12) {
             // 한 줄이 한 모양이고 가로가 색이다
-            LazyVGrid(columns: Array(repeating: GridItem(.fixed(Self.thumb + 4),
-                                                         spacing: Self.gap),
-                                     count: Characters.colorCount),
-                      spacing: Self.gap) {
-                ForEach(0..<Characters.count, id: \.self) { index in
-                    button(index)
+            Grid(horizontalSpacing: Self.gap, verticalSpacing: Self.gap) {
+                ForEach(0..<Characters.count / Characters.colorCount, id: \.self) { shape in
+                    GridRow {
+                        ForEach(0..<Characters.colorCount, id: \.self) { color in
+                            button(shape * Characters.colorCount + color)
+                        }
+                    }
                 }
             }
 
+            Divider()
             HStack {
                 Spacer()
                 Button("적용") {
@@ -52,16 +53,12 @@ struct CharacterPickerView: View {
     }
 
     private func thumbnail(_ look: Look, size: CGFloat) -> some View {
-        let sheet = Characters.sheet(look)
-        let textures = sheet.frames[.idle] ?? []
-        let scale = size / max(sheet.size.width, sheet.size.height)
-        return Group {
-            if let cg = textures.first?.cgImage() as CGImage? {
-                Image(nsImage: NSImage(cgImage: cg, size: NSSize(
-                    width: sheet.size.width * scale, height: sheet.size.height * scale)))
+        Group {
+            if let image = Characters.thumbnail(look) {
+                Image(nsImage: image)
                     .interpolation(.none)
                     .resizable()
-                    .frame(width: sheet.size.width * scale, height: sheet.size.height * scale)
+                    .scaledToFit()
             }
         }
         .frame(width: size, height: size)
@@ -73,7 +70,9 @@ private var pickerWindow: NSWindow?
 func openCharacterPicker() {
     if let window = pickerWindow {
         // 적용하지 않고 닫았던 초안을 버리고 지금 모습에서 다시 시작한다
-        window.contentView = NSHostingView(rootView: CharacterPickerView())
+        let view = NSHostingView(rootView: CharacterPickerView())
+        window.contentView = view
+        window.setContentSize(view.fittingSize)
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         return
