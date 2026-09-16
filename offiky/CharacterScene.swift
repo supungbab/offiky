@@ -557,7 +557,7 @@ final class World {
                 let frame = strip.frames[placement.screenIndex]
                 OverlayController.shared.moveHandle(toGlobal: CGPoint(
                     x: frame.minX + placement.point.x,
-                    y: frame.minY + placement.point.y))
+                    y: frame.minY + placement.point.y), now: now)
             }
         }
     }

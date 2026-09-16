@@ -8,6 +8,7 @@ final class OverlayController {
     private(set) var scenes: [CharacterScene] = []
     private(set) var strip = FloorStrip(visibleFrames: [], main: nil)
     private var handle: NSWindow?
+    private var handleMovedAt: TimeInterval = 0
 
     private init() {}
 
@@ -24,7 +25,13 @@ final class OverlayController {
     }
 
     /// 오버레이가 표시 전용이라 내 캐릭터 위에 겹쳐 두고 드래그를 받는다.
-    func moveHandle(toGlobal point: CGPoint) {
+    /// 클릭만 받으면 되므로 캐릭터를 매 프레임 따라갈 이유가 없다. 창을 옮길 때마다
+    /// 윈도우 서버와 왕복이 생겨서, 60fps 로 부르면 그것만으로 CPU 의 3할을 쓴다.
+    /// 12Hz 면 가장 빠른 대시(90pt/s)에서도 7.5pt 뒤처지는데 핸들이 40pt 라 덮고 남는다.
+    /// 드래그 중에는 눌린 창이 커서를 계속 따라가므로 뒤처져도 끊기지 않는다.
+    func moveHandle(toGlobal point: CGPoint, now: TimeInterval) {
+        guard now - handleMovedAt >= 1.0 / 12 else { return }
+        handleMovedAt = now
         let size = CGSize(width: spriteDisplaySize, height: spriteDisplaySize)
         if handle == nil {
             let window = NSWindow(contentRect: CGRect(origin: point, size: size),
@@ -68,7 +75,7 @@ final class OverlayController {
 
             let view = SKView(frame: CGRect(origin: .zero, size: frame.size))
             view.allowsTransparency = true
-            view.preferredFramesPerSecond = 60
+            view.preferredFramesPerSecond = 30
             let scene = CharacterScene(size: frame.size)
             scene.backgroundColor = .clear
             scene.scaleMode = .resizeFill

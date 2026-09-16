@@ -86,9 +86,9 @@ private struct ChatInputView: View {
     private(set) var hotKeyWorks = true
 
     func install() {
-        // 양손 엄지만 쓴다. 타자 중에 손가락이 홈 포지션을 떠나지 않는다.
-        // 뺏는 것은 줄바꿈 없는 공백 입력뿐이다.
-        hotKey = HotKey(keyCode: UInt32(kVK_Space),
+        // 왼엄지가 ⌥ 로, 왼검지는 이미 F 에 있다. 손가락이 홈 포지션을 떠나지 않는다.
+        // ⌥Space 는 Alfred 기본 단축키라 피한다.
+        hotKey = HotKey(keyCode: UInt32(kVK_ANSI_F),
                         modifiers: UInt32(optionKey)) { [weak self] in
             self?.toggle()
         }

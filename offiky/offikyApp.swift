@@ -18,9 +18,9 @@ struct offikyApp: App {
                 Button("업데이트 확인…") { UpdateChecker.shared.checkAndTell() }
             }
             Divider()
-            Button("채팅 열기  ⌥Space") { ChatPanel.shared.show() }
+            Button("채팅 열기  ⌥F") { ChatPanel.shared.show() }
             if !ChatPanel.shared.hotKeyWorks {
-                Text("⌥Space 를 다른 앱이 쓰고 있습니다")
+                Text("⌥F 를 다른 앱이 쓰고 있습니다")
             }
             Button("참가자 \(Presence.shared.count)명…") { openRoster() }
             Button("내 캐릭터…") { openCharacterPicker() }
@@ -36,14 +36,25 @@ struct offikyApp: App {
             Divider()
             Button("종료") { NSApplication.shared.terminate(nil) }
         } label: {
+            // 배포본과 함께 떠 있을 때 열어 보지 않고 구분되어야 한다
+            #if DEBUG
+            Image(systemName: "hammer.fill")
+            #else
             Image("MenuBarIcon")
+            #endif
         }
     }
 
     /// 버전이 다르면 서로 보이지 않으므로 동료끼리 대조할 수 있어야 한다.
     /// 빌드 번호는 배포마다 버전과 함께 올라가므로 보여줄 것이 없다.
     private var appVersion: String {
-        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString")
+            as? String ?? "?"
+        #if DEBUG
+        return "\(version) · 디버그"
+        #else
+        return version
+        #endif
     }
 
     /// 메뉴가 닫혀 있으면 뷰가 갱신되지 않아 onChange 가 다음 열 때까지 미뤄진다.
