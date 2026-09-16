@@ -3,6 +3,8 @@ import Network
 
 private let serviceType = "_offiky._tcp"
 
+/// 모두가 모두에게 직접 붙는다. 중계하는 사람이 없으므로 한 사람에게 부담이 몰리지 않고,
+/// 호스트 선출·교체와 그에 딸린 상태가 전부 없다.
 final class Mesh {
     static let shared = Mesh()
 
@@ -10,26 +12,35 @@ final class Mesh {
     private var listener: NWListener?
     private var browser: NWBrowser?
 
-    private var clients: [String: NWConnection] = [:]
-    private var upstream: NWConnection?
+    /// 연결 하나. 내가 건 쪽은 상대를 알고 시작하고, 받은 쪽은 hello 를 받아야 안다
+    private final class Link {
+        let connection: NWConnection
+        var peerID: String?
+        var buffer = Data()
+        init(_ connection: NWConnection, peerID: String?) {
+            self.connection = connection
+            self.peerID = peerID
+        }
+    }
 
+    private var links: [String: Link] = [:]
     private var visible: Set<String> = []
     private var mismatched = 0
-    private var excluded: [String: Date] = [:]
-    private var currentHost: String?
-    private var debounce: DispatchWorkItem?
+    /// 실패한 상대는 쉬었다 다시 건다. 바로 다시 걸면 실패가 반복되며 회전한다
+    private var retryAfter: [String: Date] = [:]
+    private var dialWork: DispatchWorkItem?
     private var monitor: NWPathMonitor?
     private var restartWork: DispatchWorkItem?
     private var lastPath = ""
-    private var buffers: [String: Data] = [:]
 
-    var isHost: Bool { currentHost == World.shared.myID }
+    static let retryDelay: TimeInterval = 5
+
     /// 프로토콜이 달라 연결하지 않은 피어 수. 메뉴에서 알린다
     var otherVersionCount: Int { queue.sync { mismatched } }
 
-    var onLine: ((Data, String?) -> Void)?
-    var onUpstreamReady: (() -> Void)?
-    var onClientGone: ((String) -> Void)?
+    var onLine: ((Data, String) -> Void)?
+    var onReady: ((String) -> Void)?
+    var onGone: ((String) -> Void)?
 
     private init() {}
 
@@ -48,17 +59,19 @@ final class Mesh {
     /// 경로 감시는 남겨 둔다. 다시 시작할 때 이걸 쓴다
     private func teardown() {
         restartWork?.cancel()
+        dialWork?.cancel()
         listener?.stateUpdateHandler = nil
         listener?.cancel(); listener = nil
         browser?.stateUpdateHandler = nil
         browser?.cancel(); browser = nil
-        cancelUpstream()
-        clients.values.forEach { $0.stateUpdateHandler = nil; $0.cancel() }
-        clients.removeAll()
-        buffers.removeAll()
+        for link in links.values {
+            link.connection.stateUpdateHandler = nil
+            link.connection.cancel()
+        }
+        links.removeAll()
         visible.removeAll()
+        retryAfter.removeAll()
         mismatched = 0
-        currentHost = nil
         DispatchQueue.main.async { Session.shared.reset() }
     }
 
@@ -110,25 +123,6 @@ final class Mesh {
         self.listener = listener
     }
 
-    /// 분열 구간에 호스트가 아닌 피어에게도 연결이 들어온다.
-    /// 종료하면 상대가 재계산해 올바른 호스트로 이동한다.
-    private func accept(_ connection: NWConnection) {
-        guard isHost else { connection.cancel(); return }
-        let key = UUID().uuidString
-        clients[key] = connection
-        connection.stateUpdateHandler = { [weak self] state in
-            switch state {
-            case .failed, .cancelled:
-                self?.clients[key] = nil
-                self?.buffers[key] = nil
-                self?.onClientGone?(key)
-            default: break
-            }
-        }
-        connection.start(queue: queue)
-        receiveLines(on: connection, from: key)
-    }
-
     private func startBrowser() {
         let descriptor = NWBrowser.Descriptor.bonjourWithTXTRecord(type: serviceType, domain: nil)
         let browser = NWBrowser(for: descriptor, using: .tcp)
@@ -143,7 +137,7 @@ final class Mesh {
             let peers = compatiblePeers(entries)
             self.visible = peers.ids
             self.mismatched = peers.mismatched
-            self.scheduleElection()
+            self.dial()
         }
         browser.stateUpdateHandler = { [weak self] state in
             if case .failed = state { self?.restart() }
@@ -152,123 +146,121 @@ final class Mesh {
         self.browser = browser
     }
 
-    private func scheduleElection() {
-        debounce?.cancel()
-        let work = DispatchWorkItem { [weak self] in self?.elect() }
-        debounce = work
-        queue.asyncAfter(deadline: .now() + 0.3, execute: work)
-    }
-
-    private func elect() {
-        excluded = excluded.filter { Date().timeIntervalSince($0.value) < 10 }
-        let host = electHost(candidates: visible,
-                             excluded: Set(excluded.keys),
-                             me: World.shared.myID)
-        guard host != currentHost else { return }
-        currentHost = host
-
-        cancelUpstream()
-        buffers["upstream"] = nil
-        if !isHost {
-            // 호스트에서 내려왔으면 붙어 있던 연결을 끊는다. 그대로 두면 상대는
-            // 호스트가 아닌 나에게 계속 좌표를 보내고 나는 전부 버린다.
-            // 끊으면 상대가 재계산해 진짜 호스트로 옮겨 간다.
-            clients.values.forEach { $0.stateUpdateHandler = nil; $0.cancel() }
-            clients.removeAll()
-            buffers = buffers.filter { $0.key == "upstream" }
-            connectToHost(host)
+    /// 한 쌍에 연결이 하나만 생기도록 id 가 큰 쪽에만 내가 건다. 상대는 받기만 한다
+    private func dial() {
+        dialWork?.cancel()
+        let now = Date()
+        var wakeAt: Date?
+        for id in visible where id > World.shared.myID {
+            if links.values.contains(where: { $0.peerID == id }) { continue }
+            if let at = retryAfter[id], at > now {
+                wakeAt = min(wakeAt ?? at, at)
+                continue
+            }
+            connect(to: id)
         }
-        DispatchQueue.main.async { Session.shared.hostChanged() }
+        guard let wakeAt else { return }
+        let work = DispatchWorkItem { [weak self] in self?.dial() }
+        dialWork = work
+        queue.asyncAfter(deadline: .now() + max(0.1, wakeAt.timeIntervalSinceNow), execute: work)
     }
 
-    /// 연결이 끊어진 피어는 Bonjour 목록에서 사라지기를 기다리지 않는다.
-    /// 비정상 종료 시 mDNS TTL 만료까지 수십 초가 걸린다.
-    private func exclude(_ id: String) {
-        excluded[id] = Date()
-        DispatchQueue.main.async { Session.shared.peerGone(id) }
-        scheduleElection()
-        // 제외가 풀리는 시점에 다시 계산한다. elect 는 Bonjour 목록이 바뀔 때만
-        // 불리므로, 깨워 주지 않으면 잘못된 판단이 영원히 남는다 —
-        // 서로를 제외한 둘이 각자 자기를 호스트로 믿고 아무도 연결하지 않는다
-        queue.asyncAfter(deadline: .now() + 10.5) { [weak self] in self?.elect() }
-    }
-
-    /// 우리가 끊는 것이므로 실패 처리가 돌면 안 된다. 살아 있는 호스트를 나간 것으로 지운다
-    private func cancelUpstream() {
-        upstream?.stateUpdateHandler = nil
-        upstream?.cancel()
-        upstream = nil
-    }
-
-    private func connectToHost(_ id: String) {
+    private func connect(to id: String) {
         let endpoint = NWEndpoint.service(name: id, type: serviceType,
                                           domain: "local.", interface: nil)
-        let connection = NWConnection(to: endpoint, using: .tcp)
+        add(NWConnection(to: endpoint, using: .tcp), peerID: id)
+    }
+
+    private func accept(_ connection: NWConnection) {
+        add(connection, peerID: nil)
+    }
+
+    private func add(_ connection: NWConnection, peerID: String?) {
+        let key = UUID().uuidString
+        let link = Link(connection, peerID: peerID)
+        links[key] = link
         connection.stateUpdateHandler = { [weak self] state in
+            guard let self, self.links[key] === link else { return }
             switch state {
             case .ready:
-                DispatchQueue.main.async { self?.onUpstreamReady?() }
+                if let peerID { self.retryAfter[peerID] = nil }
+                DispatchQueue.main.async { self.onReady?(key) }
             case .failed, .cancelled:
-                self?.exclude(id)
-            default: break
+                self.drop(key)
+            default:
+                break
             }
         }
         connection.start(queue: queue)
-        upstream = connection
-        receiveLines(on: connection, from: nil)
+        receiveLines(key: key)
     }
 
-    private func receiveLines(on connection: NWConnection, from key: String?) {
+    private func drop(_ key: String) {
+        guard let link = links.removeValue(forKey: key) else { return }
+        link.connection.stateUpdateHandler = nil
+        link.connection.cancel()
+        if let id = link.peerID {
+            retryAfter[id] = Date().addingTimeInterval(Mesh.retryDelay)
+            dial()
+        }
+        DispatchQueue.main.async { self.onGone?(key) }
+    }
+
+    /// hello 를 받아 상대를 알게 됐다. 같은 상대와 두 번 붙어 있으면 하나를 끊는다
+    func identify(_ key: String, as id: String) {
+        queue.async {
+            guard let link = self.links[key] else { return }
+            for (other, existing) in self.links where other != key && existing.peerID == id {
+                self.drop(other)
+            }
+            link.peerID = id
+        }
+    }
+
+    /// 좌표가 끊겨 없는 것으로 판정했다. 연결이 살아 있어도 쓸모없으므로 끊는다.
+    /// 그냥 두면 상대가 다시 보내기 시작해도 hello 를 다시 받을 일이 없어 안 보인다
+    func dropLinks(to id: String) {
+        queue.async {
+            for (key, link) in self.links where link.peerID == id { self.drop(key) }
+        }
+    }
+
+    private func receiveLines(key: String) {
+        guard let link = links[key] else { return }
+        let connection = link.connection
         connection.receive(minimumIncompleteLength: 1, maximumLength: 64 * 1024) {
             [weak self] data, _, isComplete, error in
             guard let self else { return }
             // 취소한 연결도 마지막 콜백이 한 번 온다. 버린 연결이면 무시한다
-            let live = key.map { self.clients[$0] } ?? self.upstream
-            guard live === connection else { return }
-            let bufferKey = key ?? "upstream"
+            guard self.links[key] === link else { return }
 
             if let data, !data.isEmpty {
-                var buffer = self.buffers[bufferKey, default: Data()]
-                buffer.append(data)
-                while let newline = buffer.firstIndex(of: 0x0A) {
-                    let line = Data(buffer[buffer.startIndex..<newline])
-                    buffer.removeSubrange(buffer.startIndex...newline)
-                    if line.count > Limits.maxMessageBytes {
-                        self.buffers[bufferKey] = nil
-                        connection.cancel()
-                        return
-                    }
+                link.buffer.append(data)
+                while let newline = link.buffer.firstIndex(of: 0x0A) {
+                    let line = Data(link.buffer[link.buffer.startIndex..<newline])
+                    link.buffer.removeSubrange(link.buffer.startIndex...newline)
+                    if line.count > Limits.maxMessageBytes { self.drop(key); return }
                     if !line.isEmpty { self.onLine?(line, key) }
                 }
-                self.buffers[bufferKey] = buffer
             }
 
-            if isComplete || error != nil {
-                connection.cancel()
-                if key == nil, let host = self.currentHost { self.exclude(host) }
-                return
-            }
-            self.receiveLines(on: connection, from: key)
+            if isComplete || error != nil { self.drop(key); return }
+            self.receiveLines(key: key)
         }
     }
 
     /// 연결 목록은 이 큐에서만 바뀐다. 메인에서 바로 읽으면 바뀌는 중에 읽을 수 있다
-    func sendToHost(_ data: Data) {
-        var line = data; line.append(0x0A)
-        queue.async { self.upstream?.send(content: line, completion: .idempotent) }
-    }
-
     func broadcast(_ data: Data) {
         var line = data; line.append(0x0A)
         queue.async {
-            for connection in self.clients.values {
-                connection.send(content: line, completion: .idempotent)
+            for link in self.links.values {
+                link.connection.send(content: line, completion: .idempotent)
             }
         }
     }
 
-    func send(_ data: Data, toClient key: String) {
+    func send(_ data: Data, to key: String) {
         var line = data; line.append(0x0A)
-        queue.async { self.clients[key]?.send(content: line, completion: .idempotent) }
+        queue.async { self.links[key]?.connection.send(content: line, completion: .idempotent) }
     }
 }

@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
 
-let protocolVersion = 1
+let protocolVersion = 2
 let spriteDisplaySize: CGFloat = 40
 /// 바닥을 화면 맨 아래에서 띄우는 높이. Dock 이나 화면 끝에 붙어 보이지 않게 한다
 let floorOffset: CGFloat = 8
@@ -138,25 +138,6 @@ func compatiblePeers(_ entries: [(id: String, pv: String?)]) -> (ids: Set<String
     return (ids, mismatched)
 }
 
-/// 보이는 피어 중 id 가 가장 작은 쪽이 호스트다. 나는 언제나 후보에 포함된다.
-func electHost(candidates: Set<String>, excluded: Set<String>, me: String) -> String {
-    var pool = candidates.subtracting(excluded)
-    pool.insert(me)
-    return pool.min()!
-}
-
-struct SeqTracker {
-    private var last: [String: Int] = [:]
-
-    mutating func accept(id: String, seq: Int) -> Bool {
-        if let previous = last[id], seq <= previous { return false }
-        last[id] = seq
-        return true
-    }
-
-    mutating func forget(id: String) { last[id] = nil }
-}
-
 private func stripControls(_ s: String) -> String {
     s.filter { !$0.unicodeScalars.contains { CharacterSet.controlCharacters.contains($0) } }
 }
@@ -191,43 +172,13 @@ struct PosMsg: Codable {
 
 struct SayMsg: Codable {
     var t = "say"
-    var id: String?
-    let seq: Int
     let msg: String
 }
 
 struct ProfileMsg: Codable {
     var t = "profile"
-    var id: String?
     let name: String
     let look: Look
-}
-
-struct JoinMsg: Codable {
-    var t = "join"
-    let id: String
-    let name: String
-    let look: Look
-    /// 스냅샷에서 이 피어를 가리키는 번호. 호스트가 접속 순서대로 부여한다
-    var n: Int?
-}
-
-struct LeaveMsg: Codable {
-    var t = "leave"
-    let id: String
-}
-
-/// 한 건은 `[번호, x]` 또는 `[번호, x, y]` 다. 좌표는 포인트 단위 정수로 내림한다.
-/// 표시는 2포인트 격자에 맞추므로 정밀도 손실이 화면에 나타나지 않는다.
-/// id 를 그대로 싣던 때는 한 건이 56바이트였고 지금은 8바이트다
-struct SnapMsg: Codable {
-    var t = "snap"
-    let p: [[Int]]
-}
-
-struct AckMsg: Codable {
-    var t = "ack"
-    let seq: Int
 }
 
 /// 캐릭터 외형. 내장 9종 중 하나에 색 조정값을 더한 것이다.

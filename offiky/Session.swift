@@ -1,18 +1,12 @@
 import CoreGraphics
 import Foundation
 
+/// 메시지를 주고받는다. 보내는 사람은 연결이 정하므로 좌표·채팅에 id 를 싣지 않는다.
 final class Session {
     static let shared = Session()
 
-    private var seq = 0
-    private var pending: [SayMsg] = []
-    private var tracker = SeqTracker()
-    private var profiles: [String: (name: String, look: Look)] = [:]
-    private var clientIDs: [String: String] = [:]
-    /// 호스트가 부여한 번호. 스냅샷에서 36자 UUID 대신 이걸 싣는다
-    private var indexes: [String: Int] = [:]
-    private var idByIndex: [Int: String] = [:]
-
+    /// 연결 → 그 너머에 있는 사람
+    private var peerByKey: [String: String] = [:]
     private var posTimer: Timer?
 
     private init() {}
@@ -21,11 +15,11 @@ final class Session {
         Mesh.shared.onLine = { [weak self] data, key in
             DispatchQueue.main.async { self?.handle(data, from: key) }
         }
-        Mesh.shared.onUpstreamReady = { [weak self] in
-            self?.sendHello()
+        Mesh.shared.onReady = { [weak self] key in
+            DispatchQueue.main.async { self?.sendHello(to: key) }
         }
-        Mesh.shared.onClientGone = { [weak self] key in
-            DispatchQueue.main.async { self?.clientGone(key) }
+        Mesh.shared.onGone = { [weak self] key in
+            DispatchQueue.main.async { self?.linkGone(key) }
         }
 
         posTimer = Timer.scheduledTimer(withTimeInterval: snapshotInterval, repeats: true) {
@@ -33,217 +27,96 @@ final class Session {
         }
     }
 
-    fileprivate func encode<T: Encodable>(_ value: T) -> Data {
+    private func encode<T: Encodable>(_ value: T) -> Data {
         (try? JSONEncoder().encode(value)) ?? Data()
     }
 
-    private func sendHello() {
+    /// 양쪽 다 연결되자마자 보낸다. 받은 쪽이 따로 답할 필요가 없다
+    private func sendHello(to key: String) {
         let me = World.shared.me
-        Mesh.shared.sendToHost(encode(HelloMsg(
-            id: World.shared.myID, name: me.displayName, look: World.myLook)))
-        pending.forEach { Mesh.shared.sendToHost(encode($0)) }
-    }
-
-    private func index(for id: String) -> Int {
-        if let n = indexes[id] { return n }
-        let used = Set(indexes.values)
-        var n = 0
-        while used.contains(n) { n += 1 }
-        indexes[id] = n
-        return n
+        Mesh.shared.send(encode(HelloMsg(id: World.shared.myID,
+                                         name: me.displayName, look: World.myLook)), to: key)
     }
 
     private func sendPosition() {
         let me = World.shared.me
-        let msg = PosMsg(x: Double(me.x), y: me.y > 0 ? Double(me.y) : nil)
-        if Mesh.shared.isHost {
-            Mesh.shared.broadcast(encode(SnapMsg(p: [entry(World.shared.myID, msg)])))
-        } else {
-            Mesh.shared.sendToHost(encode(msg))
-        }
-    }
-
-    private func entry(_ id: String, _ p: PosMsg) -> [Int] {
-        var entry = [index(for: id), Int(p.x.rounded())]
-        if let y = p.y, y > 0 { entry.append(Int(y.rounded())) }
-        return entry
+        Mesh.shared.broadcast(encode(PosMsg(x: Double(me.x), y: me.y > 0 ? Double(me.y) : nil)))
     }
 
     func sendSay(_ text: String) {
         guard let body = validChat(text) else { return }
-        seq += 1
-        let msg = SayMsg(id: World.shared.myID, seq: seq, msg: body)
-        if Mesh.shared.isHost {
-            Mesh.shared.broadcast(encode(msg))
-        } else {
-            pending.append(msg)
-            Mesh.shared.sendToHost(encode(SayMsg(seq: seq, msg: body)))
-        }
+        Mesh.shared.broadcast(encode(SayMsg(msg: body)))
         World.shared.showBubble(id: World.shared.myID, text: body)
     }
 
     func sendProfile() {
         let me = World.shared.me
-        let look = World.myLook
-        if Mesh.shared.isHost {
-            Mesh.shared.broadcast(encode(
-                ProfileMsg(id: World.shared.myID, name: me.displayName, look: look)))
-        } else {
-            Mesh.shared.sendToHost(encode(ProfileMsg(name: me.displayName, look: look)))
-        }
-    }
-
-    /// 대기열을 가진 클라이언트가 스스로 호스트가 되면 재전송할 상대가 없다.
-    func hostChanged() {
-        // 번호는 호스트가 부여하므로 호스트가 바뀌면 체계가 새로 시작된다
-        indexes.removeAll()
-        idByIndex.removeAll()
-        // 중계하던 상태다. 더 이상 호스트가 아니면 의미가 없고, 다시 호스트가 되면
-        // 상대가 hello 를 새로 보내므로 남겨 둘 이유가 없다
-        clientIDs.removeAll()
-        guard Mesh.shared.isHost else { return }
-        pending.forEach { Mesh.shared.broadcast(encode($0)) }
-        pending.removeAll()
+        Mesh.shared.broadcast(encode(ProfileMsg(name: me.displayName, look: World.myLook)))
     }
 
     /// 메시를 다시 시작할 때 이전 연결의 흔적을 전부 지운다.
     /// 남겨 두면 다시 붙을 때까지 멈춘 캐릭터가 화면에 남는다.
     func reset() {
-        profiles.removeAll()
-        clientIDs.removeAll()
-        indexes.removeAll()
-        idByIndex.removeAll()
-        tracker = SeqTracker()
+        peerByKey.removeAll()
         World.shared.removeAllPeers()
     }
 
-    /// 나간 피어의 흔적을 지운다. 호스트가 사라졌을 때도 여기로 온다.
+    /// 좌표가 끊겨 없는 것으로 판정했을 때 World 가 부른다.
+    /// 연결을 끊어 두면 다시 걸면서 hello 가 오가고 그때 되살아난다
     func peerGone(_ id: String) {
-        profiles[id] = nil
-        if let n = indexes.removeValue(forKey: id) { idByIndex[n] = nil }
-        idByIndex = idByIndex.filter { $0.value != id }
-        tracker.forget(id: id)
+        World.shared.removePeer(id: id)
+        Mesh.shared.dropLinks(to: id)
+    }
+
+    private func linkGone(_ key: String) {
+        guard let id = peerByKey.removeValue(forKey: key) else { return }
+        // 같은 사람과 두 경로로 붙는 일이 있다. 남은 연결이 있으면 지우지 않는다
+        guard !peerByKey.values.contains(id) else { return }
         World.shared.removePeer(id: id)
     }
 
-    private func clientGone(_ key: String) {
-        guard let id = clientIDs.removeValue(forKey: key) else { return }
-        // 같은 피어가 두 경로로 붙는 일이 있다. 남은 연결이 있으면 지우지 않는다
-        guard !clientIDs.values.contains(id) else { return }
-        peerGone(id)
-        Mesh.shared.broadcast(encode(LeaveMsg(id: id)))
-    }
-
-    private func handle(_ data: Data, from key: String?) {
+    private func handle(_ data: Data, from key: String) {
         guard let envelope = try? JSONDecoder().decode(Envelope.self, from: data) else { return }
         switch envelope.t {
         case "hello":   handleHello(data, key: key)
         case "pos":     handlePos(data, key: key)
         case "say":     handleSay(data, key: key)
         case "profile": handleProfile(data, key: key)
-        case "join":    handleJoin(data)
-        case "leave":   handleLeave(data)
-        case "snap":    handleSnap(data)
-        case "ack":     handleAck(data)
         default: break
         }
     }
 
-    private func handleHello(_ data: Data, key: String?) {
-        guard Mesh.shared.isHost, let key,
-              let msg = try? JSONDecoder().decode(HelloMsg.self, from: data),
-              msg.pv == protocolVersion
+    private func handleHello(_ data: Data, key: String) {
+        guard let msg = try? JSONDecoder().decode(HelloMsg.self, from: data),
+              msg.pv == protocolVersion,
+              msg.id != World.shared.myID
         else { return }
-
-        clientIDs[key] = msg.id
-        let name = sanitizeName(msg.name)
-        let look = msg.look.sanitized
-        profiles[msg.id] = (name, look)
-
-        let me = World.shared.me
-        Mesh.shared.send(encode(JoinMsg(
-            id: World.shared.myID, name: me.displayName, look: World.myLook,
-            n: index(for: World.shared.myID))), toClient: key)
-        for (id, profile) in profiles where id != msg.id {
-            Mesh.shared.send(encode(JoinMsg(
-                id: id, name: profile.name, look: profile.look,
-                n: index(for: id))), toClient: key)
-        }
-        Mesh.shared.broadcast(encode(JoinMsg(
-            id: msg.id, name: name, look: look, n: index(for: msg.id))))
-        World.shared.addPeer(id: msg.id, name: name, look: look)
+        peerByKey[key] = msg.id
+        Mesh.shared.identify(key, as: msg.id)
+        World.shared.addPeer(id: msg.id, name: sanitizeName(msg.name), look: msg.look.sanitized)
     }
 
-    private func handlePos(_ data: Data, key: String?) {
-        guard Mesh.shared.isHost, let key, let id = clientIDs[key],
+    private func handlePos(_ data: Data, key: String) {
+        guard let id = peerByKey[key],
               let msg = try? JSONDecoder().decode(PosMsg.self, from: data),
               abs(msg.x) <= Limits.maxX,
               msg.y == nil || (msg.y! >= 0 && msg.y! <= Limits.maxY)
         else { return }
-        // 받는 즉시 그대로 넘긴다. 호스트 쪽 타이머로 다시 표본을 뜨면 두 시계가
-        // 어긋나 같은 좌표가 두 번 가거나 하나가 빠지고, 받는 쪽에서 끊겨 보인다
-        Mesh.shared.broadcast(encode(SnapMsg(p: [entry(id, msg)])))
         World.shared.setPeerTarget(id: id, x: CGFloat(msg.x), y: CGFloat(msg.y ?? 0))
     }
 
-    private func handleSnap(_ data: Data) {
-        guard let msg = try? JSONDecoder().decode(SnapMsg.self, from: data) else { return }
-        for entry in msg.p {
-            guard entry.count >= 2,
-                  let id = idByIndex[entry[0]], id != World.shared.myID
-            else { continue }
-            let x = Double(entry[1])
-            let y = entry.count > 2 ? Double(entry[2]) : 0
-            guard abs(x) <= Limits.maxX, y >= 0, y <= Limits.maxY else { continue }
-            World.shared.setPeerTarget(id: id, x: CGFloat(x), y: CGFloat(y))
-        }
-    }
-
-    private func handleSay(_ data: Data, key: String?) {
-        guard var msg = try? JSONDecoder().decode(SayMsg.self, from: data),
-              let body = validChat(msg.msg) else { return }
-
-        if Mesh.shared.isHost, let key, let id = clientIDs[key] {
-            msg.id = id
-            Mesh.shared.send(encode(AckMsg(seq: msg.seq)), toClient: key)
-            Mesh.shared.broadcast(encode(SayMsg(id: id, seq: msg.seq, msg: body)))
-        }
-        guard let id = msg.id, id != World.shared.myID,
-              tracker.accept(id: id, seq: msg.seq) else { return }
+    private func handleSay(_ data: Data, key: String) {
+        guard let id = peerByKey[key],
+              let msg = try? JSONDecoder().decode(SayMsg.self, from: data),
+              let body = validChat(msg.msg)
+        else { return }
         World.shared.showBubble(id: id, text: body)
     }
 
-    private func handleAck(_ data: Data) {
-        guard let msg = try? JSONDecoder().decode(AckMsg.self, from: data) else { return }
-        pending.removeAll { $0.seq <= msg.seq }
-    }
-
-    private func handleProfile(_ data: Data, key: String?) {
-        guard var msg = try? JSONDecoder().decode(ProfileMsg.self, from: data) else { return }
-        if Mesh.shared.isHost, let key, let id = clientIDs[key] {
-            msg.id = id
-            Mesh.shared.broadcast(encode(
-                ProfileMsg(id: id, name: msg.name, look: msg.look)))
-        }
-        guard let id = msg.id, id != World.shared.myID else { return }
-        let name = sanitizeName(msg.name)
-        let look = msg.look.sanitized
-        profiles[id] = (name, look)
-        World.shared.addPeer(id: id, name: name, look: look)
-    }
-
-    private func handleJoin(_ data: Data) {
-        guard let msg = try? JSONDecoder().decode(JoinMsg.self, from: data),
-              msg.id != World.shared.myID else { return }
-        if let n = msg.n { idByIndex[n] = msg.id }
-        let name = sanitizeName(msg.name)
-        let look = msg.look.sanitized
-        profiles[msg.id] = (name, look)
-        World.shared.addPeer(id: msg.id, name: name, look: look)
-    }
-
-    private func handleLeave(_ data: Data) {
-        guard let msg = try? JSONDecoder().decode(LeaveMsg.self, from: data) else { return }
-        peerGone(msg.id)
+    private func handleProfile(_ data: Data, key: String) {
+        guard let id = peerByKey[key],
+              let msg = try? JSONDecoder().decode(ProfileMsg.self, from: data)
+        else { return }
+        World.shared.addPeer(id: id, name: sanitizeName(msg.name), look: msg.look.sanitized)
     }
 }

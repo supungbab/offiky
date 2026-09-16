@@ -194,56 +194,6 @@ struct VersionCompareTests {
     }
 }
 
-struct ElectionTests {
-
-    @Test func 가장_작은_id_가_호스트다() {
-        #expect(electHost(candidates: ["b", "c", "a"], excluded: [], me: "b") == "a")
-    }
-
-    @Test func 제외된_피어는_후보에서_빠진다() {
-        #expect(electHost(candidates: ["b", "c", "a"], excluded: ["a"], me: "b") == "b")
-    }
-
-    @Test func 나는_항상_후보다() {
-        #expect(electHost(candidates: [], excluded: [], me: "z") == "z")
-        #expect(electHost(candidates: ["a"], excluded: ["a", "z"], me: "z") == "z")
-    }
-
-    @Test func 같은_목록이면_전원이_같은_답을_낸다() {
-        let seen: Set<String> = ["m", "a", "z"]
-        for me in seen {
-            #expect(electHost(candidates: seen, excluded: [], me: me) == "a")
-        }
-    }
-}
-
-struct SeqTrackerTests {
-
-    @Test func 처음_본_번호는_받는다() {
-        var t = SeqTracker()
-        #expect(t.accept(id: "a", seq: 1) == true)
-    }
-
-    @Test func 재전송을_한_번만_받는다() {
-        var t = SeqTracker()
-        #expect(t.accept(id: "a", seq: 7) == true)
-        #expect(t.accept(id: "a", seq: 7) == false)
-    }
-
-    @Test func 늦게_도착한_오래된_번호를_무시한다() {
-        var t = SeqTracker()
-        _ = t.accept(id: "a", seq: 10)
-        #expect(t.accept(id: "a", seq: 3) == false)
-        #expect(t.accept(id: "a", seq: 11) == true)
-    }
-
-    @Test func 피어마다_독립이다() {
-        var t = SeqTracker()
-        _ = t.accept(id: "a", seq: 5)
-        #expect(t.accept(id: "b", seq: 1) == true)
-    }
-}
-
 struct SanitizeTests {
 
     @Test func 이름을_20자로_자른다() {
@@ -286,32 +236,29 @@ struct MessageTests {
     }
 
     @Test func 종류를_먼저_읽을_수_있다() throws {
-        let json = #"{"t":"snap","p":[[3,862,48]]}"#
+        let json = #"{"t":"say","msg":"안녕"}"#
         let env = try JSONDecoder().decode(Envelope.self, from: Data(json.utf8))
-        #expect(env.t == "snap")
+        #expect(env.t == "say")
     }
 
-    @Test func 스냅샷은_번호와_정수_좌표로_싣는다() throws {
-        let data = try JSONEncoder().encode(SnapMsg(p: [[7, 862, 48], [3, -120]]))
-        #expect(String(decoding: data, as: UTF8.self).contains("[[7,862,48],[3,-120]]"))
-        let back = try JSONDecoder().decode(SnapMsg.self, from: data)
-        #expect(back.p == [[7, 862, 48], [3, -120]])
+    /// 보내는 사람은 연결이 정한다. id 를 실으면 남을 사칭할 수 있다
+    @Test func 좌표와_채팅에는_id_가_없다() throws {
+        let pos = String(decoding: try JSONEncoder().encode(PosMsg(x: 1, y: nil)), as: UTF8.self)
+        let say = String(decoding: try JSONEncoder().encode(SayMsg(msg: "hi")), as: UTF8.self)
+        #expect(!pos.contains("id"))
+        #expect(!say.contains("id"))
     }
 
-    /// id 를 그대로 싣던 때는 같은 인원이 2.8KB 였다
-    @Test func 오십명_스냅샷이_1KB_아래다() throws {
-        let entries = (0..<50).map { i -> [Int] in
-            let x = -4000 + i * 160
-            return i % 9 == 0 ? [i, x, 48] : [i, x]
-        }
-        let data = try JSONEncoder().encode(SnapMsg(p: entries))
-        #expect(data.count < 1000)
+    @Test func 좌표_한_건이_작다() throws {
+        let data = try JSONEncoder().encode(PosMsg(x: 1234.5, y: 48))
+        #expect(data.count < 40)
     }
 
-    @Test func 번호를_모르는_피어의_좌표는_버린다() throws {
-        let json = #"{"t":"snap","p":[[99,10],[3]]}"#
-        let msg = try JSONDecoder().decode(SnapMsg.self, from: Data(json.utf8))
-        #expect(msg.p.count == 2)
-        #expect(msg.p[1].count == 1)      // 좌표가 없으면 handleSnap 이 건너뛴다
+    @Test func hello_는_프로토콜_번호를_싣는다() throws {
+        let data = try JSONEncoder().encode(
+            HelloMsg(id: "abc", name: "나", look: .neutral))
+        let back = try JSONDecoder().decode(HelloMsg.self, from: data)
+        #expect(back.pv == protocolVersion)
+        #expect(back.id == "abc")
     }
 }
