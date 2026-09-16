@@ -10,7 +10,6 @@ final class UpdateChecker {
     static let shared = UpdateChecker()
 
     private(set) var newVersion: String?
-    private(set) var copied = false
 
     private let repo = "supungbab/offiky"
     private let cask = "offiky"
@@ -85,17 +84,12 @@ final class UpdateChecker {
     }
 
     /// 터미널에 붙여넣기만 하면 되도록 클립보드에 넣는다
-    func copyCommand() {
+    private func copyCommand() {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString("brew upgrade --cask \(cask)", forType: .string)
-        copied = true
-        Task {
-            try? await Task.sleep(for: .seconds(3))
-            copied = false
-        }
     }
 
-    func openReleasePage() {
+    private func openReleasePage() {
         if let releaseURL { NSWorkspace.shared.open(releaseURL) }
     }
 

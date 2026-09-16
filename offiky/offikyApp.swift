@@ -8,14 +8,10 @@ struct offikyApp: App {
     var body: some Scene {
         MenuBarExtra {
             Text("Offiky \(appVersion)")
-            if let version = UpdateChecker.shared.newVersion {
-                Text("새 버전 \(version) 있음")
-                Button(UpdateChecker.shared.copied ? "복사했습니다" : "업데이트 명령 복사") {
-                    UpdateChecker.shared.copyCommand()
-                }
-                Button("릴리스 페이지 열기") { UpdateChecker.shared.openReleasePage() }
-            } else {
-                Button("업데이트 확인…") { UpdateChecker.shared.checkAndTell() }
+            // 항목은 하나만 두고 받는 방법은 대화상자에서 고르게 한다
+            Button(UpdateChecker.shared.newVersion.map { "새 버전 \($0) 받기…" }
+                   ?? "업데이트 확인…") {
+                UpdateChecker.shared.checkAndTell()
             }
             Divider()
             Button("채팅 열기  ⌥F") { ChatPanel.shared.show() }
