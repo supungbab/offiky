@@ -1,14 +1,16 @@
 import AppKit
 import Observation
 
-/// GitHub 릴리스에서 새 버전을 확인하고, brew 로 설치했으면 그대로 업그레이드한다.
+/// GitHub 릴리스에서 새 버전을 확인한다.
+/// 샌드박스 안에서는 외부 프로그램을 실행할 수 없어 brew 를 직접 부르지 못한다.
+/// 명령을 클립보드에 넣어 주는 선까지 한다.
 @MainActor
 @Observable
 final class UpdateChecker {
     static let shared = UpdateChecker()
 
     private(set) var newVersion: String?
-    private(set) var busy = false
+    private(set) var copied = false
 
     private let repo = "supungbab/offiky"
     private let cask = "offiky"
@@ -43,20 +45,19 @@ final class UpdateChecker {
         newVersion = UpdateChecker.isNewer(latest, than: current) ? latest : nil
     }
 
-    /// brew 로 깔았으면 앱을 끄고 업그레이드한 뒤 다시 연다. 아니면 릴리스 페이지를 연다.
-    func update() {
-        guard newVersion != nil, !busy else { return }
-        busy = true
+    /// 터미널에 붙여넣기만 하면 되도록 클립보드에 넣는다
+    func copyCommand() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString("brew upgrade --cask \(cask)", forType: .string)
+        copied = true
         Task {
-            let brew = await Task.detached { UpdateChecker.brewPath() }.value
-            if let brew {
-                UpdateChecker.runUpgrade(brew: brew, cask: cask)
-                NSApp.terminate(nil)
-            } else {
-                busy = false
-                if let releaseURL { NSWorkspace.shared.open(releaseURL) }
-            }
+            try? await Task.sleep(for: .seconds(3))
+            copied = false
         }
+    }
+
+    func openReleasePage() {
+        if let releaseURL { NSWorkspace.shared.open(releaseURL) }
     }
 
     /// "2.0.10" 이 "2.0.9" 보다 높다. 문자열로 비교하면 반대로 나온다.
@@ -69,35 +70,5 @@ final class UpdateChecker {
             if a != b { return a > b }
         }
         return false
-    }
-
-    /// 이 cask 로 설치된 경우에만 brew 경로를 돌려준다
-    private nonisolated static func brewPath() -> String? {
-        let candidates = ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"]
-        guard let brew = candidates.first(where: { FileManager.default.isExecutableFile(atPath: $0) })
-        else { return nil }
-
-        let probe = Process()
-        probe.executableURL = URL(fileURLWithPath: brew)
-        probe.arguments = ["list", "--cask", "offiky"]
-        probe.standardOutput = FileHandle.nullDevice
-        probe.standardError = FileHandle.nullDevice
-        guard (try? probe.run()) != nil else { return nil }
-        probe.waitUntilExit()
-        return probe.terminationStatus == 0 ? brew : nil
-    }
-
-    /// 앱이 종료된 뒤에 돌아야 하므로 떼어 놓고 실행한다
-    private nonisolated static func runUpgrade(brew: String, cask: String) {
-        let script = """
-        sleep 2
-        "\(brew)" update >/dev/null 2>&1
-        "\(brew)" upgrade --cask \(cask) >/dev/null 2>&1
-        open -a offiky
-        """
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/bash")
-        process.arguments = ["-c", script]
-        try? process.run()
     }
 }

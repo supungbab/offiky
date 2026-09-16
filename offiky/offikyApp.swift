@@ -9,10 +9,11 @@ struct offikyApp: App {
         MenuBarExtra {
             Text("offiky \(appVersion)")
             if let version = UpdateChecker.shared.newVersion {
-                Button(UpdateChecker.shared.busy ? "업데이트 중…" : "새 버전 \(version) 설치") {
-                    UpdateChecker.shared.update()
+                Text("새 버전 \(version) 있음")
+                Button(UpdateChecker.shared.copied ? "복사했습니다" : "업데이트 명령 복사") {
+                    UpdateChecker.shared.copyCommand()
                 }
-                .disabled(UpdateChecker.shared.busy)
+                Button("릴리스 페이지 열기") { UpdateChecker.shared.openReleasePage() }
             } else {
                 Button("업데이트 확인") {
                     Task { await UpdateChecker.shared.check(force: true) }
