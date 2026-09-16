@@ -75,6 +75,17 @@ struct FloorStrip {
     }
 }
 
+/// Bonjour 광고에서 프로토콜이 같은 피어만 고른다.
+/// 버전이 다른 피어와는 연결해도 서로 무시하므로 후보에 넣지 않는다.
+func compatiblePeers(_ entries: [(id: String, pv: String?)]) -> (ids: Set<String>, mismatched: Int) {
+    var ids: Set<String> = []
+    var mismatched = 0
+    for entry in entries {
+        if Int(entry.pv ?? "") == protocolVersion { ids.insert(entry.id) } else { mismatched += 1 }
+    }
+    return (ids, mismatched)
+}
+
 /// 보이는 피어 중 id 가 가장 작은 쪽이 호스트다. 나는 언제나 후보에 포함된다.
 func electHost(candidates: Set<String>, excluded: Set<String>, me: String) -> String {
     var pool = candidates.subtracting(excluded)

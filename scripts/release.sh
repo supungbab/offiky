@@ -21,6 +21,8 @@ xcodebuild -project offiky.xcodeproj -scheme offiky -configuration Release \
   -destination 'platform=macOS' -derivedDataPath "$BUILD" \
   CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="$IDENTITY" \
   DEVELOPMENT_TEAM=75J3AS52HQ PROVISIONING_PROFILE_SPECIFIER="" \
+  OTHER_CODE_SIGN_FLAGS="--timestamp" \
+  CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO \
   build | grep -E "Signing Identity|BUILD SUCCEEDED|error:"
 codesign -v --deep --strict "$APP"
 
@@ -46,15 +48,28 @@ if ! xcrun notarytool history --keychain-profile "$PROFILE" >/dev/null 2>&1; the
     exit 0
 fi
 
+# submit --wait 는 거부돼도 0 을 반환한다. 상태를 직접 본다
+notarize() {
+    local out id
+    out=$(xcrun notarytool submit "$1" --keychain-profile "$PROFILE" --wait 2>&1)
+    echo "$out" | grep -E "id:|status:" | head -3
+    if ! grep -q "status: Accepted" <<<"$out"; then
+        id=$(awk '/  id: /{print $2; exit}' <<<"$out")
+        echo "공증이 거부됐다:"
+        xcrun notarytool log "$id" --keychain-profile "$PROFILE" 2>&1 | grep -E '"message"|"path"'
+        exit 1
+    fi
+}
+
 # 앱을 먼저 공증하고 티켓을 박아 둔다. 그래야 zip 으로 받아도 바로 열린다
 TICKET=$(mktemp -d)/app.zip
 ditto -c -k --sequesterRsrc --keepParent "$APP" "$TICKET"
-xcrun notarytool submit "$TICKET" --keychain-profile "$PROFILE" --wait
+notarize "$TICKET"
 xcrun stapler staple "$APP"
 
 package
 codesign --sign "$IDENTITY" --timestamp "$DMG"
-xcrun notarytool submit "$DMG" --keychain-profile "$PROFILE" --wait
+notarize "$DMG"
 xcrun stapler staple "$DMG"
 
 spctl -a -vv "$APP"

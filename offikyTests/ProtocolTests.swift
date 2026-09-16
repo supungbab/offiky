@@ -106,6 +106,28 @@ struct FloorStripTests {
     }
 }
 
+struct VersionTests {
+
+    @Test func 같은_버전만_후보가_된다() {
+        let result = compatiblePeers([("a", "1"), ("b", "1")])
+        #expect(result.ids == ["a", "b"])
+        #expect(result.mismatched == 0)
+    }
+
+    @Test func 버전이_다르면_빼고_센다() {
+        let result = compatiblePeers([("a", "1"), ("b", "2"), ("c", "99")])
+        #expect(result.ids == ["a"])
+        #expect(result.mismatched == 2)
+    }
+
+    /// 버전을 광고하지 않는 피어는 해석할 수 없으므로 연결하지 않는다
+    @Test func 버전이_없거나_숫자가_아니면_뺀다() {
+        let result = compatiblePeers([("a", nil), ("b", "abc"), ("c", "")])
+        #expect(result.ids.isEmpty)
+        #expect(result.mismatched == 3)
+    }
+}
+
 struct ElectionTests {
 
     @Test func 가장_작은_id_가_호스트다() {

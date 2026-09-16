@@ -14,12 +14,15 @@ final class Mesh {
     private var upstream: NWConnection?
 
     private var visible: Set<String> = []
+    private var mismatched = 0
     private var excluded: [String: Date] = [:]
     private var currentHost: String?
     private var debounce: DispatchWorkItem?
     private var buffers: [String: Data] = [:]
 
     var isHost: Bool { currentHost == World.shared.myID }
+    /// 프로토콜이 달라 연결하지 않은 피어 수. 메뉴에서 알린다
+    var otherVersionCount: Int { queue.sync { mismatched } }
 
     var onLine: ((Data, String?) -> Void)?
     var onUpstreamReady: (() -> Void)?
@@ -40,6 +43,7 @@ final class Mesh {
         clients.removeAll()
         buffers.removeAll()
         visible.removeAll()
+        mismatched = 0
         currentHost = nil
     }
 
@@ -82,13 +86,15 @@ final class Mesh {
         let browser = NWBrowser(for: descriptor, using: .tcp)
         browser.browseResultsChangedHandler = { [weak self] results, _ in
             guard let self else { return }
-            var ids: Set<String> = []
+            var entries: [(id: String, pv: String?)] = []
             for result in results {
                 if case let .bonjour(txt) = result.metadata, let id = txt["id"] {
-                    ids.insert(id)
+                    entries.append((id, txt["pv"]))
                 }
             }
-            self.visible = ids
+            let peers = compatiblePeers(entries)
+            self.visible = peers.ids
+            self.mismatched = peers.mismatched
             self.scheduleElection()
         }
         browser.start(queue: queue)
