@@ -71,7 +71,7 @@ private struct ChatInputView: View {
     }
 }
 
-final class ChatPanel {
+@Observable final class ChatPanel {
     static let shared = ChatPanel()
 
     private var panel: KeyPanel?
@@ -81,11 +81,18 @@ final class ChatPanel {
 
     private init() {}
 
+    /// 다른 앱이 같은 조합을 먼저 잡고 있으면 등록에 실패한다.
+    /// 알리지 않으면 사용자는 앱이 고장 난 줄 안다.
+    private(set) var hotKeyWorks = true
+
     func install() {
-        hotKey = HotKey(keyCode: UInt32(kVK_ANSI_T),
+        // 양손 엄지만 쓴다. 타자 중에 손가락이 홈 포지션을 떠나지 않는다.
+        // 뺏는 것은 줄바꿈 없는 공백 입력뿐이다.
+        hotKey = HotKey(keyCode: UInt32(kVK_Space),
                         modifiers: UInt32(optionKey)) { [weak self] in
             self?.toggle()
         }
+        hotKeyWorks = hotKey?.registered ?? false
     }
 
     func toggle() {

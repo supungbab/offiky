@@ -18,7 +18,10 @@ struct offikyApp: App {
                 Button("업데이트 확인…") { UpdateChecker.shared.checkAndTell() }
             }
             Divider()
-            Button("채팅 열기  ⌥T") { ChatPanel.shared.show() }
+            Button("채팅 열기  ⌥Space") { ChatPanel.shared.show() }
+            if !ChatPanel.shared.hotKeyWorks {
+                Text("⌥Space 를 다른 앱이 쓰고 있습니다")
+            }
             Button("참가자 \(Presence.shared.count)명…") { openRoster() }
             Button("내 캐릭터…") { openCharacterPicker() }
             Button("내 이름 변경…") { changeName() }
