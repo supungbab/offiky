@@ -33,7 +33,7 @@ import SwiftUI
     func start() {
         let screen = NSScreen.screens.first { $0.frame.contains(NSEvent.mouseLocation) }
             ?? NSScreen.main ?? NSScreen.screens[0]
-        let size = CGSize(width: 420, height: 36)
+        let size = CGSize(width: 500, height: 36)
         // 채팅 입력창과 같은 높이에 둔다
         let origin = CGPoint(x: screen.visibleFrame.midX - size.width / 2,
                              y: screen.visibleFrame.minY + screen.visibleFrame.height * 0.22)
@@ -140,7 +140,8 @@ struct HintView: View {
         HStack(spacing: 14) {
             item("← →", "이동")
             item("←← →→", "대시")
-            item("↑↑", "2단 점프")
+            item("↑", "점프")
+            item("↑↑", "2단")
             item("esc", "끝내기")
         }
         .font(.system(size: 12))
