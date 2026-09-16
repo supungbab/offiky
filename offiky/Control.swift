@@ -97,7 +97,7 @@ import SwiftUI
         switch code {
         case kVK_Escape:
             stop()
-        case kVK_Space:
+        case kVK_UpArrow:
             if !event.isARepeat { World.shared.me.jump() }
         case kVK_LeftArrow, kVK_RightArrow:
             guard !event.isARepeat else { return }
@@ -139,9 +139,9 @@ private final class KeyCatcher: NSView {
 private struct HintView: View {
     var body: some View {
         HStack(spacing: 14) {
-            item("←→", "이동")
+            item("← →", "이동")
             item("←← →→", "대시")
-            item("space", "점프")
+            item("↑", "점프")
             item("esc", "끝내기")
         }
         .font(.system(size: 12))
