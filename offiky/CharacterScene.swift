@@ -111,21 +111,6 @@ final class CharacterNode: SKNode {
 
     /// 집어 드는 순간 진행 중이던 모든 운동을 지운다.
     /// 남겨두면 놓는 순간 이전 속도로 튀어 나가거나 하던 대시를 이어서 한다.
-    /// 이동한 것으로 세지 않는다. 그러면 대시 동작이 나오고 피격 판정까지 걸린다.
-    func teleport(to newX: CGFloat) {
-        x = newX
-        previousX = newX
-        y = 0
-        verticalSpeed = 0
-        airSpeed = 0
-        peakY = 0
-        wasAirborne = false
-        motion = .idle
-        motionEnd = 0
-        segmentTarget = newX
-        isWalking = false
-    }
-
     func beginDrag() {
         isDragging = true
         verticalSpeed = 0
@@ -175,9 +160,9 @@ final class CharacterNode: SKNode {
         if samples.count > 8 { samples.removeFirst(samples.count - 8) }
     }
 
-    func update(dt: TimeInterval, now: TimeInterval) {
+    func update(dt: TimeInterval, now: TimeInterval, strip: FloorStrip) {
         if isLocal {
-            simulate(dt: dt, now: now)
+            simulate(dt: dt, now: now, strip: strip)
         } else {
             interpolate(now: now)
         }
@@ -209,7 +194,7 @@ final class CharacterNode: SKNode {
         isCharging = !isDragging && now >= hurtUntil && (y > 0 ? speed > 35 : speed > 70)
     }
 
-    private func simulate(dt: TimeInterval, now: TimeInterval) {
+    private func simulate(dt: TimeInterval, now: TimeInterval, strip: FloorStrip) {
         if isDragging { isWalking = false; return }
         if now < hurtUntil {
             isWalking = false
@@ -222,7 +207,7 @@ final class CharacterNode: SKNode {
             let step = CGFloat(dt)
             y += verticalSpeed * step - 0.5 * CharacterNode.gravity * step * step
             verticalSpeed -= CharacterNode.gravity * step
-            if airSpeed != 0 { x = clampToMap(x + airSpeed * step) }
+            if airSpeed != 0 { x = strip.clamp(x + airSpeed * step) }
             if y <= 0 {
                 y = 0
                 verticalSpeed = 0
@@ -230,7 +215,7 @@ final class CharacterNode: SKNode {
                 // 점프한 만큼 나아갔으니 착지 지점에서 가던 방향으로 새 구간을 고른다.
                 // 예전 목표로 되돌아가면 뒤돌아 걷는다
                 if motion != .idle {
-                    chooseNext(from: motion, now: now, keepFacing: true)
+                    chooseNext(from: motion, now: now, strip: strip, keepFacing: true)
                 }
             }
             isWalking = false
@@ -247,7 +232,7 @@ final class CharacterNode: SKNode {
         switch motion {
         case .idle:
             isWalking = false
-            if now >= motionEnd { chooseNext(from: .idle, now: now) }
+            if now >= motionEnd { chooseNext(from: .idle, now: now, strip: strip) }
         case .walk, .dash:
             // 목표에 닿아도 멈추지 않고 남은 걸음을 다음 구간에서 이어 간다.
             // 거리로만 판정하면 뛸 때 목표를 넘나들며 제자리에서 떤다
@@ -256,20 +241,21 @@ final class CharacterNode: SKNode {
             while motion != .idle, budget > 0, hops < 4 {
                 let delta = segmentTarget - x
                 if abs(delta) > budget {
-                    x = clampToMap(x + (delta > 0 ? 1 : -1) * budget)
+                    x = strip.clamp(x + (delta > 0 ? 1 : -1) * budget)
                     break
                 }
-                x = clampToMap(segmentTarget)
+                x = strip.clamp(segmentTarget)
                 budget -= abs(delta)
                 hops += 1
-                chooseNext(from: motion, now: now)
+                chooseNext(from: motion, now: now, strip: strip)
             }
             isWalking = motion != .idle
         }
     }
 
     /// 상태 전이표. 방향을 먼저 정하고 다음 상태를 고른다.
-    private func chooseNext(from: Motion, now: TimeInterval, keepFacing: Bool = false) {
+    private func chooseNext(from: Motion, now: TimeInterval, strip: FloorStrip,
+                           keepFacing: Bool = false) {
         let roll = Double.random(in: 0...1)
         var next: Motion
         switch from {
@@ -291,20 +277,20 @@ final class CharacterNode: SKNode {
         case .dash: direction = Double.random(in: 0...1) < 0.9 ? facing : -facing
         }
         // 구간 최소 거리를 못 채우면 반대로 간다. 양쪽 다 좁으면 뛰지 않고 걷는다
-        if room(direction) < next.span.lowerBound,
-           room(-direction) < next.span.lowerBound, next == .dash {
+        if room(direction, strip) < next.span.lowerBound,
+           room(-direction, strip) < next.span.lowerBound, next == .dash {
             next = .walk
         }
-        if room(direction) < next.span.lowerBound { direction = -direction }
+        if room(direction, strip) < next.span.lowerBound { direction = -direction }
 
         motion = next
-        segmentTarget = clampToMap(x + direction * CGFloat.random(in: next.span))
+        segmentTarget = strip.clamp(x + direction * CGFloat.random(in: next.span))
         // 달리는 도중 절반은 점프한다
         if next == .dash, Bool.random() { nextJumpAt = now + Double.random(in: 0.4...1.1) }
     }
 
-    private func room(_ direction: CGFloat) -> CGFloat {
-        direction > 0 ? mapHalfWidth - x : x + mapHalfWidth
+    private func room(_ direction: CGFloat, _ strip: FloorStrip) -> CGFloat {
+        direction > 0 ? strip.maxX - x : x - strip.minX
     }
 
     /// 렌더 시각을 감싸는 두 표본 사이를 재생한다. 앞뒤를 다 쥐고 있으므로 추정하지 않는다.
@@ -464,11 +450,6 @@ final class World {
     private(set) var me: CharacterNode
     private(set) var peers: [String: CharacterNode] = [:]
     private(set) var strip = FloorStrip(visibleFrames: [], main: nil)
-    /// 화면이 비추는 맵 좌표의 한가운데. 내 캐릭터를 데드존으로 따라간다
-    private(set) var viewCenter: CGFloat = 0
-    /// 맵 좌표에서 이만큼 빼면 띠 좌표가 된다.
-    /// 원점이 주 디스플레이 가운데라 띠는 좌우 비대칭이다 — 그 치우침을 함께 반영한다.
-    private(set) var cameraX: CGFloat = 0
 
     private var scenes: [CharacterScene] = []
     private var lastTick: TimeInterval = 0
@@ -504,7 +485,7 @@ final class World {
         guard !strip.frames.isEmpty else { return }
         // 로컬에서 도는 캐릭터만 당긴다. 동료 좌표는 그쪽이 기준이다
         for node in [me] + peers.values.filter(\.isLocal) {
-            node.x = clampToMap(node.x)
+            node.x = strip.clamp(node.x)
         }
         // 씬을 새로 만들었으므로 눈금도 다시 그린다
     }
@@ -517,7 +498,7 @@ final class World {
     /// 바닥을 기준으로 잡는다.
     func updateDrag(toGlobal point: CGPoint) {
         guard let spot = strip.locate(global: point) else { return }
-        me.x = clampToMap(spot.x + cameraX)
+        me.x = strip.clamp(spot.x)
         me.y = spot.y
     }
 
@@ -548,16 +529,14 @@ final class World {
         let dt = lastTick == 0 ? 1.0 / 60 : min(0.25, elapsed)
         lastTick = now
 
-        viewCenter = followCamera(viewCenter, target: me.x, viewHalf: strip.length / 2)
-        cameraX = viewCenter - (strip.minX + strip.maxX) / 2
         let count = 1 + peers.count
         if Presence.shared.count != count { Presence.shared.count = count }
 
         var visible: [(node: CharacterNode, placement: Placement)] = []
         for node in [me] + Array(peers.values) {
-            node.update(dt: dt, now: now)
+            node.update(dt: dt, now: now, strip: strip)
 
-            guard let placement = strip.place(x: node.x - cameraX, y: node.y) else {
+            guard let placement = strip.place(x: node.x, y: node.y) else {
                 node.removeFromParent()
                 continue
             }
@@ -599,16 +578,12 @@ extension World {
 
     /// 메뉴는 SwiftUI 가 관찰하는 값이 바뀔 때만 다시 그린다.
     /// 함수를 직접 부르면 앱을 켠 순간의 값이 그대로 굳는다.
-    func roster() -> [(id: String, name: String, x: CGFloat, look: Look, isMe: Bool)] {
-        let mine = (me.id, me.displayName, me.x, me.look, true)
+    func roster() -> [(id: String, name: String, look: Look, isMe: Bool)] {
+        let mine = (me.id, me.displayName, me.look, true)
         let others = peers.values
-            .sorted { $0.x < $1.x }
-            .map { ($0.id, $0.displayName, $0.x, $0.look, false) }
+            .sorted { $0.displayName < $1.displayName }
+            .map { ($0.id, $0.displayName, $0.look, false) }
         return [mine] + others
-    }
-
-    func teleport(to x: CGFloat) {
-        me.teleport(to: clampToMap(x))
     }
 
     func removeAllPeers() {
