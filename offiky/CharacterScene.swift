@@ -492,20 +492,31 @@ final class World {
     /// 화면 구성이 바뀌면 위치를 새 띠 안으로 당기기만 한다.
     /// 되돌리면 노트북을 열고 닫을 때마다 캐릭터가 순간이동한다.
     func attach(scenes: [CharacterScene], strip: FloorStrip) {
+        // 화면 구성이 바뀌면 좌표계가 통째로 움직인다. 보이는 자리를 지키려면
+        // 바뀌기 전의 화면 위치를 받아 두었다가 새 좌표계로 되돌려야 한다
+        let wasAt = self.strip.frames.isEmpty ? nil : self.strip.globalPoint(x: me.x, y: me.y)
+
         self.scenes = scenes
         self.strip = strip
         // 화면이 하나도 없는 순간에는 건드리지 않는다. 띠 길이가 0이라 좌표가 전부 0이 된다
         guard !strip.frames.isEmpty else { return }
 
-        // 시작 위치는 바닥 아무 데나. 띠를 알아야 정할 수 있어 여기서 한 번만 한다
         if !placed {
+            // 시작 위치는 바닥 아무 데나. 띠를 알아야 정할 수 있어 여기서 한 번만 한다
             placed = true
-            me.teleport(to: CGFloat.random(in: strip.clamp(strip.minX)...strip.clamp(strip.maxX)))
+            me.teleport(to: strip.clamp(CGFloat.random(in: strip.minX...strip.maxX)))
+        } else if let wasAt, let back = strip.locate(global: wasAt) {
+            // 있던 화면이 남아 있으면 그 자리를 지킨다
+            me.teleport(to: strip.clamp(back.x))
+        } else if wasAt != nil {
+            // 있던 화면이 사라졌다. 주 화면으로 데려온다
+            me.teleport(to: strip.randomOnMain())
         }
         // 로컬에서 도는 캐릭터만 당긴다. 동료 좌표는 그쪽이 기준이다
-        for node in [me] + peers.values.filter(\.isLocal) {
+        for node in peers.values.filter(\.isLocal) {
             node.x = strip.clamp(node.x)
         }
+        me.x = strip.clamp(me.x)
         // 씬을 새로 만들었으므로 눈금도 다시 그린다
     }
 

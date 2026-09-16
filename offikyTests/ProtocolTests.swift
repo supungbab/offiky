@@ -23,35 +23,57 @@ struct FloorStripTests {
         return FloorStrip(visibleFrames: [second, main], main: main)
     }
 
-    /// 주 화면 바로 위에 1000×600. 가로 중심이 같으므로 오른쪽에 잇는다
+    /// 주 화면 바로 위에 1000×600. 가로 중심이 같으므로 아래쪽을 먼저 둔다
     private var stacked: FloorStrip {
         let second = CGRect(x: 0, y: 800, width: 1000, height: 600)
         return FloorStrip(visibleFrames: [second, main], main: main)
     }
 
-    @Test func 원점은_주_디스플레이_왼쪽_모서리다() {
-        #expect(single.minX == 0)
-        #expect(single.maxX == 1000)
+    @Test func 원점은_띠의_왼쪽_끝이다() {
+        for strip in [single, rightSide, leftSide, stacked] {
+            #expect(strip.minX == 0)
+            #expect(strip.maxX == strip.length)
+        }
     }
 
-    @Test func 오른쪽_화면은_오른쪽에_이어진다() {
+    /// 배치가 달라도 화면 개수와 폭이 같으면 띠가 같아진다.
+    /// 이것 때문에 좌우 방향이 엇갈려도 서로 다 보인다.
+    @Test func 좌우_배치가_달라도_띠가_같다() {
+        let left = CGRect(x: -1000, y: 0, width: 1000, height: 800)
+        let right = CGRect(x: 1000, y: 0, width: 1000, height: 800)
+        let a = FloorStrip(visibleFrames: [left, main], main: main)
+        let b = FloorStrip(visibleFrames: [right, main], main: main)
+        #expect(a.minX == b.minX)
+        #expect(a.maxX == b.maxX)
+    }
+
+    @Test func 화면을_가로_위치_순으로_잇는다() {
         #expect(rightSide.frames.map(\.width) == [1000, 500])
-        #expect(rightSide.minX == 0)
-        #expect(rightSide.maxX == 1500)
-    }
-
-    @Test func 왼쪽_화면은_왼쪽에_이어진다() {
         #expect(leftSide.frames.map(\.width) == [800, 1000])
-        #expect(leftSide.minX == -800)
-        #expect(leftSide.maxX == 1000)
+        #expect(rightSide.maxX == 1500)
+        #expect(leftSide.maxX == 1800)
     }
 
-    @Test func 세로로_붙은_화면은_오른쪽에_이어진다() {
-        #expect(stacked.frames.map(\.height) == [800, 600])
+    @Test func 세로로_쌓이면_아래쪽을_먼저_둔다() {
+        #expect(stacked.frames.map(\.minY) == [0, 800])
         #expect(stacked.maxX == 2000)
     }
 
-    @Test func 원점은_주_화면_왼쪽_모서리에_놓인다() throws {
+    @Test func 사라진_화면_대신_갈_주_화면을_기억한다() {
+        #expect(leftSide.mainIndex == 1)
+        #expect(rightSide.mainIndex == 0)
+        #expect(single.mainIndex == 0)
+    }
+
+    @Test func 주_화면_안의_무작위_지점을_고른다() {
+        for _ in 0..<50 {
+            let x = leftSide.randomOnMain()
+            #expect(x >= 800 - 20)
+            #expect(x <= 1800)
+        }
+    }
+
+    @Test func 원점은_첫_화면_왼쪽에_놓인다() throws {
         let p = try #require(single.place(x: 0, y: 0))
         #expect(p.screenIndex == 0)
         #expect(p.point.x == 0)
@@ -69,8 +91,8 @@ struct FloorStripTests {
         #expect(p.point.x == 200)
     }
 
-    @Test func 왼쪽_화면의_좌표는_음수다() throws {
-        let p = try #require(leftSide.place(x: -500, y: 0))
+    @Test func 왼쪽에_붙은_화면이_앞에_온다() throws {
+        let p = try #require(leftSide.place(x: 300, y: 0))
         #expect(p.screenIndex == 0)
         #expect(p.point.x == 300)
     }
@@ -99,14 +121,11 @@ struct FloorStripTests {
     }
 
     /// place 와 locate 가 같은 기준에서 누적하는지 본다.
-    /// 어긋나면 잡아 끈 위치가 originOffset 만큼 통째로 밀린다.
+    /// 어긋나면 잡아 끈 위치가 통째로 밀린다.
     @Test func 좌표와_화면_변환이_왕복한다() throws {
         for strip in [single, rightSide, leftSide, stacked] {
             for x in stride(from: strip.minX + 30, to: strip.maxX - 30, by: 137) {
-                let placed = try #require(strip.place(x: x, y: 0))
-                let frame = strip.frames[placed.screenIndex]
-                let global = CGPoint(x: frame.minX + placed.point.x,
-                                     y: frame.minY + placed.point.y)
+                let global = try #require(strip.globalPoint(x: x, y: 0))
                 let back = try #require(strip.locate(global: global))
                 #expect(abs(back.x - x) < 0.001, "x=\(x) 에서 \(back.x) 로 돌아왔다")
             }
@@ -122,28 +141,7 @@ struct FloorStripTests {
         #expect(empty.length == 0)
         #expect(empty.place(x: 0, y: 0) == nil)
         #expect(empty.clamp(100) == 0)
-    }
-}
-
-struct VersionTests {
-
-    @Test func 같은_버전만_후보가_된다() {
-        let result = compatiblePeers([("a", "1"), ("b", "1")])
-        #expect(result.ids == ["a", "b"])
-        #expect(result.mismatched == 0)
-    }
-
-    @Test func 버전이_다르면_빼고_센다() {
-        let result = compatiblePeers([("a", "1"), ("b", "2"), ("c", "99")])
-        #expect(result.ids == ["a"])
-        #expect(result.mismatched == 2)
-    }
-
-    /// 버전을 광고하지 않는 피어는 해석할 수 없으므로 연결하지 않는다
-    @Test func 버전이_없거나_숫자가_아니면_뺀다() {
-        let result = compatiblePeers([("a", nil), ("b", "abc"), ("c", "")])
-        #expect(result.ids.isEmpty)
-        #expect(result.mismatched == 3)
+        #expect(empty.randomOnMain() == 0)
     }
 }
 

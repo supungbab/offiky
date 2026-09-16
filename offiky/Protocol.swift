@@ -22,32 +22,31 @@ struct Placement: Equatable {
 }
 
 struct FloorStrip {
-    /// 주 디스플레이 기준으로 좌우에 배치한 화면들
+    /// 화면을 가로 위치 순으로 늘어놓은 것. 세로로 쌓였어도 가로로 잇는다
     let frames: [CGRect]
-    /// 띠 왼쪽 끝에서 원점(x = 0)까지의 거리.
-    /// 원점은 주 디스플레이의 왼쪽 모서리다 — 모니터를 꽂고 빼도 그 자리가 유지된다.
-    /// 띠 왼쪽 끝을 원점으로 삼으면 왼쪽에 모니터가 붙는 순간 모두의 좌표가 밀린다.
-    let originOffset: CGFloat
+    /// 화면이 사라졌을 때 캐릭터를 보낼 곳
+    let mainIndex: Int
 
+    /// 원점은 띠의 왼쪽 끝이다. 좌우 방향이라는 개념이 없어지므로 배치가 달라도
+    /// 같은 개수의 화면을 쓰면 서로 완전히 겹친다. 주 화면을 기준으로 잡으면
+    /// 한쪽은 모니터가 왼쪽, 한쪽은 오른쪽일 때 보조 화면끼리 겹치지 않는다.
     init(visibleFrames: [CGRect], main: CGRect?) {
-        guard let main = main ?? visibleFrames.first, !visibleFrames.isEmpty else {
+        guard !visibleFrames.isEmpty else {
             frames = []
-            originOffset = 0
+            mainIndex = 0
             return
         }
-        // 세로로 붙은 화면도 가로 중심이 어느 쪽으로 치우쳤는지만 본다.
-        // 정확히 가운데면 오른쪽에 잇는다.
-        let others = visibleFrames.filter { $0 != main }
-        let left = others.filter { $0.midX < main.midX }.sorted { $0.midX < $1.midX }
-        let right = others.filter { $0.midX >= main.midX }.sorted { $0.midX < $1.midX }
-        frames = left + [main] + right
-        originOffset = left.reduce(0) { $0 + $1.width }
+        // 세로로 쌓여 가로 중심이 같으면 아래쪽을 먼저 둔다. 순서가 흔들리면 안 된다
+        let ordered = visibleFrames.sorted {
+            $0.midX != $1.midX ? $0.midX < $1.midX : $0.minY < $1.minY
+        }
+        frames = ordered
+        mainIndex = main.flatMap { ordered.firstIndex(of: $0) } ?? 0
     }
 
     var length: CGFloat { frames.reduce(0) { $0 + $1.width } }
-    /// 주 디스플레이 왼쪽에 화면이 있으면 그만큼 음수다
-    var minX: CGFloat { -originOffset }
-    var maxX: CGFloat { length - originOffset }
+    var minX: CGFloat { 0 }
+    var maxX: CGFloat { length }
 
     /// `x` 는 스프라이트 중심, `y` 는 바닥으로부터의 높이. 둘 다 포인트.
     func place(x: CGFloat, y: CGFloat) -> Placement? {
@@ -83,11 +82,25 @@ struct FloorStrip {
         return nil
     }
 
+    /// 띠 좌표를 전역 화면 좌표로. 화면 구성이 바뀔 때 보이는 자리를 지키는 데 쓴다
+    func globalPoint(x: CGFloat, y: CGFloat) -> CGPoint? {
+        guard let spot = place(x: x, y: y) else { return nil }
+        let frame = frames[spot.screenIndex]
+        return CGPoint(x: frame.minX + spot.point.x, y: frame.minY + spot.point.y)
+    }
+
     /// 캐릭터가 띠를 벗어나지 않게 한다
     func clamp(_ x: CGFloat) -> CGFloat {
         let half = spriteDisplaySize / 2
         guard length > spriteDisplaySize else { return min(max(x, minX), maxX) }
         return min(max(x, minX + half), maxX - half)
+    }
+
+    /// 주 화면 안의 무작위 지점. 있던 화면이 사라졌을 때 쓴다
+    func randomOnMain() -> CGFloat {
+        guard !frames.isEmpty else { return 0 }
+        let start = frames.prefix(mainIndex).reduce(CGFloat(0)) { $0 + $1.width }
+        return clamp(CGFloat.random(in: start...(start + frames[mainIndex].width)))
     }
 }
 
