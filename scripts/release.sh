@@ -11,9 +11,10 @@ set -euo pipefail
 
 BUILD=/tmp/offiky-release
 OUT=~/Desktop/offiky.zip
+DMG=~/Desktop/offiky.dmg
 APP="$BUILD/Build/Products/Release/offiky.app"
 
-rm -rf "$BUILD" "$OUT"
+rm -rf "$BUILD" "$OUT" "$DMG"
 xcodebuild -project offiky.xcodeproj -scheme offiky -configuration Release \
   -destination 'platform=macOS' -derivedDataPath "$BUILD" \
   CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="-" \
@@ -22,4 +23,16 @@ xcodebuild -project offiky.xcodeproj -scheme offiky -configuration Release \
 
 codesign -v --deep --strict "$APP"
 ditto -c -k --sequesterRsrc --keepParent "$APP" "$OUT"
-echo "완료: $OUT  ($(du -h "$OUT" | cut -f1))"
+
+# 응용 프로그램 폴더 바로가기를 같이 넣어 드래그로 설치하게 한다.
+# 격리 꼬리표는 그대로 붙지만, 앱이 늘 /Applications 에 놓이므로
+# 안내하는 xattr 경로가 어긋나지 않는다.
+STAGE=$(mktemp -d)
+cp -R "$APP" "$STAGE/"
+ln -s /Applications "$STAGE/Applications"
+hdiutil create -volname offiky -srcfolder "$STAGE" -ov -format UDZO -quiet "$DMG"
+rm -rf "$STAGE"
+
+echo "완료"
+echo "  $OUT  ($(du -h "$OUT" | cut -f1))"
+echo "  $DMG  ($(du -h "$DMG" | cut -f1))"
