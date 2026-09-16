@@ -5,10 +5,18 @@ import Testing
 
 struct CharacterTests {
 
-    @Test func 캐릭터는_10종이다() {
-        #expect(Characters.count == 10)
-        #expect(Characters.names.count == 10)
-        #expect(Set(Characters.names).count == 10)
+    @Test func 모양_5가지에_색_8가지다() {
+        #expect(Characters.count == 40)
+        #expect(Characters.names.count == 40)
+        #expect(Set(Characters.names).count == 40)
+        #expect(Characters.count % Characters.colorCount == 0)
+        // 같은 모양이 가로 한 줄이다. 줄이 바뀌는 자리에서만 앞이름이 바뀐다
+        for index in 1..<Characters.count {
+            let shape = { (i: Int) in Characters.names[i].split(separator: "_")[0] }
+            let sameRow = index % Characters.colorCount != 0
+            #expect((shape(index) == shape(index - 1)) == sameRow,
+                    "\(Characters.names[index - 1]) → \(Characters.names[index])")
+        }
     }
 
     @Test func 애니메이션_프레임_수() {
@@ -28,7 +36,7 @@ struct CharacterTests {
 
     @Test func 모든_캐릭터의_모든_애니메이션이_로드된다() {
         for index in 0..<Characters.count {
-            let sheet = Characters.sheet(Look(design: index, hue: 0, saturation: 1, brightness: 1))
+            let sheet = Characters.sheet(Look(design: index))
             #expect(sheet.size.width > 0, "\(Characters.names[index]) 크기 0")
             for animation in Animation.allCases {
                 let textures = sheet.frames[animation] ?? []
@@ -43,17 +51,9 @@ struct CharacterTests {
         #expect(stableHash("a") == 0xaf63dc4c8601ec8c)
     }
 
-    @Test func 범위를_벗어난_외형값은_제한된다() {
-        let wild = Look(design: 99, hue: 9, saturation: -3, brightness: 99).sanitized
-        #expect(wild.design == 99 % Characters.count)
-        #expect(wild.hue == 0.5)
-        #expect(wild.saturation == 0)
-        #expect(wild.brightness == 1.5)
-    }
-
-    @Test func 음수_인덱스도_안전하다() {
-        #expect(Look(design: -1, hue: 0, saturation: 1, brightness: 1).sanitized.design
-                == Characters.count - 1)
+    @Test func 범위를_벗어난_번호는_제한된다() {
+        #expect(Look(design: 999).sanitized.design == 999 % Characters.count)
+        #expect(Look(design: -1).sanitized.design == Characters.count - 1)
     }
 
     @Test func 기본_외형은_id_로_결정되고_결정적이다() {
@@ -63,10 +63,10 @@ struct CharacterTests {
     }
 
     @Test func 외형은_주고받을_수_있다() throws {
-        let look = Look(design: 3, hue: 0.25, saturation: 1.4, brightness: 0.9)
+        let look = Look(design: 27)
         let data = try JSONEncoder().encode(look)
         #expect(try JSONDecoder().decode(Look.self, from: data) == look)
-        #expect(data.count < 120)
+        #expect(data.count < 24)
     }
 }
 

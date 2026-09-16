@@ -174,29 +174,18 @@ struct ProfileMsg: Codable {
     let look: Look
 }
 
-/// 캐릭터 외형. 내장 9종 중 하나에 색 조정값을 더한 것이다.
+/// 캐릭터 외형. 내장 40종 중 하나를 가리키는 번호다
 struct Look: Codable, Equatable {
     var design: Int
-    /// -0.5 ~ 0.5 색상 회전
-    var hue: Double
-    /// 0 ~ 2 채도 배율
-    var saturation: Double
-    /// 0.5 ~ 1.5 밝기 배율
-    var brightness: Double
 
-    static let neutral = Look(design: 0, hue: 0, saturation: 1, brightness: 1)
+    static let neutral = Look(design: 0)
 
     static func fallback(for id: String) -> Look {
-        Look(design: Int(stableHash(id) % UInt64(Characters.count)),
-             hue: 0, saturation: 1, brightness: 1)
+        Look(design: Int(stableHash(id) % UInt64(Characters.count)))
     }
 
     /// 수신값은 신뢰할 수 없으므로 범위 안으로 제한한다
     var sanitized: Look {
-        Look(design: ((design % Characters.count) + Characters.count) % Characters.count,
-             hue: min(max(hue, -0.5), 0.5),
-             saturation: min(max(saturation, 0), 2),
-             brightness: min(max(brightness, 0.5), 1.5))
+        Look(design: ((design % Characters.count) + Characters.count) % Characters.count)
     }
-
 }

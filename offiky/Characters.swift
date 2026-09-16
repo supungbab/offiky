@@ -44,10 +44,22 @@ enum Animation: Int, CaseIterable {
 
 /// 에셋의 스프라이트 시트를 잘라 색을 입힌 텍스처로 만든다
 enum Characters {
-    /// 뒤에만 붙인다. 순서를 바꾸면 쓰던 사람의 캐릭터가 딴것으로 바뀐다
-    static let names = ["white", "brown", "black", "gold", "red",
-                        "birb", "sheep", "frog", "pig", "carrot"]
+    /// 모양 5가지 × 색 8가지. 모양이 가로 한 줄이다.
+    /// 순서를 바꾸면 쓰던 사람의 캐릭터가 딴것으로 바뀐다
+    static let names = [
+        "goat_white", "goat_brown", "goat_black", "goat_gold",
+        "goat_red", "goat_blue", "goat_green", "goat_orange",
+        "sheep_white", "sheep_brown", "sheep_black", "sheep_gold",
+        "sheep_red", "sheep_blue", "sheep_green", "sheep_orange",
+        "birb_white", "birb_brown", "birb_black", "birb_gold",
+        "birb_red", "birb_blue", "birb_green", "birb_orange",
+        "frog_white", "frog_brown", "frog_black", "frog_gold",
+        "frog_red", "frog_blue", "frog_green", "frog_orange",
+        "pig_white", "pig_brown", "pig_black", "pig_gold",
+        "pig_red", "pig_blue", "pig_green", "pig_orange"]
     static var count: Int { names.count }
+    /// 한 모양이 갖는 색 수. 선택 창의 한 줄 길이이기도 하다
+    static let colorCount = 8
 
     /// 시트는 24x24 칸이 6열 6행이다
     static let columns = 6
@@ -62,20 +74,19 @@ enum Characters {
         let frames: [Animation: [SKTexture]]
     }
 
-    private static var cache: [String: Sheet] = [:]
+    private static var cache: [Int: Sheet] = [:]
 
     static func sheet(_ look: Look) -> Sheet {
-        let look = look.sanitized
-        let key = "\(look.design)|\(look.hue)|\(look.saturation)|\(look.brightness)"
-        if let hit = cache[key] { return hit }
-        let made = build(look)
+        let design = look.sanitized.design
+        if let hit = cache[design] { return hit }
+        let made = build(design)
         if cache.count > 64 { cache.removeAll() }
-        cache[key] = made
+        cache[design] = made
         return made
     }
 
-    private static func build(_ look: Look) -> Sheet {
-        guard let image = NSImage(named: names[look.design]),
+    private static func build(_ design: Int) -> Sheet {
+        guard let image = NSImage(named: names[design]),
               let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil)
         else {
             return Sheet(size: CGSize(width: 16, height: 16), bodyWidth: 16,
@@ -92,7 +103,6 @@ enum Characters {
                 bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
             context?.draw(cg, in: CGRect(x: 0, y: 0, width: sheetW, height: sheetH))
         }
-        applyTint(&pixels, look)
 
         let frameW = sheetW / columns, frameH = sheetH / rows
         var frames: [Animation: [SKTexture]] = [:]
@@ -121,26 +131,6 @@ enum Characters {
         }
         guard last >= first else { return (CGFloat(width), 0) }
         return (CGFloat(last - first + 1), CGFloat(height - 1 - bottom))
-    }
-
-    /// 픽셀 전체에 같은 HSB 변환을 적용해 명암 관계를 유지한다
-    private static func applyTint(_ pixels: inout [UInt8], _ look: Look) {
-        guard look.hue != 0 || look.saturation != 1 || look.brightness != 1 else { return }
-        for i in stride(from: 0, to: pixels.count, by: 4) where pixels[i + 3] > 0 {
-            var h: CGFloat = 0, s: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
-            NSColor(srgbRed: CGFloat(pixels[i]) / 255,
-                    green: CGFloat(pixels[i + 1]) / 255,
-                    blue: CGFloat(pixels[i + 2]) / 255, alpha: 1)
-                .getHue(&h, saturation: &s, brightness: &b, alpha: &a)
-            h = (h + CGFloat(look.hue)).truncatingRemainder(dividingBy: 1)
-            if h < 0 { h += 1 }
-            let shifted = NSColor(hue: h,
-                                  saturation: min(1, s * CGFloat(look.saturation)),
-                                  brightness: min(1, b * CGFloat(look.brightness)), alpha: 1)
-            pixels[i] = UInt8((shifted.redComponent * 255).rounded())
-            pixels[i + 1] = UInt8((shifted.greenComponent * 255).rounded())
-            pixels[i + 2] = UInt8((shifted.blueComponent * 255).rounded())
-        }
     }
 
     // MARK: 그림자

@@ -4,41 +4,28 @@ import SwiftUI
 
 struct CharacterPickerView: View {
     /// 고르는 동안은 이 창 안에서만 바뀐다. 적용해야 화면과 동료에게 간다
-    @State private var look = World.myLook
-    @State private var applied = World.myLook
+    @State private var design = World.myLook.design
+    @State private var applied = World.myLook.design
 
     private let goatPack = URL(string: "https://chaoswitchnikol.itch.io/goat-characters")!
     private let animalPack = URL(string: "https://chaoswitchnikol.itch.io/animal-characters")!
     private let license = URL(string: "https://creativecommons.org/licenses/by/4.0/")!
 
+    private static let thumb: CGFloat = 44
+    private static let gap: CGFloat = 6
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("캐릭터").font(.headline)
-            LazyVGrid(columns: Array(repeating: GridItem(.fixed(48), spacing: 6), count: 5),
-                      spacing: 6) {
+            // 한 줄이 한 모양이고 가로가 색이다
+            LazyVGrid(columns: Array(repeating: GridItem(.fixed(Self.thumb + 4),
+                                                         spacing: Self.gap),
+                                     count: Characters.colorCount),
+                      spacing: Self.gap) {
                 ForEach(0..<Characters.count, id: \.self) { index in
-                    thumbnail(index)
+                    button(index)
                 }
             }
-
-            Divider()
-
-            HStack {
-                Text("색").font(.headline)
-                Spacer()
-                Button {
-                    look.hue = 0; look.saturation = 1; look.brightness = 1
-                } label: {
-                    Label("초기화", systemImage: "arrow.counterclockwise")
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .disabled(isNeutral)
-            }
-
-            slider("색상", value: $look.hue, range: -0.5...0.5)
-            slider("채도", value: $look.saturation, range: 0...2)
-            slider("밝기", value: $look.brightness, range: 0.5...1.5)
 
             Divider()
             HStack {
@@ -50,14 +37,14 @@ struct CharacterPickerView: View {
             HStack {
                 Spacer()
                 Button("적용") {
-                    applied = look
-                    World.myLook = look
+                    applied = design
+                    World.myLook = Look(design: design)
                     Session.shared.sendProfile()
                 }
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
                 // 바꾼 것이 없으면 누를 수 없다. 연타해도 한 번만 나간다
-                .disabled(look == applied)
+                .disabled(design == applied)
             }
 
             // CC BY 4.0 은 출처 표기가 조건이다
@@ -72,18 +59,15 @@ struct CharacterPickerView: View {
             .foregroundStyle(.secondary)
         }
         .padding(16)
-        .frame(width: 300)
     }
 
-    private func thumbnail(_ index: Int) -> some View {
-        var candidate = look
-        candidate.design = index
-        return Button {
-            look.design = index
+    private func button(_ index: Int) -> some View {
+        Button {
+            design = index
         } label: {
-            thumb(candidate, animation: .idle, frame: 0, size: 44)
+            thumbnail(Look(design: index), animation: .idle, frame: 0, size: Self.thumb)
                 .padding(2)
-                .background(look.design == index ? Color.accentColor.opacity(0.25) : .clear,
+                .background(design == index ? Color.accentColor.opacity(0.25) : .clear,
                             in: RoundedRectangle(cornerRadius: 5))
         }
         .buttonStyle(.plain)
@@ -92,13 +76,13 @@ struct CharacterPickerView: View {
     private var preview: some View {
         HStack(spacing: 2) {
             ForEach(0..<Animation.walk.frameCount, id: \.self) { frame in
-                thumb(look, animation: .walk, frame: frame, size: 40)
+                thumbnail(Look(design: design), animation: .walk, frame: frame, size: 40)
             }
         }
     }
 
-    private func thumb(_ look: Look, animation: Animation,
-                       frame: Int, size: CGFloat) -> some View {
+    private func thumbnail(_ look: Look, animation: Animation,
+                           frame: Int, size: CGFloat) -> some View {
         let sheet = Characters.sheet(look)
         let textures = sheet.frames[animation] ?? []
         let scale = size / max(sheet.size.width, sheet.size.height)
@@ -114,18 +98,6 @@ struct CharacterPickerView: View {
         }
         .frame(width: size, height: size)
     }
-
-    private var isNeutral: Bool {
-        look.hue == 0 && look.saturation == 1 && look.brightness == 1
-    }
-
-    private func slider(_ title: String, value: Binding<Double>,
-                        range: ClosedRange<Double>) -> some View {
-        HStack(spacing: 8) {
-            Text(title).font(.caption).frame(width: 28, alignment: .leading)
-            Slider(value: value, in: range)
-        }
-    }
 }
 
 private var pickerWindow: NSWindow?
@@ -138,10 +110,12 @@ func openCharacterPicker() {
         NSApp.activate(ignoringOtherApps: true)
         return
     }
-    let window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 300, height: 400),
+    // 격자가 색 개수만큼 넓어지므로 크기를 내용에 맞춘다
+    let view = NSHostingView(rootView: CharacterPickerView())
+    let window = NSWindow(contentRect: CGRect(origin: .zero, size: view.fittingSize),
                           styleMask: [.titled, .closable], backing: .buffered, defer: false)
     window.title = "내 캐릭터"
-    window.contentView = NSHostingView(rootView: CharacterPickerView())
+    window.contentView = view
     window.center()
     window.isReleasedWhenClosed = false
     window.makeKeyAndOrderFront(nil)

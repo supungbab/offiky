@@ -416,9 +416,22 @@ final class World {
     private var lastSeen: (global: CGPoint, offset: CGFloat)?
 
     private init() {
+        World.renumberLook()
         let stored = UserDefaults.standard.string(forKey: "name") ?? NSFullUserName()
         me = CharacterNode(id: myID, name: sanitizeName(stored), isLocal: true)
         me.apply(World.myLook)
+    }
+
+    /// 10종이던 시절의 번호를 40종 배치로 옮긴다. 염소 5색은 자리가 같아 그대로다
+    private static func renumberLook() {
+        let defaults = UserDefaults.standard
+        guard !defaults.bool(forKey: "lookRenumbered") else { return }
+        defaults.set(true, forKey: "lookRenumbered")
+        guard let data = defaults.data(forKey: "look"),
+              let look = try? JSONDecoder().decode(Look.self, from: data),
+              let moved = [5: 21, 6: 10, 7: 30, 8: 36, 9: 31][look.design]
+        else { return }
+        defaults.set(try? JSONEncoder().encode(Look(design: moved)), forKey: "look")
     }
 
     static var myLook: Look {
