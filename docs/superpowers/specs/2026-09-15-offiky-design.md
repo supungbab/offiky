@@ -76,6 +76,12 @@ Xcode 템플릿이 생성한 `Item.swift`, `ContentView.swift`, SwiftData 관련
   0.83포인트씩 움직이므로 거의 매 프레임 어긋난다. 물리 좌표는 소수점 그대로 두고 그릴 때만
   반올림한다
 
+**권한은 `offiky.entitlements` 파일로 명시한다.** 빌드 설정만으로 두면 배포 빌드에서
+권한이 통째로 사라진다 — 공증에 필요한 `CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO` 가
+`get-task-allow` 뿐 아니라 Xcode 가 생성한 샌드박스·네트워크 권한까지 지운다.
+1.0.0 과 1.0.1 이 권한 없이 배포됐다. 파일은 동기화 그룹 밖(저장소 루트)에 둔다 —
+`offiky/` 안에 두면 번들에 리소스로 복사된다.
+
 **앱 샌드박스와 Hardened Runtime 을 모두 유지한다.** LAN 에 포트를 열고 아무나 보낸
 데이터를 파싱하는 앱이라 격리가 값어치를 한다. 샌드박스가 없으면 `~/.ssh` 와
 `~/.config/gh/hosts.yml` 이 이 프로세스에 그대로 열린다 — TCC 는 문서·데스크톱만 막는다.
