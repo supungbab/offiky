@@ -85,6 +85,31 @@ struct PeerTimeoutTests {
 
 struct RemoteTests {
 
+    @MainActor @Test func 보간_지연은_도착_간격을_따라간다() {
+        let strip = FloorStrip(visibleFrames: [CGRect(x: 0, y: 0, width: 1800, height: 1000)],
+                               main: nil)
+        let node = CharacterNode(id: "p", name: "p", isLocal: false)
+        var now: TimeInterval = 0
+        func run(seconds: TimeInterval, gap: TimeInterval) {
+            let end = now + seconds
+            var nextSample = now
+            while now < end {
+                if now >= nextSample { node.setRemoteTarget(x: 100, y: 0, at: now); nextSample += gap }
+                node.update(dt: 1.0 / 30, now: now, strip: strip)
+                now += 1.0 / 30
+            }
+        }
+        run(seconds: 6, gap: 0.1)                       // 고른 망
+        #expect(abs(node.renderDelay - CharacterNode.delayRange.lowerBound) < 0.01)
+
+        run(seconds: 3, gap: 0.3)                       // 흔들리는 망
+        #expect(node.renderDelay > 0.3)
+        #expect(node.renderDelay <= CharacterNode.delayRange.upperBound)
+
+        run(seconds: 10, gap: 0.1)                      // 다시 고른 망
+        #expect(abs(node.renderDelay - CharacterNode.delayRange.lowerBound) < 0.01)
+    }
+
     @MainActor @Test func 공중에서도_움직이는_쪽을_본다() {
         let strip = FloorStrip(visibleFrames: [CGRect(x: 0, y: 0, width: 1800, height: 1000)],
                                main: nil)

@@ -50,8 +50,13 @@ final class CharacterNode: SKNode {
     /// 마지막으로 좌표를 받은 시각. 끊김을 놓쳐도 이걸로 정리한다
     var lastSeen: TimeInterval = ProcessInfo.processInfo.systemUptime
     private var samples: [(t: TimeInterval, x: CGFloat, y: CGFloat)] = []
-    /// 받은 표본 두 개 사이를 재생하려면 늘 이만큼 과거를 그린다
-    static let renderDelay: TimeInterval = 0.2
+    /// 받은 표본 두 개 사이를 재생하려면 늘 이만큼 과거를 그린다.
+    /// 최근 도착 간격의 최대치를 따라간다 — 망이 좋으면 빠르게, 흔들리면 안정되게
+    private(set) var renderDelay: TimeInterval = 0.2
+    private var gaps: [TimeInterval] = []
+    static let delayRange: ClosedRange<TimeInterval> = 0.15...0.5
+    /// 지연을 갑자기 바꾸면 위치가 튄다. 초당 이만큼만 옮긴다
+    static let delaySlew: TimeInterval = 0.1
     static let gravity: CGFloat = 1100
     static let jumpApex: CGFloat = 48
 
@@ -152,6 +157,10 @@ final class CharacterNode: SKNode {
 
     func setRemoteTarget(x newX: CGFloat, y newY: CGFloat, at now: TimeInterval) {
         lastSeen = now
+        if let last = samples.last {
+            gaps.append(now - last.t)
+            if gaps.count > 30 { gaps.removeFirst() }
+        }
         // 걷거나 뛰어서는 한 주기에 나올 수 없는 간격이면 순간이동이다.
         // 이어 붙이면 보간이 초고속 이동으로 해석해 대시 판정과 피격이 난다.
         if let last = samples.last, abs(newX - last.x) > 400 {
@@ -170,7 +179,7 @@ final class CharacterNode: SKNode {
         if isLocal {
             simulate(dt: dt, now: now, strip: strip)
         } else {
-            interpolate(now: now)
+            interpolate(now: now, dt: dt)
         }
         peakY = max(peakY, y)
         detectLanding(now: now)
@@ -220,9 +229,13 @@ final class CharacterNode: SKNode {
 
     /// 렌더 시각을 감싸는 두 표본 사이를 재생한다. 앞뒤를 다 쥐고 있으므로 추정하지 않는다.
     /// 표본이 끊기면 마지막 자리에 세워 둔다
-    private func interpolate(now: TimeInterval) {
+    private func interpolate(now: TimeInterval, dt: TimeInterval) {
         guard let last = samples.last else { return }
-        let renderAt = now - CharacterNode.renderDelay
+        let target = min(CharacterNode.delayRange.upperBound,
+                         max(CharacterNode.delayRange.lowerBound, (gaps.max() ?? 0) + 1.0 / 30))
+        let step = CharacterNode.delaySlew * dt
+        renderDelay += max(-step, min(step, target - renderDelay))
+        let renderAt = now - renderDelay
         while samples.count > 2, samples[1].t <= renderAt { samples.removeFirst() }
 
         guard let a = samples.first, samples.count >= 2, a.t <= renderAt else {
