@@ -27,13 +27,6 @@ struct CharacterPickerView: View {
                 }
             }
 
-            Divider()
-            HStack {
-                Spacer()
-                preview
-                Spacer()
-            }
-
             HStack {
                 Spacer()
                 Button("적용") {
@@ -65,7 +58,7 @@ struct CharacterPickerView: View {
         Button {
             design = index
         } label: {
-            thumbnail(Look(design: index), animation: .idle, frame: 0, size: Self.thumb)
+            thumbnail(Look(design: index), size: Self.thumb)
                 .padding(2)
                 .background(design == index ? Color.accentColor.opacity(0.25) : .clear,
                             in: RoundedRectangle(cornerRadius: 5))
@@ -73,22 +66,12 @@ struct CharacterPickerView: View {
         .buttonStyle(.plain)
     }
 
-    private var preview: some View {
-        HStack(spacing: 2) {
-            ForEach(0..<Animation.walk.frameCount, id: \.self) { frame in
-                thumbnail(Look(design: design), animation: .walk, frame: frame, size: 40)
-            }
-        }
-    }
-
-    private func thumbnail(_ look: Look, animation: Animation,
-                           frame: Int, size: CGFloat) -> some View {
+    private func thumbnail(_ look: Look, size: CGFloat) -> some View {
         let sheet = Characters.sheet(look)
-        let textures = sheet.frames[animation] ?? []
+        let textures = sheet.frames[.idle] ?? []
         let scale = size / max(sheet.size.width, sheet.size.height)
         return Group {
-            if frame < textures.count,
-               let cg = textures[frame].cgImage() as CGImage? {
+            if let cg = textures.first?.cgImage() as CGImage? {
                 Image(nsImage: NSImage(cgImage: cg, size: NSSize(
                     width: sheet.size.width * scale, height: sheet.size.height * scale)))
                     .interpolation(.none)
