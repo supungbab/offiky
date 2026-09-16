@@ -36,7 +36,7 @@ xattr -dr com.apple.quarantine /Applications/Offiky.app
 | 채팅 | `⌥F` — 화면 아래 입력창이 뜬다. 엔터로 보내면 머리 위에 5초간 표시된다 |
 | 캐릭터 조종 | `⌥D` — `←` `→` 이동, 같은 방향을 빠르게 두 번 누르면 대시, `↑` 점프(공중에서 한 번 더 누르면 2단), `esc` 로 끝낸다 |
 | 캐릭터 옮기기 | 마우스로 집어서 놓는다. 공중에서 놓으면 떨어진다 |
-| 캐릭터 바꾸기 | 메뉴 → 내 캐릭터… — 모양 5가지 × 색 8가지 중에 고른다 |
+| 캐릭터 바꾸기 | 메뉴 → 내 캐릭터… — 모양 5가지 × 프리셋 5가지 중에 고른다 |
 | 이름 바꾸기 | 메뉴 → 내 이름 변경… — 기본값은 맥 계정 이름이다 |
 
 같은 네트워크에 있으면 자동으로 서로를 찾는다. 서버도 중계자도 없다 — Bonjour 로
@@ -71,5 +71,5 @@ xcodebuild -project offiky.xcodeproj -scheme offiky -configuration Release build
 - [Animal Characters](https://chaoswitchnikol.itch.io/animal-characters) — 새, 양, 개구리, 돼지
 
 두 팩 모두 [Creative Commons Attribution 4.0 International](https://creativecommons.org/licenses/by/4.0/)
-라이선스다. **원본을 그대로 쓰지 않고 색을 바꿔 표시한다.** 원본에 들어 있던 색 띠를
-서로 옮겨 모양 5가지 × 색 8가지를 만들었다.
+라이선스다. **원본을 그대로 쓰지 않고 색을 바꿔 표시한다.** 받은 그림 아홉을 그대로 두고,
+등·배·눈 같은 자리를 따로 칠해 모양마다 프리셋 다섯을 만들었다.

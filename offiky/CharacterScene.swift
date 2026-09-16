@@ -422,14 +422,15 @@ final class World {
         me.apply(World.myLook)
     }
 
-    /// 10종이던 시절의 번호를 40종 배치로 옮긴다. 염소 5색은 자리가 같아 그대로다
+    /// 10종이던 시절의 번호를 지금 배치로 옮긴다. 염소 5색은 자리가 같아 그대로다.
+    /// 5 새 6 양 7 개구리 8 돼지 9 당근개구리 → 각 모양의 원본 자리로 보낸다
     private static func renumberLook() {
         let defaults = UserDefaults.standard
-        guard !defaults.bool(forKey: "lookRenumbered") else { return }
-        defaults.set(true, forKey: "lookRenumbered")
+        guard !defaults.bool(forKey: "lookRenumbered2") else { return }
+        defaults.set(true, forKey: "lookRenumbered2")
         guard let data = defaults.data(forKey: "look"),
               let look = try? JSONDecoder().decode(Look.self, from: data),
-              let moved = [5: 21, 6: 10, 7: 30, 8: 36, 9: 31][look.design]
+              let moved = [5: 10, 6: 5, 7: 15, 8: 20, 9: 15][look.design]
         else { return }
         defaults.set(try? JSONEncoder().encode(Look(design: moved)), forKey: "look")
     }
