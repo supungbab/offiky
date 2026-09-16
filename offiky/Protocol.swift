@@ -175,12 +175,6 @@ func validChat(_ raw: String) -> String? {
 
 struct Envelope: Decodable { let t: String }
 
-struct PeerPos: Codable {
-    let id: String
-    let x: Double
-    let y: Double?
-}
-
 struct HelloMsg: Codable {
     var t = "hello"
     var pv = protocolVersion

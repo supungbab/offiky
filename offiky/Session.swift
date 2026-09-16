@@ -8,14 +8,12 @@ final class Session {
     private var pending: [SayMsg] = []
     private var tracker = SeqTracker()
     private var profiles: [String: (name: String, look: Look)] = [:]
-    private var positions: [String: PeerPos] = [:]
     private var clientIDs: [String: String] = [:]
     /// 호스트가 부여한 번호. 스냅샷에서 36자 UUID 대신 이걸 싣는다
     private var indexes: [String: Int] = [:]
     private var idByIndex: [Int: String] = [:]
 
     private var posTimer: Timer?
-    private var snapTimer: Timer?
 
     private init() {}
 
@@ -32,9 +30,6 @@ final class Session {
 
         posTimer = Timer.scheduledTimer(withTimeInterval: snapshotInterval, repeats: true) {
             [weak self] _ in self?.sendPosition()
-        }
-        snapTimer = Timer.scheduledTimer(withTimeInterval: snapshotInterval, repeats: true) {
-            [weak self] _ in self?.sendSnapshotIfHost()
         }
     }
 
@@ -62,26 +57,16 @@ final class Session {
         let me = World.shared.me
         let msg = PosMsg(x: Double(me.x), y: me.y > 0 ? Double(me.y) : nil)
         if Mesh.shared.isHost {
-            positions[World.shared.myID] = PeerPos(id: World.shared.myID, x: msg.x, y: msg.y)
+            Mesh.shared.broadcast(encode(SnapMsg(p: [entry(World.shared.myID, msg)])))
         } else {
             Mesh.shared.sendToHost(encode(msg))
         }
     }
 
-    private func sendSnapshotIfHost() {
-        guard Mesh.shared.isHost else { return }
-        let me = World.shared.me
-        positions[World.shared.myID] = PeerPos(
-            id: World.shared.myID, x: Double(me.x), y: me.y > 0 ? Double(me.y) : nil)
-
-        var entries: [[Int]] = []
-        entries.reserveCapacity(positions.count)
-        for (peer, p) in positions {
-            var entry = [index(for: peer), Int(p.x.rounded())]
-            if let y = p.y, y > 0 { entry.append(Int(y.rounded())) }
-            entries.append(entry)
-        }
-        Mesh.shared.broadcast(encode(SnapMsg(p: entries)))
+    private func entry(_ id: String, _ p: PosMsg) -> [Int] {
+        var entry = [index(for: id), Int(p.x.rounded())]
+        if let y = p.y, y > 0 { entry.append(Int(y.rounded())) }
+        return entry
     }
 
     func sendSay(_ text: String) {
@@ -116,7 +101,6 @@ final class Session {
         // 중계하던 상태다. 더 이상 호스트가 아니면 의미가 없고, 다시 호스트가 되면
         // 상대가 hello 를 새로 보내므로 남겨 둘 이유가 없다
         clientIDs.removeAll()
-        positions.removeAll()
         guard Mesh.shared.isHost else { return }
         pending.forEach { Mesh.shared.broadcast(encode($0)) }
         pending.removeAll()
@@ -126,7 +110,6 @@ final class Session {
     /// 남겨 두면 다시 붙을 때까지 멈춘 캐릭터가 화면에 남는다.
     func reset() {
         profiles.removeAll()
-        positions.removeAll()
         clientIDs.removeAll()
         indexes.removeAll()
         idByIndex.removeAll()
@@ -137,7 +120,6 @@ final class Session {
     /// 나간 피어의 흔적을 지운다. 호스트가 사라졌을 때도 여기로 온다.
     func peerGone(_ id: String) {
         profiles[id] = nil
-        positions[id] = nil
         if let n = indexes.removeValue(forKey: id) { idByIndex[n] = nil }
         idByIndex = idByIndex.filter { $0.value != id }
         tracker.forget(id: id)
@@ -198,8 +180,9 @@ final class Session {
               abs(msg.x) <= Limits.maxX,
               msg.y == nil || (msg.y! >= 0 && msg.y! <= Limits.maxY)
         else { return }
-        positions[id] = PeerPos(id: id, x: msg.x, y: msg.y)
-        // 호스트는 자기가 보낸 스냅샷을 받지 않으므로 여기서 직접 반영한다
+        // 받는 즉시 그대로 넘긴다. 호스트 쪽 타이머로 다시 표본을 뜨면 두 시계가
+        // 어긋나 같은 좌표가 두 번 가거나 하나가 빠지고, 받는 쪽에서 끊겨 보인다
+        Mesh.shared.broadcast(encode(SnapMsg(p: [entry(id, msg)])))
         World.shared.setPeerTarget(id: id, x: CGFloat(msg.x), y: CGFloat(msg.y ?? 0))
     }
 
