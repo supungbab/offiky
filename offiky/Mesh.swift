@@ -25,7 +25,6 @@ final class Mesh {
 
     private var links: [String: Link] = [:]
     private var visible: Set<String> = []
-    private var mismatched = 0
     /// 실패한 상대는 쉬었다 다시 건다. 바로 다시 걸면 실패가 반복되며 회전한다
     private var retryAfter: [String: Date] = [:]
     private var dialWork: DispatchWorkItem?
@@ -34,9 +33,6 @@ final class Mesh {
     private var lastPath = ""
 
     static let retryDelay: TimeInterval = 5
-
-    /// 프로토콜이 달라 연결하지 않은 피어 수. 메뉴에서 알린다
-    var otherVersionCount: Int { queue.sync { mismatched } }
 
     var onLine: ((Data, String) -> Void)?
     var onReady: ((String) -> Void)?
@@ -71,8 +67,10 @@ final class Mesh {
         links.removeAll()
         visible.removeAll()
         retryAfter.removeAll()
-        mismatched = 0
-        DispatchQueue.main.async { Session.shared.reset() }
+        DispatchQueue.main.async {
+            Presence.shared.otherVersions = 0
+            Session.shared.reset()
+        }
     }
 
     /// 전환 중에는 알림이 여러 번 오므로 잦아들기를 기다린다
@@ -136,7 +134,9 @@ final class Mesh {
             }
             let peers = compatiblePeers(entries)
             self.visible = peers.ids
-            self.mismatched = peers.mismatched
+            // 메뉴가 관찰하는 값으로 밀어 넣는다. 여기서 읽어 가게 두면
+            // 값이 바뀌어도 메뉴를 다시 그릴 이유가 없어 경고가 뜨지 않는다
+            DispatchQueue.main.async { Presence.shared.otherVersions = peers.mismatched }
             self.dial()
         }
         browser.stateUpdateHandler = { [weak self] state in

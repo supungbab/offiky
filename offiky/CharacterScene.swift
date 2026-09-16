@@ -604,6 +604,8 @@ extension World {
 @Observable final class Presence {
     static let shared = Presence()
     var count = 1
+    /// 프로토콜이 달라 연결하지 않은 피어 수
+    var otherVersions = 0
     private init() {}
 }
 

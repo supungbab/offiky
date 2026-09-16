@@ -30,9 +30,9 @@ struct offikyApp: App {
             Toggle("캐릭터 숨기기", isOn: binding($hidden) {
                 OverlayController.shared.setHidden($0)
             })
-            if Mesh.shared.otherVersionCount > 0 {
+            if Presence.shared.otherVersions > 0 {
                 Divider()
-                Text("버전이 다른 동료 \(Mesh.shared.otherVersionCount)명은 보이지 않습니다")
+                Text("버전이 다른 동료 \(Presence.shared.otherVersions)명은 보이지 않습니다")
                 Text("모두 같은 버전을 설치해야 합니다")
             }
             Divider()
