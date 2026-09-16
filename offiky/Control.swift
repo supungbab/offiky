@@ -34,8 +34,9 @@ import SwiftUI
         let screen = NSScreen.screens.first { $0.frame.contains(NSEvent.mouseLocation) }
             ?? NSScreen.main ?? NSScreen.screens[0]
         let size = CGSize(width: 420, height: 36)
+        // 채팅 입력창과 같은 높이에 둔다
         let origin = CGPoint(x: screen.visibleFrame.midX - size.width / 2,
-                             y: screen.visibleFrame.minY + 96)
+                             y: screen.visibleFrame.minY + screen.visibleFrame.height * 0.22)
 
         let panel = self.panel ?? {
             let created = KeyPanel(contentRect: CGRect(origin: origin, size: size),
@@ -48,12 +49,7 @@ import SwiftUI
             created.hidesOnDeactivate = false
             created.isReleasedWhenClosed = false
             created.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-            let catcher = KeyCatcher()
-            let hint = NSHostingView(rootView: HintView())
-            hint.frame = CGRect(origin: .zero, size: size)
-            hint.autoresizingMask = [.width, .height]
-            catcher.addSubview(hint)
-            created.contentView = catcher
+            created.contentView = KeyCatcher(rootView: HintView())
             // 다른 곳을 클릭하면 조종을 끝낸다
             NotificationCenter.default.addObserver(
                 forName: NSWindow.didResignKeyNotification,
@@ -130,13 +126,16 @@ import SwiftUI
 }
 
 /// 처리하지 않은 키는 경고음이 나므로 방향키 외에도 모두 받는다
-private final class KeyCatcher: NSView {
+private final class KeyCatcher: NSHostingView<HintView> {
+    required init(rootView: HintView) { super.init(rootView: rootView) }
+    required init?(coder: NSCoder) { fatalError() }
+
     override var acceptsFirstResponder: Bool { true }
     override func keyDown(with event: NSEvent) { Control.shared.keyDown(event) }
     override func keyUp(with event: NSEvent) { Control.shared.keyUp(event) }
 }
 
-private struct HintView: View {
+struct HintView: View {
     var body: some View {
         HStack(spacing: 14) {
             item("← →", "이동")
