@@ -113,6 +113,10 @@ final class Session {
         // 번호는 호스트가 부여하므로 호스트가 바뀌면 체계가 새로 시작된다
         indexes.removeAll()
         idByIndex.removeAll()
+        // 중계하던 상태다. 더 이상 호스트가 아니면 의미가 없고, 다시 호스트가 되면
+        // 상대가 hello 를 새로 보내므로 남겨 둘 이유가 없다
+        clientIDs.removeAll()
+        positions.removeAll()
         guard Mesh.shared.isHost else { return }
         pending.forEach { Mesh.shared.broadcast(encode($0)) }
         pending.removeAll()
@@ -142,6 +146,8 @@ final class Session {
 
     private func clientGone(_ key: String) {
         guard let id = clientIDs.removeValue(forKey: key) else { return }
+        // 같은 피어가 두 경로로 붙는 일이 있다. 남은 연결이 있으면 지우지 않는다
+        guard !clientIDs.values.contains(id) else { return }
         peerGone(id)
         Mesh.shared.broadcast(encode(LeaveMsg(id: id)))
     }

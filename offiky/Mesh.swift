@@ -169,7 +169,15 @@ final class Mesh {
 
         cancelUpstream()
         buffers["upstream"] = nil
-        if !isHost { connectToHost(host) }
+        if !isHost {
+            // 호스트에서 내려왔으면 붙어 있던 연결을 끊는다. 그대로 두면 상대는
+            // 호스트가 아닌 나에게 계속 좌표를 보내고 나는 전부 버린다.
+            // 끊으면 상대가 재계산해 진짜 호스트로 옮겨 간다.
+            clients.values.forEach { $0.stateUpdateHandler = nil; $0.cancel() }
+            clients.removeAll()
+            buffers = buffers.filter { $0.key == "upstream" }
+            connectToHost(host)
+        }
         DispatchQueue.main.async { Session.shared.hostChanged() }
     }
 
@@ -179,6 +187,10 @@ final class Mesh {
         excluded[id] = Date()
         DispatchQueue.main.async { Session.shared.peerGone(id) }
         scheduleElection()
+        // 제외가 풀리는 시점에 다시 계산한다. elect 는 Bonjour 목록이 바뀔 때만
+        // 불리므로, 깨워 주지 않으면 잘못된 판단이 영원히 남는다 —
+        // 서로를 제외한 둘이 각자 자기를 호스트로 믿고 아무도 연결하지 않는다
+        queue.asyncAfter(deadline: .now() + 10.5) { [weak self] in self?.elect() }
     }
 
     /// 우리가 끊는 것이므로 실패 처리가 돌면 안 된다. 살아 있는 호스트를 나간 것으로 지운다
