@@ -51,6 +51,10 @@ xcodebuild -project offiky.xcodeproj -scheme offiky -configuration Release build
 배포용 서명·패키징은 `scripts/release.sh` 가 한다. 앱 아이콘은 `scripts/make_icon.py` 가
 16×16 픽셀 지도에서 만든다.
 
+## 라이선스
+
+코드는 [MIT](LICENSE) 다. 캐릭터 그림은 별도 라이선스를 따른다.
+
 ## 캐릭터 그림
 
 [ChaosWitchNikol](https://chaoswitchnikol.itch.io) 의 작품을 사용한다.
