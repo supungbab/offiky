@@ -74,7 +74,6 @@ final class CharacterNode: SKNode {
         addChild(shadow)
 
         image.anchorPoint = CGPoint(x: 0.5, y: 0)
-        image.position = CGPoint(x: 0, y: -spriteDisplaySize / 2)
         addChild(image)
 
         label.fontSize = 10
@@ -88,7 +87,8 @@ final class CharacterNode: SKNode {
 
     required init?(coder: NSCoder) { fatalError() }
 
-    private var sheet = Characters.Sheet(size: .zero, bodyWidth: 16, frames: [:])
+    private var sheet = Characters.Sheet(size: .zero, bodyWidth: 16,
+                                        footPadding: 0, frames: [:])
 
     private(set) var look = Look.neutral
 
@@ -96,6 +96,8 @@ final class CharacterNode: SKNode {
         self.look = look
         sheet = Characters.sheet(look)
         image.size = CGSize(width: sheet.size.width * 2, height: sheet.size.height * 2)
+        // 칸 아래 빈 줄만큼 내려야 발이 바닥선에 닿는다
+        image.position = CGPoint(x: 0, y: -spriteDisplaySize / 2 - sheet.footPadding * 2)
         image.texture = sheet.frames[.idle]?.first
     }
 

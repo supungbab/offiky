@@ -12,22 +12,47 @@ func stableHash(_ s: String) -> UInt64 {
     return h
 }
 
+/// 값은 스프라이트 시트의 행 번호다. 4행은 달리기 직전 자세 한 장이라 아직 쓰지 않는다
 enum Animation: Int, CaseIterable {
-    case idle = 0, walk = 1, hurt = 2, jump = 3, dash = 4
-    var frameCount: Int { [4, 6, 4, 3, 6][rawValue] }
-    var fps: Double { [5, 12, 14, 11, 18][rawValue] }
+    case idle = 0, walk = 1, hurt = 2, jump = 3, dash = 5
+
+    var frameCount: Int {
+        switch self {
+        case .idle: 4
+        case .walk: 6
+        case .hurt: 4
+        case .jump: 3
+        case .dash: 6
+        }
+    }
+
+    var fps: Double {
+        switch self {
+        case .idle: 5
+        case .walk: 12
+        case .hurt: 14
+        case .jump: 11
+        case .dash: 18
+        }
+    }
 }
 
 /// 에셋의 스프라이트 시트를 잘라 색을 입힌 텍스처로 만든다
 enum Characters {
-    static let names = ["goat_white", "goat_tan", "goat_gray", "goat_gold", "goat_red",
-                        "bird", "goat_ash", "frog", "imp"]
+    static let names = ["white", "brown", "black", "gold", "red",
+                        "birb", "sheep", "frog", "pig"]
     static var count: Int { names.count }
+
+    /// 시트는 24x24 칸이 6열 6행이다
+    static let columns = 6
+    static let rows = 6
 
     struct Sheet {
         let size: CGSize
         /// 대기 자세의 실제 몸 너비(픽셀). 프레임 폭에는 대시 자세의 여백이 들어 있다
         let bodyWidth: CGFloat
+        /// 칸 아래쪽 빈 줄 수(픽셀). 이만큼 내려 놓아야 발이 바닥에 닿는다
+        let footPadding: CGFloat
         let frames: [Animation: [SKTexture]]
     }
 
@@ -46,7 +71,10 @@ enum Characters {
     private static func build(_ look: Look) -> Sheet {
         guard let image = NSImage(named: names[look.design]),
               let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil)
-        else { return Sheet(size: CGSize(width: 16, height: 16), bodyWidth: 16, frames: [:]) }
+        else {
+            return Sheet(size: CGSize(width: 16, height: 16), bodyWidth: 16,
+                         footPadding: 0, frames: [:])
+        }
 
         let sheetW = cg.width, sheetH = cg.height
         var pixels = [UInt8](repeating: 0, count: sheetW * sheetH * 4)
@@ -60,7 +88,7 @@ enum Characters {
         }
         applyTint(&pixels, look)
 
-        let frameW = sheetW / 6, frameH = sheetH / Animation.allCases.count
+        let frameW = sheetW / columns, frameH = sheetH / rows
         var frames: [Animation: [SKTexture]] = [:]
         for animation in Animation.allCases {
             frames[animation] = (0..<animation.frameCount).compactMap {
@@ -69,22 +97,24 @@ enum Characters {
                         width: frameW, height: frameH)
             }
         }
+        let measured = body(pixels, sheetW: sheetW, width: frameW, height: frameH)
         return Sheet(size: CGSize(width: frameW, height: frameH),
-                     bodyWidth: bodyWidth(pixels, sheetW: sheetW, width: frameW, height: frameH),
-                     frames: frames)
+                     bodyWidth: measured.width, footPadding: measured.foot, frames: frames)
     }
 
-    /// 대기 첫 프레임에서 불투명한 픽셀의 가로 범위를 잰다
-    private static func bodyWidth(_ pixels: [UInt8], sheetW: Int,
-                                  width: Int, height: Int) -> CGFloat {
-        var first = width, last = -1
+    /// 대기 첫 프레임에서 불투명한 픽셀의 가로 범위와 발밑 빈 줄 수를 잰다
+    private static func body(_ pixels: [UInt8], sheetW: Int,
+                             width: Int, height: Int) -> (width: CGFloat, foot: CGFloat) {
+        var first = width, last = -1, bottom = -1
         for y in 0..<height {
             for x in 0..<width where pixels[(y * sheetW + x) * 4 + 3] > 0 {
                 first = min(first, x)
                 last = max(last, x)
+                bottom = max(bottom, y)
             }
         }
-        return last >= first ? CGFloat(last - first + 1) : CGFloat(width)
+        guard last >= first else { return (CGFloat(width), 0) }
+        return (CGFloat(last - first + 1), CGFloat(height - 1 - bottom))
     }
 
     /// 픽셀 전체에 같은 HSB 변환을 적용해 명암 관계를 유지한다
