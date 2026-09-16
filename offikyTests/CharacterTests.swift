@@ -83,6 +83,23 @@ struct PeerTimeoutTests {
     }
 }
 
+struct RemoteTests {
+
+    @MainActor @Test func 공중에서도_움직이는_쪽을_본다() {
+        let strip = FloorStrip(visibleFrames: [CGRect(x: 0, y: 0, width: 1800, height: 1000)],
+                               main: nil)
+        let node = CharacterNode(id: "p", name: "p", isLocal: false)
+        #expect(node.facingSign == -1)
+        node.setRemoteTarget(x: 100, y: 50, at: 0)
+        node.setRemoteTarget(x: 120, y: 50, at: 0.1)
+        node.setRemoteTarget(x: 140, y: 50, at: 0.2)
+        node.update(dt: 1.0 / 30, now: 0.30, strip: strip)
+        node.update(dt: 1.0 / 30, now: 0.35, strip: strip)
+        #expect(node.y > 0)
+        #expect(node.facingSign == 1)
+    }
+}
+
 struct ControlTests {
 
     private let strip = FloorStrip(visibleFrames: [CGRect(x: 0, y: 0, width: 1800, height: 1000)],

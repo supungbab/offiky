@@ -178,8 +178,8 @@ final class CharacterNode: SKNode {
 
         let moved = x - previousX
         previousX = x
-        // 바닥에 있을 때만 방향을 갱신한다. 들려 있거나 공중에 있는 동안은 유지한다
-        if !isDragging, y <= 0, abs(moved) > 0.1 { face(moved) }
+        // 내 캐릭터는 입력이 방향을 정한다. 원격은 움직임으로 읽는다
+        if !isLocal, !isDragging, abs(moved) > 0.1 { face(moved) }
         let speed = abs(moved) / CGFloat(max(dt, 0.001))
 
         let animation: Animation
@@ -456,6 +456,7 @@ final class World {
             for b in charging.dropFirst(i + 1) {
                 guard now >= a.hurtUntil, now >= b.hurtUntil,
                       abs(a.x - b.x) < 22,
+                      abs(a.y - b.y) < 24,      // 뛰어넘는 것은 부딪힌 것이 아니다
                       a.facingSign != b.facingSign,
                       (b.x - a.x) * a.facingSign > 0
                 else { continue }
