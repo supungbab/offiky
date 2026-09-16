@@ -5,6 +5,10 @@ import SwiftUI
 struct CharacterPickerView: View {
     @State private var look = World.myLook
 
+    private let goatPack = URL(string: "https://chaoswitchnikol.itch.io/goat-characters")!
+    private let animalPack = URL(string: "https://chaoswitchnikol.itch.io/animal-characters")!
+    private let license = URL(string: "https://creativecommons.org/licenses/by/4.0/")!
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("캐릭터").font(.headline)
@@ -40,6 +44,17 @@ struct CharacterPickerView: View {
                 preview
                 Spacer()
             }
+
+            // CC BY 4.0 은 출처 표기가 조건이다
+            Divider()
+            VStack(alignment: .leading, spacing: 2) {
+                Text("캐릭터 그림: ChaosWitchNikol")
+                Link("Goat Characters", destination: goatPack)
+                Link("Animal Characters", destination: animalPack)
+                Link("CC BY 4.0 — 색을 조정해 사용합니다", destination: license)
+            }
+            .font(.caption2)
+            .foregroundStyle(.secondary)
         }
         .padding(16)
         .frame(width: 300)
