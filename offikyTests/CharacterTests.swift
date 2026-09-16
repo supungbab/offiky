@@ -211,4 +211,37 @@ struct ScreenChangeTests {
         attach([laptop])
         #expect(World.shared.me.x == 300)
     }
+
+    @MainActor @Test func 없던_화면이_같은_구성으로_돌아오면_그대로다() {
+        attach([external, laptop])
+        World.shared.me.teleport(to: 2860)
+        attach([])
+        attach([external, laptop])
+        #expect(World.shared.me.x == 2860)
+    }
+
+    @MainActor @Test func 화면_없는_상태가_이어져도_유지된다() {
+        attach([external, laptop])
+        World.shared.me.teleport(to: 2860)
+        for _ in 0..<5 { attach([]) }            // 잠자기처럼 한동안 없을 수 있다
+        attach([external, laptop])
+        #expect(World.shared.me.x == 2860)
+    }
+
+    @MainActor @Test func 자는_사이에_모니터를_꽂아도_자리를_지킨다() {
+        attach([laptop])
+        World.shared.me.teleport(to: 300)
+        attach([])
+        attach([external, laptop])               // 자는 사이에 모니터를 꽂았다
+        #expect(World.shared.me.x == 2860)
+    }
+
+    @MainActor @Test func 뺐다_꽂으면_제자리로_돌아온다() {
+        attach([external, laptop])
+        World.shared.me.teleport(to: 2860)
+        attach([laptop])
+        #expect(World.shared.me.x == 300)
+        attach([external, laptop])
+        #expect(World.shared.me.x == 2860)
+    }
 }
