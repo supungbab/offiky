@@ -15,9 +15,7 @@ struct offikyApp: App {
                 }
                 Button("릴리스 페이지 열기") { UpdateChecker.shared.openReleasePage() }
             } else {
-                Button("업데이트 확인") {
-                    Task { await UpdateChecker.shared.check(force: true) }
-                }
+                Button("업데이트 확인…") { UpdateChecker.shared.checkAndTell() }
             }
             Divider()
             Button("채팅 열기  ⌥T") { ChatPanel.shared.show() }
