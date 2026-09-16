@@ -8,6 +8,16 @@ struct offikyApp: App {
     var body: some Scene {
         MenuBarExtra {
             Text("offiky \(appVersion)")
+            if let version = UpdateChecker.shared.newVersion {
+                Button(UpdateChecker.shared.busy ? "업데이트 중…" : "새 버전 \(version) 설치") {
+                    UpdateChecker.shared.update()
+                }
+                .disabled(UpdateChecker.shared.busy)
+            } else {
+                Button("업데이트 확인") {
+                    Task { await UpdateChecker.shared.check(force: true) }
+                }
+            }
             Divider()
             Button("채팅 열기  ⌥T") { ChatPanel.shared.show() }
             Button("참가자 \(Presence.shared.count)명…") { openRoster() }
@@ -67,6 +77,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Session.shared.start()
         Mesh.shared.start()
         ChatPanel.shared.install()
+        Task { await UpdateChecker.shared.check() }
+        Timer.scheduledTimer(withTimeInterval: 6 * 3600, repeats: true) { _ in
+            Task { await UpdateChecker.shared.check() }
+        }
 
         let center = NSWorkspace.shared.notificationCenter
         center.addObserver(forName: NSWorkspace.willSleepNotification,

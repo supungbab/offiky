@@ -147,6 +147,25 @@ struct VersionTests {
     }
 }
 
+struct VersionCompareTests {
+
+    /// 문자열로 비교하면 "2.0.10" 이 "2.0.9" 보다 작게 나온다
+    @Test func 자릿수가_늘어도_숫자로_비교한다() {
+        #expect(UpdateChecker.isNewer("2.0.10", than: "2.0.9"))
+        #expect(UpdateChecker.isNewer("1.10.0", than: "1.9.9"))
+    }
+
+    @Test func 같거나_낮으면_새_버전이_아니다() {
+        #expect(!UpdateChecker.isNewer("1.0.0", than: "1.0.0"))
+        #expect(!UpdateChecker.isNewer("1.0.0", than: "1.0.1"))
+    }
+
+    @Test func 자릿수가_달라도_비교한다() {
+        #expect(UpdateChecker.isNewer("1.1", than: "1.0.9"))
+        #expect(!UpdateChecker.isNewer("1.0", than: "1.0.0"))
+    }
+}
+
 struct ElectionTests {
 
     @Test func 가장_작은_id_가_호스트다() {
