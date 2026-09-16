@@ -16,6 +16,27 @@ enum Limits {
     static let maxY: Double = 4_000
 }
 
+/// 맵은 화면보다 넓다. 카메라가 내 캐릭터를 따라가며 이 범위의 일부를 비춘다.
+/// 고정값이라 참가자가 드나들어도 맵이 흔들리지 않는다 — 폭이 바뀌면
+/// 같은 좌표가 다른 자리를 가리켜 모두의 캐릭터가 밀린다.
+let mapHalfWidth: CGFloat = 2400
+
+func clampToMap(_ x: CGFloat) -> CGFloat {
+    min(max(x, -mapHalfWidth), mapHalfWidth)
+}
+
+/// 내 캐릭터가 가운데 40% 안에 있으면 카메라를 두고, 벗어나면 그만큼만 민다.
+/// 화면 한가운데 붙잡아 두면 걸어 다니는 느낌이 사라진다.
+func followCamera(_ camera: CGFloat, target: CGFloat, viewHalf: CGFloat) -> CGFloat {
+    guard viewHalf > 0 else { return 0 }
+    guard viewHalf < mapHalfWidth else { return 0 }   // 맵이 다 보이면 움직일 이유가 없다
+    let dead = viewHalf * 0.4
+    var next = camera
+    if target - camera > dead { next = target - dead }
+    if target - camera < -dead { next = target + dead }
+    return min(max(next, -mapHalfWidth + viewHalf), mapHalfWidth - viewHalf)
+}
+
 struct Placement: Equatable {
     let screenIndex: Int
     let point: CGPoint
@@ -73,7 +94,7 @@ struct FloorStrip {
         var accumulated = minX
         for frame in frames {
             if frame.contains(point) {
-                return (clamp(accumulated + point.x - frame.minX),
+                return (accumulated + point.x - frame.minX,
                         max(0, point.y - frame.minY - floorOffset - spriteDisplaySize / 2))
             }
             accumulated += frame.width

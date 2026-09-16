@@ -6,7 +6,7 @@ import SwiftUI
 /// 참가자 목록과 미니맵. 좌표는 모두가 공유하므로 누가 어디 있는지 그릴 수 있다.
 struct RosterView: View {
     @State private var rows: [Row] = []
-    @State private var bounds: (min: CGFloat, max: CGFloat) = (0, 0)
+    @State private var camera: (center: CGFloat, half: CGFloat) = (0, 0)
 
     private let tick = Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()
 
@@ -37,7 +37,7 @@ struct RosterView: View {
                 }
             }
 
-            Text("이름을 누르면 그 자리로 이동한다")
+            Text("파란 칸이 내 화면이 비추는 범위다. 이름을 누르면 그 자리로 이동한다")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }
@@ -50,6 +50,12 @@ struct RosterView: View {
     private var map: some View {
         GeometryReader { geometry in
             ZStack(alignment: .bottomLeading) {
+                // 내 화면이 비추는 구간
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(Color.accentColor.opacity(0.14))
+                    .frame(width: max(4, span(camera.half * 2, width: geometry.size.width)))
+                    .offset(x: offset(camera.center - camera.half, width: geometry.size.width))
+
                 Rectangle()
                     .fill(Color.primary.opacity(0.18))
                     .frame(height: 1)
@@ -87,11 +93,13 @@ struct RosterView: View {
         .disabled(row.isMe)
     }
 
-    /// 띠 좌표를 막대 안의 위치로 옮긴다
+    /// 맵 좌표를 막대 안의 위치로 옮긴다
     private func offset(_ x: CGFloat, width: CGFloat) -> CGFloat {
-        let span = bounds.max - bounds.min
-        guard span > 0 else { return width / 2 }
-        return (x - bounds.min) / span * width
+        (x + mapHalfWidth) / (mapHalfWidth * 2) * width
+    }
+
+    private func span(_ distance: CGFloat, width: CGFloat) -> CGFloat {
+        distance / (mapHalfWidth * 2) * width
     }
 
     private func thumbnail(_ look: Look, size: CGFloat) -> some View {
@@ -114,7 +122,7 @@ struct RosterView: View {
             Row(id: $0.id, name: $0.name, x: $0.x, look: $0.look, isMe: $0.isMe)
         }
         let strip = OverlayController.shared.strip
-        bounds = (strip.minX, strip.maxX)
+        camera = (World.shared.cameraX, min(mapHalfWidth, strip.length / 2))
     }
 }
 

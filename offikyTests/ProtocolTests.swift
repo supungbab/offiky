@@ -147,6 +147,40 @@ struct VersionTests {
     }
 }
 
+struct CameraTests {
+
+    private let viewHalf: CGFloat = 900      // 1800pt 화면
+
+    @Test func 가운데_있으면_움직이지_않는다() {
+        #expect(followCamera(0, target: 100, viewHalf: viewHalf) == 0)
+        #expect(followCamera(0, target: -100, viewHalf: viewHalf) == 0)
+    }
+
+    @Test func 데드존을_벗어난_만큼만_민다() {
+        // 데드존은 절반의 40% = 360
+        #expect(followCamera(0, target: 500, viewHalf: viewHalf) == 140)
+        #expect(followCamera(0, target: -500, viewHalf: viewHalf) == -140)
+    }
+
+    @Test func 맵_밖을_비추지_않는다() {
+        let camera = followCamera(0, target: mapHalfWidth, viewHalf: viewHalf)
+        #expect(camera == mapHalfWidth - viewHalf)
+        #expect(camera + viewHalf <= mapHalfWidth)
+    }
+
+    /// 화면이 맵보다 넓으면 밀 이유가 없다. 전체를 그대로 보여준다
+    @Test func 맵보다_넓은_화면은_고정이다() {
+        #expect(followCamera(0, target: 2000, viewHalf: mapHalfWidth + 500) == 0)
+        #expect(followCamera(0, target: 100, viewHalf: 0) == 0)
+    }
+
+    @Test func 맵_경계를_넘지_않는다() {
+        #expect(clampToMap(99_999) == mapHalfWidth)
+        #expect(clampToMap(-99_999) == -mapHalfWidth)
+        #expect(clampToMap(120) == 120)
+    }
+}
+
 struct ElectionTests {
 
     @Test func 가장_작은_id_가_호스트다() {
