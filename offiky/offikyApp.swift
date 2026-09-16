@@ -10,6 +10,8 @@ struct offikyApp: App {
 
     var body: some Scene {
         MenuBarExtra("offiky", systemImage: "person.2.fill") {
+            Text("offiky \(appVersion)")
+            Divider()
             Button("채팅 열기  ⌥T") { ChatPanel.shared.show() }
             Button("내 캐릭터…") { openCharacterPicker() }
             Button("내 이름 변경…") { changeName() }
@@ -32,6 +34,14 @@ struct offikyApp: App {
             Divider()
             Button("종료") { NSApplication.shared.terminate(nil) }
         }
+    }
+
+    /// 버전이 다르면 서로 보이지 않으므로 동료끼리 대조할 수 있어야 한다
+    private var appVersion: String {
+        let info = Bundle.main.infoDictionary
+        let short = info?["CFBundleShortVersionString"] as? String ?? "?"
+        let build = info?["CFBundleVersion"] as? String ?? "?"
+        return build == short ? short : "\(short) (\(build))"
     }
 
     /// 메뉴가 닫혀 있으면 뷰가 갱신되지 않아 onChange 가 다음 열 때까지 미뤄진다.
