@@ -4,9 +4,6 @@ import SwiftUI
 struct offikyApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @State private var hidden = false
-    #if DEBUG
-    @State private var showCoords = false
-    #endif
 
     var body: some Scene {
         MenuBarExtra {
@@ -24,14 +21,6 @@ struct offikyApp: App {
                 Text("버전이 다른 동료 \(Mesh.shared.otherVersionCount)명은 보이지 않습니다")
                 Text("모두 같은 버전을 설치해야 합니다")
             }
-            #if DEBUG
-            Divider()
-            Toggle("테스트: 좌표 표시", isOn: binding($showCoords) {
-                World.shared.showCoordinates($0)
-            })
-            Button("테스트: 50마리 풀기") { World.shared.spawnTestPeers(50) }
-            Button("테스트 캐릭터 제거") { World.shared.removeTestPeers() }
-            #endif
             Divider()
             Button("종료") { NSApplication.shared.terminate(nil) }
         } label: {

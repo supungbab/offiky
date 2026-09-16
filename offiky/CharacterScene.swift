@@ -468,7 +468,6 @@ final class World {
 
     private var scenes: [CharacterScene] = []
     private var lastTick: TimeInterval = 0
-    private var coordinatesVisible = false
 
     private init() {
         let stored = UserDefaults.standard.string(forKey: "name") ?? NSFullUserName()
@@ -504,7 +503,6 @@ final class World {
             node.x = strip.clamp(node.x)
         }
         // 씬을 새로 만들었으므로 눈금도 다시 그린다
-        if coordinatesVisible { showCoordinates(true) }
     }
 
     func beginDrag() { me.beginDrag() }
@@ -617,84 +615,3 @@ extension World {
         node?.showBubble(text: text, now: ProcessInfo.processInfo.systemUptime)
     }
 }
-
-
-// MARK: - 테스트
-
-extension World {
-    /// 네트워크 없이 로컬에서 각자 움직이는 캐릭터를 푼다. 메뉴바에서 호출한다.
-    func spawnTestPeers(_ count: Int) {
-        removeTestPeers()
-        let span = strip.maxX - strip.minX
-        for i in 0..<count {
-            let id = "test-\(i)"
-            let node = CharacterNode(id: id, name: "테스트\(i + 1)", isLocal: true)
-            node.apply(Look(design: i % Characters.count,
-                            hue: Double.random(in: -0.5...0.5),
-                            saturation: Double.random(in: 0.6...1.4),
-                            brightness: Double.random(in: 0.8...1.2)))
-            node.x = strip.clamp(strip.minX + span * CGFloat(i + 1) / CGFloat(count + 1))
-            peers[id] = node
-        }
-    }
-
-    func removeTestPeers() {
-        for (id, node) in peers where id.hasPrefix("test-") {
-            node.removeFromParent()
-            peers[id] = nil
-        }
-    }
-
-    var testPeerCount: Int { peers.keys.filter { $0.hasPrefix("test-") }.count }
-}
-
-
-
-
-// MARK: - 좌표 표시 (임시)
-
-extension World {
-    /// 바닥에 200포인트 간격으로 눈금과 x 값을 그린다
-    func showCoordinates(_ show: Bool) {
-        coordinatesVisible = show
-        for scene in scenes {
-            for node in scene.children where node.name == "coord" { node.removeFromParent() }
-        }
-        guard show, !strip.frames.isEmpty else { return }
-
-        var value = (strip.minX / 200).rounded(.up) * 200
-        while value <= strip.maxX {
-            mark(value, title: value == 0 ? "0  (원점)" : "\(Int(value))",
-                 color: value == 0 ? .systemRed : .systemBlue)
-            value += 200
-        }
-        mark(strip.minX, title: "끝 \(Int(strip.minX))", color: .systemOrange)
-        mark(strip.maxX, title: "끝 \(Int(strip.maxX))", color: .systemOrange)
-    }
-
-    private func mark(_ value: CGFloat, title: String, color: NSColor) {
-        guard let spot = strip.place(x: value, y: 0) else { return }
-        let scene = scenes[spot.screenIndex]
-        let isOrigin = value == 0
-
-        let tick = SKSpriteNode(color: color,
-                                size: CGSize(width: isOrigin ? 3 : 1, height: isOrigin ? 60 : 30))
-        tick.name = "coord"
-        tick.anchorPoint = CGPoint(x: 0.5, y: 0)
-        tick.position = CGPoint(x: spot.point.x, y: floorOffset)
-        tick.alpha = 0.7
-        tick.zPosition = 30_000
-        scene.addChild(tick)
-
-        let label = SKLabelNode(fontNamed: "Helvetica-Bold")
-        label.name = "coord"
-        label.text = title
-        label.fontSize = 10
-        label.fontColor = color
-        label.position = CGPoint(x: spot.point.x, y: floorOffset + (isOrigin ? 64 : 34))
-        label.zPosition = 30_000
-        scene.addChild(label)
-    }
-}
-
-
