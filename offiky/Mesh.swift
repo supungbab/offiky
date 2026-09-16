@@ -222,6 +222,9 @@ final class Mesh {
         connection.receive(minimumIncompleteLength: 1, maximumLength: 64 * 1024) {
             [weak self] data, _, isComplete, error in
             guard let self else { return }
+            // 취소한 연결도 마지막 콜백이 한 번 온다. 버린 연결이면 무시한다
+            let live = key.map { self.clients[$0] } ?? self.upstream
+            guard live === connection else { return }
             let bufferKey = key ?? "upstream"
 
             if let data, !data.isEmpty {
@@ -249,20 +252,23 @@ final class Mesh {
         }
     }
 
+    /// 연결 목록은 이 큐에서만 바뀐다. 메인에서 바로 읽으면 바뀌는 중에 읽을 수 있다
     func sendToHost(_ data: Data) {
         var line = data; line.append(0x0A)
-        upstream?.send(content: line, completion: .idempotent)
+        queue.async { self.upstream?.send(content: line, completion: .idempotent) }
     }
 
     func broadcast(_ data: Data) {
         var line = data; line.append(0x0A)
-        for connection in clients.values {
-            connection.send(content: line, completion: .idempotent)
+        queue.async {
+            for connection in self.clients.values {
+                connection.send(content: line, completion: .idempotent)
+            }
         }
     }
 
     func send(_ data: Data, toClient key: String) {
         var line = data; line.append(0x0A)
-        clients[key]?.send(content: line, completion: .idempotent)
+        queue.async { self.clients[key]?.send(content: line, completion: .idempotent) }
     }
 }
