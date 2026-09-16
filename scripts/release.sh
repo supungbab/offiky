@@ -20,8 +20,10 @@ ENTITLEMENTS=offiky.entitlements
 
 rm -rf "$BUILD"
 # 서명은 아래에서 직접 한다. 빌드 단계에서는 하지 않는다
+# generic 을 빼면 빌드하는 기계의 아키텍처 하나로만 나온다. ARCHS 에 둘 다 적혀
+# 있어도 그렇다. 애플 실리콘에서 만든 배포본이 인텔 맥에서 실행되지 않는다
 xcodebuild -project offiky.xcodeproj -scheme offiky -configuration Release \
-  -destination 'platform=macOS' -derivedDataPath "$BUILD" \
+  -destination 'generic/platform=macOS' -derivedDataPath "$BUILD" \
   CODE_SIGNING_ALLOWED=NO \
   build | grep -E "BUILD SUCCEEDED|error:"
 
@@ -34,6 +36,10 @@ else
 fi
 codesign -v --strict "$APP"
 codesign -dvv "$APP" 2>&1 | grep -E "^Authority|flags="
+# 둘 다 들어 있어야 인텔 맥에서도 실행된다
+lipo -archs "$APP/Contents/MacOS/Offiky" | grep -q x86_64 \
+  || { echo "인텔용이 빠졌다"; exit 1; }
+echo "==> 아키텍처 $(lipo -archs "$APP/Contents/MacOS/Offiky")"
 
 rm -f "$OUT" "$DMG"
 ditto -c -k --sequesterRsrc --keepParent "$APP" "$OUT"
