@@ -84,7 +84,10 @@ final class CharacterNode: SKNode {
 
     private var sheet = Characters.Sheet(size: .zero, bodyWidth: 16, frames: [:])
 
+    private(set) var look = Look.neutral
+
     func apply(_ look: Look) {
+        self.look = look
         sheet = Characters.sheet(look)
         image.size = CGSize(width: sheet.size.width * 2, height: sheet.size.height * 2)
         image.texture = sheet.frames[.idle]?.first
@@ -108,6 +111,21 @@ final class CharacterNode: SKNode {
 
     /// 집어 드는 순간 진행 중이던 모든 운동을 지운다.
     /// 남겨두면 놓는 순간 이전 속도로 튀어 나가거나 하던 대시를 이어서 한다.
+    /// 이동한 것으로 세지 않는다. 그러면 대시 동작이 나오고 피격 판정까지 걸린다.
+    func teleport(to newX: CGFloat) {
+        x = newX
+        previousX = newX
+        y = 0
+        verticalSpeed = 0
+        airSpeed = 0
+        peakY = 0
+        wasAirborne = false
+        motion = .idle
+        motionEnd = 0
+        segmentTarget = newX
+        isWalking = false
+    }
+
     func beginDrag() {
         isDragging = true
         verticalSpeed = 0
@@ -143,6 +161,16 @@ final class CharacterNode: SKNode {
     }
 
     func setRemoteTarget(x newX: CGFloat, y newY: CGFloat, at now: TimeInterval) {
+        // 걷거나 뛰어서는 한 주기에 나올 수 없는 간격이면 순간이동이다.
+        // 이어 붙이면 보간이 초고속 이동으로 해석해 대시 판정과 피격이 난다.
+        if let last = samples.last, abs(newX - last.x) > 400 {
+            samples.removeAll()
+            x = newX
+            y = newY
+            previousX = newX
+            peakY = 0
+            wasAirborne = newY > 0
+        }
         samples.append((now, newX, newY))
         if samples.count > 8 { samples.removeFirst(samples.count - 8) }
     }
@@ -560,6 +588,19 @@ extension World {
     func removePeer(id: String) {
         peers[id]?.removeFromParent()
         peers[id] = nil
+    }
+
+    /// 메뉴와 미니맵이 쓴다. 나를 맨 앞에 둔다
+    func roster() -> [(id: String, name: String, x: CGFloat, look: Look, isMe: Bool)] {
+        let mine = (me.id, me.displayName, me.x, me.look, true)
+        let others = peers.values
+            .sorted { $0.x < $1.x }
+            .map { ($0.id, $0.displayName, $0.x, $0.look, false) }
+        return [mine] + others
+    }
+
+    func teleport(to x: CGFloat) {
+        me.teleport(to: strip.clamp(x))
     }
 
     func removeAllPeers() {

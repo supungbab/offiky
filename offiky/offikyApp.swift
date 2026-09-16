@@ -13,6 +13,7 @@ struct offikyApp: App {
             Text("offiky \(appVersion)")
             Divider()
             Button("채팅 열기  ⌥T") { ChatPanel.shared.show() }
+            Button("참가자 \(World.shared.roster().count)명…") { openRoster() }
             Button("내 캐릭터…") { openCharacterPicker() }
             Button("내 이름 변경…") { changeName() }
             Toggle("캐릭터 숨기기", isOn: binding($hidden) {
