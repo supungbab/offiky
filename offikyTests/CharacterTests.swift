@@ -245,3 +245,49 @@ struct ScreenChangeTests {
         #expect(World.shared.me.x == 2860)
     }
 }
+
+struct DoubleJumpTests {
+
+    private let strip = FloorStrip(visibleFrames: [CGRect(x: 0, y: 0, width: 1800, height: 1000)],
+                                   main: nil)
+
+    /// 뜬 뒤 0.2초에 한 프레임마다 한 번씩, 최대 `jumps` 번까지 누른다
+    @MainActor private func peak(pressing jumps: Int) -> CGFloat {
+        let node = CharacterNode(id: "me", name: "me", isLocal: true)
+        node.teleport(to: 900)
+        node.jump()
+        var used = 1
+        var best: CGFloat = 0
+        var now: TimeInterval = 0
+        while now < 2 {
+            node.update(dt: 1.0 / 60, now: now, strip: strip)
+            best = max(best, node.y)
+            if used < jumps, node.y > 0, now > 0.2 { node.jump(); used += 1 }
+            now += 1.0 / 60
+        }
+        return best
+    }
+
+    @MainActor @Test func 공중에서_한_번_더_뛰면_더_높이_간다() {
+        #expect(peak(pressing: 2) > peak(pressing: 1))
+    }
+
+    @MainActor @Test func 세_번째는_듣지_않는다() {
+        #expect(peak(pressing: 3) == peak(pressing: 2))
+    }
+
+    @MainActor @Test func 착지하면_다시_두_번_쓸_수_있다() {
+        let node = CharacterNode(id: "me", name: "me", isLocal: true)
+        node.teleport(to: 900)
+        node.jump(); node.jump()
+        var now: TimeInterval = 0
+        while now < 3 {                          // 떨어질 때까지 둔다
+            node.update(dt: 1.0 / 60, now: now, strip: strip)
+            now += 1.0 / 60
+        }
+        #expect(node.y == 0)
+        node.jump()
+        node.update(dt: 1.0 / 60, now: now, strip: strip)
+        #expect(node.y > 0)
+    }
+}

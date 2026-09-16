@@ -59,6 +59,10 @@ final class CharacterNode: SKNode {
     static let delaySlew: TimeInterval = 0.1
     static let gravity: CGFloat = 1100
     static let jumpApex: CGFloat = 48
+    /// 공중에서 한 번 더 뛴다. 착지해야 다시 찬다
+    static let maxJumps = 2
+    static let airJumpApex: CGFloat = 40
+    private var jumpsUsed = 0
 
     init(id: String, name: String, isLocal: Bool) {
         self.id = id
@@ -96,10 +100,14 @@ final class CharacterNode: SKNode {
         image.texture = sheet.frames[.idle]?.first
     }
 
-    /// 방향키를 누르고 있는 정도에 따라 제자리·걷기·대시 순으로 높이 뛴다
+    /// 방향키를 누르고 있는 정도에 따라 제자리·걷기·대시 순으로 높이 뛴다.
+    /// 두 번째는 떨어지던 속도를 지우고 다시 차오른다
     func jump() {
-        guard isLocal, !isDragging, y <= 0, verticalSpeed == 0 else { return }
-        let apex: CGFloat = holding == 0 ? CharacterNode.jumpApex : (isDashing ? 72 : 52)
+        guard isLocal, !isDragging, jumpsUsed < CharacterNode.maxJumps else { return }
+        jumpsUsed += 1
+        let apex: CGFloat = jumpsUsed > 1
+            ? CharacterNode.airJumpApex
+            : (holding == 0 ? CharacterNode.jumpApex : (isDashing ? 72 : 52))
         verticalSpeed = (2 * CharacterNode.gravity * apex).squareRoot()
     }
 
@@ -120,6 +128,7 @@ final class CharacterNode: SKNode {
         verticalSpeed = 0
         peakY = 0
         wasAirborne = false
+        jumpsUsed = 0
         hold(0, dash: false)
         isWalking = false
     }
@@ -127,6 +136,7 @@ final class CharacterNode: SKNode {
     func beginDrag() {
         isDragging = true
         verticalSpeed = 0
+        jumpsUsed = 0
         hurtUntil = 0
         walkPhase = 0
         hold(0, dash: false)
@@ -221,7 +231,7 @@ final class CharacterNode: SKNode {
         if y > 0 || verticalSpeed != 0 {
             y += verticalSpeed * step - 0.5 * CharacterNode.gravity * step * step
             verticalSpeed -= CharacterNode.gravity * step
-            if y <= 0 { y = 0; verticalSpeed = 0 }
+            if y <= 0 { y = 0; verticalSpeed = 0; jumpsUsed = 0 }
             return
         }
         isWalking = holding != 0

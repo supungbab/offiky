@@ -140,7 +140,7 @@ struct HintView: View {
         HStack(spacing: 14) {
             item("← →", "이동")
             item("←← →→", "대시")
-            item("↑", "점프")
+            item("↑↑", "2단 점프")
             item("esc", "끝내기")
         }
         .font(.system(size: 12))
