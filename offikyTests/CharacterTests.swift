@@ -67,3 +67,18 @@ struct CharacterTests {
         #expect(data.count < 120)
     }
 }
+
+struct PeerTimeoutTests {
+
+    @MainActor @Test func 좌표를_받으면_생존_시각이_갱신된다() {
+        let node = CharacterNode(id: "x", name: "x", isLocal: false)
+        node.setRemoteTarget(x: 10, y: 0, at: 500)
+        #expect(node.lastSeen == 500)
+        node.setRemoteTarget(x: 20, y: 0, at: 500.1)
+        #expect(node.lastSeen == 500.1)
+    }
+
+    @MainActor @Test func 제한시간은_전송주기보다_넉넉하다() {
+        #expect(World.peerTimeout > snapshotInterval * 100)
+    }
+}

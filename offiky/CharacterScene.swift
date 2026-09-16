@@ -52,6 +52,8 @@ final class CharacterNode: SKNode {
     private var peakY: CGFloat = 0
     private var shadowStep = -1
 
+    /// 마지막으로 좌표를 받은 시각. 끊김을 놓쳐도 이걸로 정리한다
+    var lastSeen: TimeInterval = ProcessInfo.processInfo.systemUptime
     private var samples: [(t: TimeInterval, x: CGFloat, y: CGFloat)] = []
     /// 받은 표본 두 개 사이를 재생하려면 늘 이만큼 과거를 그려야 한다.
     /// 실측하면 0.1초 주기로 보낸 좌표가 Wi-Fi 에서 최대 0.21초 만에 온다.
@@ -165,6 +167,7 @@ final class CharacterNode: SKNode {
     }
 
     func setRemoteTarget(x newX: CGFloat, y newY: CGFloat, at now: TimeInterval) {
+        lastSeen = now
         // 걷거나 뛰어서는 한 주기에 나올 수 없는 간격이면 순간이동이다.
         // 이어 붙이면 보간이 초고속 이동으로 해석해 대시 판정과 피격이 난다.
         if let last = samples.last, abs(newX - last.x) > 400 {
@@ -574,6 +577,12 @@ final class World {
         let dt = lastTick == 0 ? 1.0 / 60 : min(0.25, elapsed)
         lastTick = now
 
+        for (id, node) in peers where !node.isLocal && now - node.lastSeen > World.peerTimeout {
+            node.removeFromParent()
+            peers[id] = nil
+            Session.shared.peerGone(id)
+        }
+
         let count = 1 + peers.count
         if Presence.shared.count != count { Presence.shared.count = count }
 
@@ -609,8 +618,12 @@ final class World {
 }
 
 extension World {
+    /// 좌표가 이만큼 끊기면 없는 것으로 본다. 0.1초마다 오므로 넉넉한 값이다
+    static let peerTimeout: TimeInterval = 15
+
     func addPeer(id: String, name: String, look: Look) {
         let node = peers[id] ?? CharacterNode(id: id, name: name, isLocal: false)
+        node.lastSeen = ProcessInfo.processInfo.systemUptime
         node.displayName = name
         node.apply(look.sanitized)
         peers[id] = node
