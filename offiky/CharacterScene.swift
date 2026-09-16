@@ -310,7 +310,8 @@ final class CharacterNode: SKNode {
     private func updateNameLabel() {
         guard renderedName != displayName else { return }
         renderedName = displayName
-        label.text = displayName
+        // 여럿이 돌아다니면 어느 것이 내 것인지 바로 알아야 한다. 참가자 목록과 같은 말을 쓴다
+        label.text = isLocal ? "\(displayName) (나)" : displayName
 
         nameBackground?.removeFromParent()
         let size = CGSize(width: label.frame.width + 8, height: label.frame.height + 4)
