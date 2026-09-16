@@ -54,8 +54,10 @@ final class CharacterNode: SKNode {
 
     private var samples: [(t: TimeInterval, x: CGFloat, y: CGFloat)] = []
     /// 받은 표본 두 개 사이를 재생하려면 늘 이만큼 과거를 그려야 한다.
-    /// 스냅샷 간격의 두 배라 한 번 늦게 와도 끊기지 않는다
-    static let renderDelay: TimeInterval = 0.2
+    /// 실측하면 0.1초 주기로 보낸 좌표가 Wi-Fi 에서 최대 0.21초 만에 온다.
+    /// 지연이 그보다 짧으면 버퍼가 바닥나 캐릭터가 한두 프레임 얼어붙는다 —
+    /// 대시처럼 빠른 동작에서 끊겨 보인다. 0.3초면 관측된 편차를 덮는다.
+    static let renderDelay: TimeInterval = 0.3
     static let gravity: CGFloat = 1100
     static let jumpApex: CGFloat = 48
 
@@ -651,3 +653,5 @@ extension World {
     var count = 1
     private init() {}
 }
+
+
