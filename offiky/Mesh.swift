@@ -18,6 +18,9 @@ final class Mesh {
     private var excluded: [String: Date] = [:]
     private var currentHost: String?
     private var debounce: DispatchWorkItem?
+    private var monitor: NWPathMonitor?
+    private var restartWork: DispatchWorkItem?
+    private var lastPath = ""
     private var buffers: [String: Data] = [:]
 
     var isHost: Bool { currentHost == World.shared.myID }
@@ -33,10 +36,21 @@ final class Mesh {
     func start() {
         startListener()
         startBrowser()
+        startPathMonitor()
     }
 
     func stop() {
+        monitor?.cancel(); monitor = nil
+        lastPath = ""
+        teardown()
+    }
+
+    /// 경로 감시는 남겨 둔다. 다시 시작할 때 이걸 쓴다
+    private func teardown() {
+        restartWork?.cancel()
+        listener?.stateUpdateHandler = nil
         listener?.cancel(); listener = nil
+        browser?.stateUpdateHandler = nil
         browser?.cancel(); browser = nil
         cancelUpstream()
         clients.values.forEach { $0.stateUpdateHandler = nil; $0.cancel() }
@@ -45,6 +59,37 @@ final class Mesh {
         visible.removeAll()
         mismatched = 0
         currentHost = nil
+        DispatchQueue.main.async { Session.shared.reset() }
+    }
+
+    /// 전환 중에는 알림이 여러 번 오므로 잦아들기를 기다린다
+    private func restart() {
+        restartWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.teardown()
+            self.startListener()
+            self.startBrowser()
+        }
+        restartWork = work
+        queue.asyncAfter(deadline: .now() + 1, execute: work)
+    }
+
+    /// Wi-Fi 를 바꾸거나 이더넷을 뽑으면 열어 둔 리스너와 연결이 쓸모없어진다.
+    /// 절전 복귀와 달리 알려 주는 알림이 없으므로 직접 감시한다.
+    private func startPathMonitor() {
+        let monitor = NWPathMonitor()
+        monitor.pathUpdateHandler = { [weak self] path in
+            guard let self else { return }
+            let key = "\(path.status)|"
+                + path.availableInterfaces.map(\.name).sorted().joined(separator: ",")
+            guard key != self.lastPath else { return }
+            let firstReport = self.lastPath.isEmpty
+            self.lastPath = key
+            if !firstReport { self.restart() }
+        }
+        monitor.start(queue: queue)
+        self.monitor = monitor
     }
 
     private func startListener() {
@@ -57,6 +102,9 @@ final class Mesh {
             ]).data)
         listener.newConnectionHandler = { [weak self] connection in
             self?.accept(connection)
+        }
+        listener.stateUpdateHandler = { [weak self] state in
+            if case .failed = state { self?.restart() }
         }
         listener.start(queue: queue)
         self.listener = listener
@@ -96,6 +144,9 @@ final class Mesh {
             self.visible = peers.ids
             self.mismatched = peers.mismatched
             self.scheduleElection()
+        }
+        browser.stateUpdateHandler = { [weak self] state in
+            if case .failed = state { self?.restart() }
         }
         browser.start(queue: queue)
         self.browser = browser

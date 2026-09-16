@@ -118,6 +118,18 @@ final class Session {
         pending.removeAll()
     }
 
+    /// 메시를 다시 시작할 때 이전 연결의 흔적을 전부 지운다.
+    /// 남겨 두면 다시 붙을 때까지 멈춘 캐릭터가 화면에 남는다.
+    func reset() {
+        profiles.removeAll()
+        positions.removeAll()
+        clientIDs.removeAll()
+        indexes.removeAll()
+        idByIndex.removeAll()
+        tracker = SeqTracker()
+        World.shared.removeAllPeers()
+    }
+
     /// 나간 피어의 흔적을 지운다. 호스트가 사라졌을 때도 여기로 온다.
     func peerGone(_ id: String) {
         profiles[id] = nil

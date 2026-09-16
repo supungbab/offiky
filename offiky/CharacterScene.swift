@@ -568,6 +568,11 @@ extension World {
         peers[id] = nil
     }
 
+    func removeAllPeers() {
+        peers.values.forEach { $0.removeFromParent() }
+        peers.removeAll()
+    }
+
     func setPeerTarget(id: String, x: CGFloat, y: CGFloat) {
         peers[id]?.setRemoteTarget(x: x, y: y, at: ProcessInfo.processInfo.systemUptime)
     }
