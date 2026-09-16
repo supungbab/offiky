@@ -2,13 +2,9 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>LSUIElement</key>
-    <true/>
-    <key>NSBonjourServices</key>
-    <array>
-        <string>_offiky._tcp</string>
-    </array>
-    <key>NSLocalNetworkUsageDescription</key>
-    <string>같은 네트워크의 동료를 찾아 캐릭터와 메시지를 주고받습니다.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_offiky._tcp</string>
+	</array>
 </dict>
 </plist>
