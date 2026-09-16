@@ -486,15 +486,9 @@ final class World {
     /// 전역 커서 좌표를 띠 좌표로 바꾼다. 세로는 커서가 있는 화면의
     /// 바닥을 기준으로 잡는다.
     func updateDrag(toGlobal point: CGPoint) {
-        var accumulated: CGFloat = 0
-        for frame in strip.frames {
-            if frame.contains(point) {
-                me.x = strip.clamp(accumulated + point.x - frame.minX)
-                me.y = max(0, point.y - frame.minY - floorOffset - spriteDisplaySize / 2)
-                return
-            }
-            accumulated += frame.width
-        }
+        guard let spot = strip.locate(global: point) else { return }
+        me.x = spot.x
+        me.y = spot.y
     }
 
     /// 앞으로 빠르게 나아가는 캐릭터끼리 정면으로 부딪히면 둘 다 피격한다.

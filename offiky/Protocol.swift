@@ -67,6 +67,20 @@ struct FloorStrip {
         return nil
     }
 
+    /// `place` 의 역변환. 전역 커서 좌표를 띠 좌표로 바꾼다.
+    /// 두 함수가 같은 기준에서 누적해야 한다 — 어긋나면 잡아 끈 위치가 통째로 밀린다.
+    func locate(global point: CGPoint) -> (x: CGFloat, y: CGFloat)? {
+        var accumulated = minX
+        for frame in frames {
+            if frame.contains(point) {
+                return (clamp(accumulated + point.x - frame.minX),
+                        max(0, point.y - frame.minY - floorOffset - spriteDisplaySize / 2))
+            }
+            accumulated += frame.width
+        }
+        return nil
+    }
+
     /// 캐릭터가 띠를 벗어나지 않게 한다
     func clamp(_ x: CGFloat) -> CGFloat {
         let half = spriteDisplaySize / 2

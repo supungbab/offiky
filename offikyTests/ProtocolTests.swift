@@ -98,6 +98,25 @@ struct FloorStripTests {
         #expect(single.clamp(100) == 100)
     }
 
+    /// place 와 locate 가 같은 기준에서 누적하는지 본다.
+    /// 어긋나면 잡아 끈 위치가 originOffset 만큼 통째로 밀린다.
+    @Test func 좌표와_화면_변환이_왕복한다() throws {
+        for strip in [single, rightSide, leftSide, stacked] {
+            for x in stride(from: strip.minX + 30, to: strip.maxX - 30, by: 137) {
+                let placed = try #require(strip.place(x: x, y: 0))
+                let frame = strip.frames[placed.screenIndex]
+                let global = CGPoint(x: frame.minX + placed.point.x,
+                                     y: frame.minY + placed.point.y)
+                let back = try #require(strip.locate(global: global))
+                #expect(abs(back.x - x) < 0.001, "x=\(x) 에서 \(back.x) 로 돌아왔다")
+            }
+        }
+    }
+
+    @Test func 화면_밖_커서는_무시한다() {
+        #expect(single.locate(global: CGPoint(x: -5000, y: 0)) == nil)
+    }
+
     @Test func 화면이_없어도_무너지지_않는다() {
         let empty = FloorStrip(visibleFrames: [], main: nil)
         #expect(empty.length == 0)

@@ -4,6 +4,7 @@ import SwiftUI
 
 struct CharacterPickerView: View {
     @State private var look = World.myLook
+    @State private var sendTask: Task<Void, Never>?
 
     private let goatPack = URL(string: "https://chaoswitchnikol.itch.io/goat-characters")!
     private let animalPack = URL(string: "https://chaoswitchnikol.itch.io/animal-characters")!
@@ -113,9 +114,16 @@ struct CharacterPickerView: View {
         }
     }
 
+    /// 화면은 즉시 바꾸고 전송만 늦춘다. 슬라이더를 한 번 끌면
+    /// 전원에게 가는 브로드캐스트가 수십 개 나간다.
     private func apply(_ value: Look) {
         World.myLook = value
-        Session.shared.sendProfile()
+        sendTask?.cancel()
+        sendTask = Task {
+            try? await Task.sleep(for: .milliseconds(300))
+            guard !Task.isCancelled else { return }
+            Session.shared.sendProfile()
+        }
     }
 }
 

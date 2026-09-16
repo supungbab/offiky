@@ -9,7 +9,7 @@ struct offikyApp: App {
     #endif
 
     var body: some Scene {
-        MenuBarExtra("offiky", systemImage: "person.2.fill") {
+        MenuBarExtra {
             Text("offiky \(appVersion)")
             Divider()
             Button("채팅 열기  ⌥T") { ChatPanel.shared.show() }
@@ -33,6 +33,8 @@ struct offikyApp: App {
             #endif
             Divider()
             Button("종료") { NSApplication.shared.terminate(nil) }
+        } label: {
+            Image("MenuBarIcon")
         }
     }
 
