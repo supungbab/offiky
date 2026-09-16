@@ -11,6 +11,13 @@
 brew install --cask supungbab/tap/offiky
 ```
 
+업데이트는 이렇게 한다. **`brew update` 를 빼면 안 된다** — brew 는 tap 을 하루에 한 번만
+다시 읽으므로, 그 전에는 새 버전이 나온 줄 모르고 "이미 최신" 이라고 답한다.
+
+```
+brew update && brew upgrade --cask offiky
+```
+
 Homebrew 를 쓰지 않으면 [릴리스](https://github.com/supungbab/offiky/releases)에서
 `Offiky.dmg` 를 받아 응용 프로그램 폴더로 드래그한 뒤, 터미널에서 한 번 실행한다.
 
