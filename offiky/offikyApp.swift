@@ -7,7 +7,7 @@ struct offikyApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            Text("Offiky \(appVersion)")
+            Button("Offiky 정보…") { openAbout() }
             // 항목은 하나만 두고 받는 방법은 대화상자에서 고르게 한다
             Button(UpdateChecker.shared.newVersion.map { "새 버전 \($0) 받기…" }
                    ?? "업데이트 확인…") {
@@ -45,18 +45,6 @@ struct offikyApp: App {
             Image("MenuBarIcon")
             #endif
         }
-    }
-
-    /// 버전이 다르면 서로 보이지 않으므로 동료끼리 대조할 수 있어야 한다.
-    /// 빌드 번호는 배포마다 버전과 함께 올라가므로 보여줄 것이 없다.
-    private var appVersion: String {
-        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString")
-            as? String ?? "?"
-        #if DEBUG
-        return "\(version) · 디버그"
-        #else
-        return version
-        #endif
     }
 
     /// 메뉴가 닫혀 있으면 뷰가 갱신되지 않아 onChange 가 다음 열 때까지 미뤄진다.

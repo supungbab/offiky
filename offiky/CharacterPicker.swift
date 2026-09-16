@@ -7,10 +7,6 @@ struct CharacterPickerView: View {
     @State private var design = World.myLook.design
     @State private var applied = World.myLook.design
 
-    private let goatPack = URL(string: "https://chaoswitchnikol.itch.io/goat-characters")!
-    private let animalPack = URL(string: "https://chaoswitchnikol.itch.io/animal-characters")!
-    private let license = URL(string: "https://creativecommons.org/licenses/by/4.0/")!
-
     private static let thumb: CGFloat = 44
     private static let gap: CGFloat = 6
 
@@ -39,17 +35,6 @@ struct CharacterPickerView: View {
                 // 바꾼 것이 없으면 누를 수 없다. 연타해도 한 번만 나간다
                 .disabled(design == applied)
             }
-
-            // CC BY 4.0 은 출처 표기가 조건이다
-            Divider()
-            VStack(alignment: .leading, spacing: 2) {
-                Text("캐릭터 그림: ChaosWitchNikol")
-                Link("Goat Characters", destination: goatPack)
-                Link("Animal Characters", destination: animalPack)
-                Link("CC BY 4.0 — 색을 조정해 사용합니다", destination: license)
-            }
-            .font(.caption2)
-            .foregroundStyle(.secondary)
         }
         .padding(16)
     }
