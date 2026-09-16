@@ -45,6 +45,7 @@ final class CharacterNode: SKNode {
     /// 부딪히면 다칠 만큼 앞으로 나아가는 중인지. 표시용 동작이 아니라 실제 속도로 판정한다.
     private(set) var isCharging = false
     var hurtUntil: TimeInterval = 0
+    private var bubbleUntil: TimeInterval = 0
     private var wasAirborne = false
     private var peakY: CGFloat = 0
     private var shadowStep = -1
@@ -154,6 +155,7 @@ final class CharacterNode: SKNode {
         }
         peakY = max(peakY, y)
         detectLanding(now: now)
+        expireBubble(now: now)
 
         let moved = x - previousX
         previousX = x
@@ -362,7 +364,7 @@ final class CharacterNode: SKNode {
 }
 
 extension CharacterNode {
-    func showBubble(text: String) {
+    func showBubble(text: String, now: TimeInterval) {
         childNode(withName: "bubble")?.removeFromParent()
 
         let label = SKLabelNode(fontNamed: "Helvetica")
@@ -386,8 +388,14 @@ extension CharacterNode {
         bubble.position = CGPoint(x: 0, y: spriteDisplaySize / 2 + 16 + size.height / 2)
         bubble.addChild(label)
         addChild(bubble)
+        bubbleUntil = now + 5
+    }
 
-        bubble.run(.sequence([.wait(forDuration: 5), .removeFromParent()]))
+    /// SKAction 으로 지우면 노드가 씬에서 빠져 있는 동안 시간이 흐르지 않아 말풍선이 남는다
+    func expireBubble(now: TimeInterval) {
+        guard bubbleUntil != 0, now >= bubbleUntil else { return }
+        childNode(withName: "bubble")?.removeFromParent()
+        bubbleUntil = 0
     }
 
     func clampBubble(sceneWidth: CGFloat) {
@@ -566,7 +574,7 @@ extension World {
 
     func showBubble(id: String, text: String) {
         let node = id == myID ? me : peers[id]
-        node?.showBubble(text: text)
+        node?.showBubble(text: text, now: ProcessInfo.processInfo.systemUptime)
     }
 }
 

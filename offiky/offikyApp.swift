@@ -4,7 +4,9 @@ import SwiftUI
 struct offikyApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @State private var hidden = false
+    #if DEBUG
     @State private var showCoords = false
+    #endif
 
     var body: some Scene {
         MenuBarExtra("offiky", systemImage: "person.2.fill") {
@@ -14,12 +16,14 @@ struct offikyApp: App {
             Toggle("캐릭터 숨기기", isOn: binding($hidden) {
                 OverlayController.shared.setHidden($0)
             })
+            #if DEBUG
             Divider()
             Toggle("테스트: 좌표 표시", isOn: binding($showCoords) {
                 World.shared.showCoordinates($0)
             })
             Button("테스트: 50마리 풀기") { World.shared.spawnTestPeers(50) }
             Button("테스트 캐릭터 제거") { World.shared.removeTestPeers() }
+            #endif
             Divider()
             Button("종료") { NSApplication.shared.terminate(nil) }
         }
