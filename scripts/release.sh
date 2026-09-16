@@ -1,31 +1,39 @@
 #!/bin/bash
-# 배포 빌드. Developer ID 로 서명한다. 공증은 하지 않는다.
+# 배포 빌드. 자체 서명 인증서로 서명한다. Apple 인증서를 쓰지 않으므로
+# 개발자 프로그램 회원권과 무관하게 계속 배포할 수 있다.
+#
+# 인증서는 한 번만 만들면 된다. scripts/make_cert.sh 참고.
+# 없으면 애드혹으로 서명한다 — 동작은 하지만 빌드마다 신원이 바뀌어
+# 로컬 네트워크 권한을 매번 다시 물어본다.
 #
 # 받는 사람은 응용 프로그램 폴더에 넣은 뒤 한 번만 아래를 실행해야 한다.
 #   xattr -dr com.apple.quarantine /Applications/offiky.app
-#
-# 이 단계를 없애려면 공증이 필요하다. Apple 큐가 몇 시간씩 밀리는 날이 있고
-# 취소할 방법이 없어서 뺐다. 다시 넣으려면 서명 뒤에 이 순서로 붙인다.
-#   xcrun notarytool submit <zip> --keychain-profile <프로파일> --wait
-#   xcrun stapler staple <앱>        # DMG 도 서명·제출·스테이플을 따로 한다
-# submit 은 거부돼도 0 을 반환하므로 출력에서 "status: Accepted" 를 직접 확인해야 한다.
+# Homebrew 로 설치하면 cask 가 대신 처리한다.
 set -euo pipefail
 
-IDENTITY="Developer ID Application: MyeongHo Kyeong (75J3AS52HQ)"
+IDENTITY="offiky Local"
 BUILD=/tmp/offiky-release
 OUT=~/Desktop/offiky.zip
 DMG=~/Desktop/offiky.dmg
 APP="$BUILD/Build/Products/Release/offiky.app"
+ENTITLEMENTS=offiky.entitlements
 
 rm -rf "$BUILD"
+# 서명은 아래에서 직접 한다. 빌드 단계에서는 하지 않는다
 xcodebuild -project offiky.xcodeproj -scheme offiky -configuration Release \
   -destination 'platform=macOS' -derivedDataPath "$BUILD" \
-  CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="$IDENTITY" \
-  DEVELOPMENT_TEAM=75J3AS52HQ PROVISIONING_PROFILE_SPECIFIER="" \
-  OTHER_CODE_SIGN_FLAGS="--timestamp" \
-  CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO \
-  build | grep -E "Signing Identity|BUILD SUCCEEDED|error:"
-codesign -v --deep --strict "$APP"
+  CODE_SIGNING_ALLOWED=NO \
+  build | grep -E "BUILD SUCCEEDED|error:"
+
+if security find-identity -p codesigning 2>/dev/null | grep -qF "\"$IDENTITY\""; then
+    echo "==> $IDENTITY 로 서명"
+    codesign --force --options runtime --entitlements "$ENTITLEMENTS" -s "$IDENTITY" "$APP"
+else
+    echo "==> '$IDENTITY' 가 없어 애드혹으로 서명한다 (scripts/make_cert.sh 참고)"
+    codesign --force --options runtime --entitlements "$ENTITLEMENTS" -s - "$APP"
+fi
+codesign -v --strict "$APP"
+codesign -dvv "$APP" 2>&1 | grep -E "^Authority|flags="
 
 rm -f "$OUT" "$DMG"
 ditto -c -k --sequesterRsrc --keepParent "$APP" "$OUT"
@@ -38,6 +46,3 @@ rm -rf "$STAGE"
 echo "완료"
 echo "  $OUT  ($(du -h "$OUT" | cut -f1))"
 echo "  $DMG  ($(du -h "$DMG" | cut -f1))"
-echo
-echo "받는 사람이 응용 프로그램 폴더에 넣은 뒤 한 번 실행해야 열린다:"
-echo "  xattr -dr com.apple.quarantine /Applications/offiky.app"
