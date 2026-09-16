@@ -23,7 +23,7 @@ struct FloorStripTests {
         return FloorStrip(visibleFrames: [second, main], main: main)
     }
 
-    /// 주 화면 바로 위에 1000×600. 가로 중심이 같으므로 아래쪽을 먼저 둔다
+    /// 주 화면 바로 위에 1000×600. 세로로 안 겹치므로 다른 행이고, 아래 행이 먼저다
     private var stacked: FloorStrip {
         let second = CGRect(x: 0, y: 800, width: 1000, height: 600)
         return FloorStrip(visibleFrames: [second, main], main: main)
@@ -47,16 +47,40 @@ struct FloorStripTests {
         #expect(a.maxX == b.maxX)
     }
 
-    @Test func 화면을_가로_위치_순으로_잇는다() {
+    @Test func 같은_행에서는_왼쪽부터_잇는다() {
         #expect(rightSide.frames.map(\.width) == [1000, 500])
         #expect(leftSide.frames.map(\.width) == [800, 1000])
         #expect(rightSide.maxX == 1500)
         #expect(leftSide.maxX == 1800)
     }
 
-    @Test func 세로로_쌓이면_아래쪽을_먼저_둔다() {
+    @Test func 세로로_쌓이면_아래_행을_먼저_둔다() {
         #expect(stacked.frames.map(\.minY) == [0, 800])
         #expect(stacked.maxX == 2000)
+        #expect(stacked.mainIndex == 0)
+    }
+
+    /// 나란히 맞닿은 두 화면 사이로 아래 행의 화면이 끼어들면 안 된다
+    @Test func 맞닿은_화면을_갈라놓지_않는다() {
+        let a = CGRect(x: -1920, y: 1169, width: 1920, height: 1080)
+        let b = CGRect(x: 0, y: 1169, width: 1920, height: 1080)
+        let below = CGRect(x: -900, y: 0, width: 1800, height: 1130)   // 가로로는 A·B 사이
+        let strip = FloorStrip(visibleFrames: [a, b, below], main: below)
+
+        #expect(strip.frames == [below, a, b])
+        #expect(strip.mainIndex == 0)
+        // A 와 B 가 띠에서도 이웃이다
+        let ia = try! #require(strip.frames.firstIndex(of: a))
+        let ib = try! #require(strip.frames.firstIndex(of: b))
+        #expect(abs(ia - ib) == 1)
+    }
+
+    /// 높이가 어긋나게 나란히 둔 것도 같은 행이다
+    @Test func 세로_범위가_조금이라도_겹치면_같은_행이다() {
+        let laptop = CGRect(x: 0, y: 0, width: 1800, height: 1130)
+        let raised = CGRect(x: 1800, y: 700, width: 2560, height: 1440)
+        let strip = FloorStrip(visibleFrames: [raised, laptop], main: laptop)
+        #expect(strip.frames == [laptop, raised])
     }
 
     @Test func 사라진_화면_대신_갈_주_화면을_기억한다() {

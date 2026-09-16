@@ -36,12 +36,34 @@ struct FloorStrip {
             mainIndex = 0
             return
         }
-        // 세로로 쌓여 가로 중심이 같으면 아래쪽을 먼저 둔다. 순서가 흔들리면 안 된다
-        let ordered = visibleFrames.sorted {
-            $0.midX != $1.midX ? $0.midX < $1.midX : $0.minY < $1.minY
-        }
+        let ordered = FloorStrip.order(visibleFrames)
         frames = ordered
         mainIndex = main.flatMap { ordered.firstIndex(of: $0) } ?? 0
+    }
+
+    /// 나란히 놓인 화면은 띠에서도 나란히 둔다.
+    ///
+    /// 세로 범위가 겹치는 화면끼리 한 행으로 묶고, 행은 아래부터 행 안에서는 왼쪽부터
+    /// 잇는다. 가로 중심만으로 정렬하면 아래 행의 화면이 위 행의 맞닿은 두 화면 사이로
+    /// 끼어들어, 실제로는 베젤을 맞대고 있는 두 화면이 띠에서 갈라진다.
+    ///
+    /// 아래 행을 먼저 두면 대개 노트북인 주 화면이 띠 앞쪽에 와서, 모니터를 빼도
+    /// 주 화면 구간이 움직이지 않는다.
+    static func order(_ frames: [CGRect]) -> [CGRect] {
+        var rows: [[CGRect]] = []
+        for frame in frames.sorted(by: { $0.minY != $1.minY ? $0.minY < $1.minY : $0.minX < $1.minX }) {
+            if let index = rows.firstIndex(where: { row in
+                row.contains { $0.minY < frame.maxY && frame.minY < $0.maxY }
+            }) {
+                rows[index].append(frame)
+            } else {
+                rows.append([frame])
+            }
+        }
+        return rows
+            .sorted { ($0.map(\.minY).min() ?? 0, $0.map(\.minX).min() ?? 0)
+                   < ($1.map(\.minY).min() ?? 0, $1.map(\.minX).min() ?? 0) }
+            .flatMap { $0.sorted { $0.minX < $1.minX } }
     }
 
     var length: CGFloat { frames.reduce(0) { $0 + $1.width } }
