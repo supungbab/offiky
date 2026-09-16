@@ -44,17 +44,17 @@ enum Animation: Int, CaseIterable {
 
 /// 에셋의 스프라이트 시트를 잘라 색을 입힌 텍스처로 만든다
 enum Characters {
-    /// 모양 5가지 × 프리셋 5가지. 모양이 가로 한 줄이고 첫 칸이 원본이다.
+    /// 모양 5가지 × 프리셋 6가지. 모양이 가로 한 줄이고 앞쪽이 받은 원본이다.
     /// 순서를 바꾸면 쓰던 사람의 캐릭터가 딴것으로 바뀐다
     static let names = [
-        "goat_white", "goat_brown", "goat_black", "goat_gold", "goat_red",
-        "sheep_grey", "sheep_suffolk", "sheep_ink", "sheep_candy", "sheep_fleece",
-        "birb_blue", "birb_penguin", "birb_magpie", "birb_parrot", "birb_flamingo",
-        "frog_green", "frog_fire", "frog_dart", "frog_tree", "frog_azure",
-        "pig_red", "pig_pink", "pig_black", "pig_ivory", "pig_royal"]
+        "goat_white", "goat_brown", "goat_black", "goat_gold", "goat_red", "goat_demon",
+        "sheep_grey", "sheep_suffolk", "sheep_ink", "sheep_candy", "sheep_fleece", "sheep_sky",
+        "birb_blue", "birb_penguin", "birb_magpie", "birb_parrot", "birb_flamingo", "birb_cardinal",
+        "frog_green", "frog_fire", "frog_dart", "frog_tree", "frog_azure", "frog_violet",
+        "pig_red", "pig_pink", "pig_black", "pig_ivory", "pig_royal", "pig_carrot"]
     static var count: Int { names.count }
     /// 한 모양이 갖는 프리셋 수. 선택 창의 한 줄 길이이기도 하다
-    static let colorCount = 5
+    static let colorCount = 6
 
     /// 시트는 24x24 칸이 6열 6행이다
     static let columns = 6

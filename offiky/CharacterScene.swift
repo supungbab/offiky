@@ -430,7 +430,7 @@ final class World {
         defaults.set(true, forKey: "lookRenumbered2")
         guard let data = defaults.data(forKey: "look"),
               let look = try? JSONDecoder().decode(Look.self, from: data),
-              let moved = [5: 10, 6: 5, 7: 15, 8: 20, 9: 15][look.design]
+              let moved = [5: 12, 6: 6, 7: 18, 8: 24, 9: 18][look.design]
         else { return }
         defaults.set(try? JSONEncoder().encode(Look(design: moved)), forKey: "look")
     }

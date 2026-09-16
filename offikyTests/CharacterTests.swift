@@ -5,10 +5,10 @@ import Testing
 
 struct CharacterTests {
 
-    @Test func 모양_5가지에_프리셋_5가지다() {
-        #expect(Characters.count == 25)
-        #expect(Characters.names.count == 25)
-        #expect(Set(Characters.names).count == 25)
+    @Test func 모양_5가지에_프리셋_6가지다() {
+        #expect(Characters.count == 30)
+        #expect(Characters.names.count == 30)
+        #expect(Set(Characters.names).count == 30)
         #expect(Characters.count % Characters.colorCount == 0)
         // 같은 모양이 가로 한 줄이다. 줄이 바뀌는 자리에서만 앞이름이 바뀐다
         for index in 1..<Characters.count {
