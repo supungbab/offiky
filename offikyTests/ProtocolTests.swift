@@ -65,12 +65,18 @@ struct FloorStripTests {
         #expect(single.mainIndex == 0)
     }
 
-    @Test func 주_화면_안의_무작위_지점을_고른다() {
-        for _ in 0..<50 {
-            let x = leftSide.randomOnMain()
-            #expect(x >= 800 - 20)
-            #expect(x <= 1800)
-        }
+    /// 사라진 화면에 있던 가로 위치를 주 화면에 그대로 옮긴다
+    @Test func 화면_안_가로_위치를_지켜_주_화면으로_옮긴다() {
+        // leftSide: [800(보조), 1000(주)] — 주 화면은 800 부터 시작한다
+        #expect(leftSide.onMain(offset: 0) == 800)
+        #expect(leftSide.onMain(offset: 300) == 1100)
+        #expect(leftSide.onMain(offset: 1000) == 1780)      // 끝은 clamp 된다
+    }
+
+    @Test func 주_화면보다_넓은_위치는_안으로_제한한다() {
+        // 보조(800)의 오른쪽 끝에 있었어도 주 화면(1000) 밖으로 나가지 않는다
+        #expect(leftSide.onMain(offset: 5000) <= leftSide.maxX)
+        #expect(leftSide.onMain(offset: -100) == 800)
     }
 
     @Test func 원점은_첫_화면_왼쪽에_놓인다() throws {
@@ -141,7 +147,7 @@ struct FloorStripTests {
         #expect(empty.length == 0)
         #expect(empty.place(x: 0, y: 0) == nil)
         #expect(empty.clamp(100) == 0)
-        #expect(empty.randomOnMain() == 0)
+        #expect(empty.onMain(offset: 100) == 0)
     }
 }
 

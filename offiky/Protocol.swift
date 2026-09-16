@@ -96,11 +96,12 @@ struct FloorStrip {
         return min(max(x, minX + half), maxX - half)
     }
 
-    /// 주 화면 안의 무작위 지점. 있던 화면이 사라졌을 때 쓴다
-    func randomOnMain() -> CGFloat {
+    /// 사라진 화면에 있던 캐릭터를 주 화면의 같은 가로 위치로 데려온다.
+    /// 화면 왼쪽에 있었으면 왼쪽에 놓인다. 주 화면이 더 좁으면 그 안으로 제한한다.
+    func onMain(offset: CGFloat) -> CGFloat {
         guard !frames.isEmpty else { return 0 }
         let start = frames.prefix(mainIndex).reduce(CGFloat(0)) { $0 + $1.width }
-        return clamp(CGFloat.random(in: start...(start + frames[mainIndex].width)))
+        return clamp(start + min(max(offset, 0), frames[mainIndex].width))
     }
 }
 

@@ -494,7 +494,11 @@ final class World {
     func attach(scenes: [CharacterScene], strip: FloorStrip) {
         // 화면 구성이 바뀌면 좌표계가 통째로 움직인다. 보이는 자리를 지키려면
         // 바뀌기 전의 화면 위치를 받아 두었다가 새 좌표계로 되돌려야 한다
-        let wasAt = self.strip.frames.isEmpty ? nil : self.strip.globalPoint(x: me.x, y: me.y)
+        let wasOn = self.strip.frames.isEmpty ? nil : self.strip.place(x: me.x, y: me.y)
+        let wasAt = wasOn.map { spot -> CGPoint in
+            let frame = self.strip.frames[spot.screenIndex]
+            return CGPoint(x: frame.minX + spot.point.x, y: frame.minY + spot.point.y)
+        }
 
         self.scenes = scenes
         self.strip = strip
@@ -508,9 +512,9 @@ final class World {
         } else if let wasAt, let back = strip.locate(global: wasAt) {
             // 있던 화면이 남아 있으면 그 자리를 지킨다
             me.teleport(to: strip.clamp(back.x))
-        } else if wasAt != nil {
-            // 있던 화면이 사라졌다. 주 화면으로 데려온다
-            me.teleport(to: strip.randomOnMain())
+        } else if let wasOn {
+            // 있던 화면이 사라졌다. 화면 안에서의 가로 위치를 지켜 주 화면으로 데려온다
+            me.teleport(to: strip.onMain(offset: wasOn.point.x))
         }
         // 로컬에서 도는 캐릭터만 당긴다. 동료 좌표는 그쪽이 기준이다
         for node in peers.values.filter(\.isLocal) {
