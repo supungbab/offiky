@@ -122,7 +122,7 @@ struct RosterView: View {
             Row(id: $0.id, name: $0.name, x: $0.x, look: $0.look, isMe: $0.isMe)
         }
         let strip = OverlayController.shared.strip
-        camera = (World.shared.cameraX, min(mapHalfWidth, strip.length / 2))
+        camera = (World.shared.viewCenter, min(mapHalfWidth, strip.length / 2))
     }
 }
 

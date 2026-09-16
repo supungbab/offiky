@@ -174,6 +174,23 @@ struct CameraTests {
         #expect(followCamera(0, target: 100, viewHalf: 0) == 0)
     }
 
+    /// 원점이 주 디스플레이 가운데라 띠는 좌우 비대칭이다.
+    /// 그 치우침을 빼먹으면 맵 끝에서 내 캐릭터가 화면 밖으로 밀린다.
+    @Test func 비대칭_띠에서도_내_캐릭터가_늘_보인다() {
+        let main = CGRect(x: 0, y: 0, width: 1000, height: 800)
+        let wide = CGRect(x: -800, y: 0, width: 800, height: 600)
+        let strip = FloorStrip(visibleFrames: [wide, main], main: main)
+        let stripCenter = (strip.minX + strip.maxX) / 2
+        #expect(stripCenter != 0, "이 테스트는 비대칭 띠를 전제로 한다")
+
+        var center: CGFloat = 0
+        for x in stride(from: -mapHalfWidth, through: mapHalfWidth, by: 97) {
+            center = followCamera(center, target: x, viewHalf: strip.length / 2)
+            let camera = center - stripCenter
+            #expect(strip.place(x: x - camera, y: 0) != nil, "x=\(x) 에서 화면 밖으로 나갔다")
+        }
+    }
+
     @Test func 맵_경계를_넘지_않는다() {
         #expect(clampToMap(99_999) == mapHalfWidth)
         #expect(clampToMap(-99_999) == -mapHalfWidth)

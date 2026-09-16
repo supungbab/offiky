@@ -465,6 +465,9 @@ final class World {
     private(set) var peers: [String: CharacterNode] = [:]
     private(set) var strip = FloorStrip(visibleFrames: [], main: nil)
     /// 화면이 비추는 맵 좌표의 한가운데. 내 캐릭터를 데드존으로 따라간다
+    private(set) var viewCenter: CGFloat = 0
+    /// 맵 좌표에서 이만큼 빼면 띠 좌표가 된다.
+    /// 원점이 주 디스플레이 가운데라 띠는 좌우 비대칭이다 — 그 치우침을 함께 반영한다.
     private(set) var cameraX: CGFloat = 0
 
     private var scenes: [CharacterScene] = []
@@ -545,7 +548,10 @@ final class World {
         let dt = lastTick == 0 ? 1.0 / 60 : min(0.25, elapsed)
         lastTick = now
 
-        cameraX = followCamera(cameraX, target: me.x, viewHalf: strip.length / 2)
+        viewCenter = followCamera(viewCenter, target: me.x, viewHalf: strip.length / 2)
+        cameraX = viewCenter - (strip.minX + strip.maxX) / 2
+        let count = 1 + peers.count
+        if Presence.shared.count != count { Presence.shared.count = count }
 
         var visible: [(node: CharacterNode, placement: Placement)] = []
         for node in [me] + Array(peers.values) {
@@ -591,7 +597,8 @@ extension World {
         peers[id] = nil
     }
 
-    /// 메뉴와 미니맵이 쓴다. 나를 맨 앞에 둔다
+    /// 메뉴는 SwiftUI 가 관찰하는 값이 바뀔 때만 다시 그린다.
+    /// 함수를 직접 부르면 앱을 켠 순간의 값이 그대로 굳는다.
     func roster() -> [(id: String, name: String, x: CGFloat, look: Look, isMe: Bool)] {
         let mine = (me.id, me.displayName, me.x, me.look, true)
         let others = peers.values
@@ -617,4 +624,12 @@ extension World {
         let node = id == myID ? me : peers[id]
         node?.showBubble(text: text, now: ProcessInfo.processInfo.systemUptime)
     }
+}
+
+
+/// 메뉴가 참가자 수를 따라 바뀌도록 관찰 가능한 값으로 들고 있는다
+@Observable final class Presence {
+    static let shared = Presence()
+    var count = 1
+    private init() {}
 }
