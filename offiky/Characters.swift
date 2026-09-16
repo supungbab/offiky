@@ -48,8 +48,8 @@ enum Characters {
     /// 순서를 바꾸면 쓰던 사람의 캐릭터가 딴것으로 바뀐다
     static let names = [
         "goat_white", "goat_brown", "goat_black", "goat_gold", "goat_red", "goat_demon",
-        "sheep_grey", "sheep_suffolk", "sheep_ink", "sheep_candy", "sheep_fleece", "sheep_sky",
-        "birb_blue", "birb_penguin", "birb_magpie", "birb_parrot", "birb_flamingo", "birb_cardinal",
+        "sheep_grey", "sheep_suffolk", "sheep_ink", "sheep_candy", "sheep_fleece", "sheep_night",
+        "birb_blue", "birb_penguin", "birb_magpie", "birb_parrot", "birb_flamingo", "birb_kingfisher",
         "frog_green", "frog_fire", "frog_dart", "frog_tree", "frog_azure", "frog_violet",
         "pig_red", "pig_pink", "pig_black", "pig_ivory", "pig_royal", "pig_carrot"]
     static var count: Int { names.count }
