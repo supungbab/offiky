@@ -183,3 +183,32 @@ struct ControlTests {
         #expect(node.x == strip.clamp(strip.minX))
     }
 }
+
+struct ScreenChangeTests {
+
+    /// 노트북(주)이 오른쪽, 보조 모니터가 왼쪽
+    private let laptop = CGRect(x: 0, y: 0, width: 1800, height: 1000)
+    private let external = CGRect(x: -2560, y: 0, width: 2560, height: 1440)
+
+    @MainActor private func attach(_ frames: [CGRect]) {
+        World.shared.attach(scenes: [],
+                            strip: FloorStrip(visibleFrames: frames, main: frames.isEmpty ? nil : laptop))
+    }
+
+    /// 띠는 [보조 0~2560][노트북 2560~4360] 이다.
+    /// 노트북 위 300 지점은 띠 좌표 2860 이고, 보조를 빼면 300 이 되어야 한다.
+    @MainActor @Test func 보조_화면을_빼도_주_화면의_자리를_지킨다() {
+        attach([external, laptop])
+        World.shared.me.teleport(to: 2860)
+        attach([laptop])
+        #expect(World.shared.me.x == 300)
+    }
+
+    @MainActor @Test func 화면이_잠깐_0개로_보고돼도_자리를_지킨다() {
+        attach([external, laptop])
+        World.shared.me.teleport(to: 2860)
+        attach([])                               // 전환 중 한 번 비어서 온다
+        attach([laptop])
+        #expect(World.shared.me.x == 300)
+    }
+}

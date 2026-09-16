@@ -392,6 +392,9 @@ final class World {
     private var scenes: [CharacterScene] = []
     private var lastTick: TimeInterval = 0
     private var placed = false
+    /// 마지막으로 보이던 화면 위 자리. 전환 중에는 화면이 0개로 보고되는 순간이 있어,
+    /// 그때 띠에서 다시 계산하면 기억이 사라진다
+    private var lastSeen: (global: CGPoint, offset: CGFloat)?
 
     private init() {
         let stored = UserDefaults.standard.string(forKey: "name") ?? NSFullUserName()
@@ -417,10 +420,10 @@ final class World {
     func attach(scenes: [CharacterScene], strip: FloorStrip) {
         // 화면 구성이 바뀌면 좌표계가 통째로 움직인다. 보이는 자리를 지키려면
         // 바뀌기 전의 화면 위치를 받아 두었다가 새 좌표계로 되돌려야 한다
-        let wasOn = self.strip.frames.isEmpty ? nil : self.strip.place(x: me.x, y: me.y)
-        let wasAt = wasOn.map { spot -> CGPoint in
+        if !self.strip.frames.isEmpty, let spot = self.strip.place(x: me.x, y: me.y) {
             let frame = self.strip.frames[spot.screenIndex]
-            return CGPoint(x: frame.minX + spot.point.x, y: frame.minY + spot.point.y)
+            lastSeen = (CGPoint(x: frame.minX + spot.point.x, y: frame.minY + spot.point.y),
+                        spot.point.x)
         }
 
         self.scenes = scenes
@@ -432,19 +435,14 @@ final class World {
             // 시작 위치는 바닥 아무 데나. 띠를 알아야 정할 수 있어 여기서 한 번만 한다
             placed = true
             me.teleport(to: strip.clamp(CGFloat.random(in: strip.minX...strip.maxX)))
-        } else if let wasAt, let back = strip.locate(global: wasAt) {
+        } else if let seen = lastSeen, let back = strip.locate(global: seen.global) {
             // 있던 화면이 남아 있으면 그 자리를 지킨다
             me.teleport(to: strip.clamp(back.x))
-        } else if let wasOn {
+        } else if let seen = lastSeen {
             // 있던 화면이 사라졌다. 화면 안에서의 가로 위치를 지켜 주 화면으로 데려온다
-            me.teleport(to: strip.onMain(offset: wasOn.point.x))
-        }
-        // 로컬에서 도는 캐릭터만 당긴다. 동료 좌표는 그쪽이 기준이다
-        for node in peers.values.filter(\.isLocal) {
-            node.x = strip.clamp(node.x)
+            me.teleport(to: strip.onMain(offset: seen.offset))
         }
         me.x = strip.clamp(me.x)
-        // 씬을 새로 만들었으므로 눈금도 다시 그린다
     }
 
     func beginDrag() { me.beginDrag() }
