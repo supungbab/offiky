@@ -5,9 +5,10 @@ import Testing
 
 struct CharacterTests {
 
-    @Test func 캐릭터는_9종이다() {
-        #expect(Characters.count == 9)
-        #expect(Characters.names.count == 9)
+    @Test func 캐릭터는_10종이다() {
+        #expect(Characters.count == 10)
+        #expect(Characters.names.count == 10)
+        #expect(Set(Characters.names).count == 10)
     }
 
     @Test func 애니메이션_프레임_수() {

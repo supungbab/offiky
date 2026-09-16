@@ -44,8 +44,9 @@ enum Animation: Int, CaseIterable {
 
 /// 에셋의 스프라이트 시트를 잘라 색을 입힌 텍스처로 만든다
 enum Characters {
+    /// 뒤에만 붙인다. 순서를 바꾸면 쓰던 사람의 캐릭터가 딴것으로 바뀐다
     static let names = ["white", "brown", "black", "gold", "red",
-                        "birb", "sheep", "frog", "pig"]
+                        "birb", "sheep", "frog", "pig", "carrot"]
     static var count: Int { names.count }
 
     /// 시트는 24x24 칸이 6열 6행이다
