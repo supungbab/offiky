@@ -12,10 +12,10 @@ brew install --cask supungbab/tap/offiky
 ```
 
 Homebrew 를 쓰지 않으면 [릴리스](https://github.com/supungbab/offiky/releases)에서
-`offiky.dmg` 를 받아 응용 프로그램 폴더로 드래그한 뒤, 터미널에서 한 번 실행한다.
+`Offiky.dmg` 를 받아 응용 프로그램 폴더로 드래그한 뒤, 터미널에서 한 번 실행한다.
 
 ```
-xattr -dr com.apple.quarantine /Applications/offiky.app
+xattr -dr com.apple.quarantine /Applications/Offiky.app
 ```
 
 공증을 받지 않아 macOS 가 처음 실행을 막는다. Homebrew 로 설치하면 이 단계를 대신 처리한다.

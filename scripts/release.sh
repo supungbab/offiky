@@ -7,15 +7,15 @@
 # 로컬 네트워크 권한을 매번 다시 물어본다.
 #
 # 받는 사람은 응용 프로그램 폴더에 넣은 뒤 한 번만 아래를 실행해야 한다.
-#   xattr -dr com.apple.quarantine /Applications/offiky.app
+#   xattr -dr com.apple.quarantine /Applications/Offiky.app
 # Homebrew 로 설치하면 cask 가 대신 처리한다.
 set -euo pipefail
 
 IDENTITY="offiky Local"
 BUILD=/tmp/offiky-release
-OUT=~/Desktop/offiky.zip
-DMG=~/Desktop/offiky.dmg
-APP="$BUILD/Build/Products/Release/offiky.app"
+OUT=~/Desktop/Offiky.zip
+DMG=~/Desktop/Offiky.dmg
+APP="$BUILD/Build/Products/Release/Offiky.app"
 ENTITLEMENTS=offiky.entitlements
 
 rm -rf "$BUILD"
@@ -40,7 +40,7 @@ ditto -c -k --sequesterRsrc --keepParent "$APP" "$OUT"
 STAGE=$(mktemp -d)
 cp -R "$APP" "$STAGE/"
 ln -s /Applications "$STAGE/Applications"
-hdiutil create -volname offiky -srcfolder "$STAGE" -ov -format UDZO -quiet "$DMG"
+hdiutil create -volname Offiky -srcfolder "$STAGE" -ov -format UDZO -quiet "$DMG"
 rm -rf "$STAGE"
 
 echo "완료"

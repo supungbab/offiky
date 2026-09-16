@@ -7,7 +7,7 @@ struct offikyApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            Text("offiky \(appVersion)")
+            Text("Offiky \(appVersion)")
             if let version = UpdateChecker.shared.newVersion {
                 Text("새 버전 \(version) 있음")
                 Button(UpdateChecker.shared.copied ? "복사했습니다" : "업데이트 명령 복사") {
@@ -40,12 +40,10 @@ struct offikyApp: App {
         }
     }
 
-    /// 버전이 다르면 서로 보이지 않으므로 동료끼리 대조할 수 있어야 한다
+    /// 버전이 다르면 서로 보이지 않으므로 동료끼리 대조할 수 있어야 한다.
+    /// 빌드 번호는 배포마다 버전과 함께 올라가므로 보여줄 것이 없다.
     private var appVersion: String {
-        let info = Bundle.main.infoDictionary
-        let short = info?["CFBundleShortVersionString"] as? String ?? "?"
-        let build = info?["CFBundleVersion"] as? String ?? "?"
-        return build == short ? short : "\(short) (\(build))"
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
     }
 
     /// 메뉴가 닫혀 있으면 뷰가 갱신되지 않아 onChange 가 다음 열 때까지 미뤄진다.

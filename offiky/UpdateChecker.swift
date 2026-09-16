@@ -35,7 +35,7 @@ final class UpdateChecker {
             switch result {
             case .upToDate:
                 alert.messageText = "최신 버전입니다"
-                alert.informativeText = "offiky \(current) 를 사용 중입니다."
+                alert.informativeText = "Offiky \(current) 를 사용 중입니다."
                 alert.addButton(withTitle: "확인")
             case .found(let version):
                 alert.messageText = "새 버전 \(version) 이 있습니다"

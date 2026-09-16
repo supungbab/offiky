@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
 import Testing
-@testable import offiky
+@testable import Offiky
 
 struct FloorStripTests {
 

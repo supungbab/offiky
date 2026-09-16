@@ -743,6 +743,12 @@ JSON 없이 5바이트로 싣는 방법이 있다.
 - `Info.plist`: `NSBonjourServices = ["_offiky._tcp"]`, `NSLocalNetworkUsageDescription`
 - macOS 15 부터 로컬 네트워크 접근에 사용자 승인이 필요하다
 
+**표시 이름은 `Offiky` 다.** 번들 이름과 앱 파일 이름에 쓴다. 번들 ID 는 `com.offiky.app`
+그대로 둔다 — 바꾸면 설정 저장 위치가 달라져 모두의 이름과 캐릭터가 초기화된다.
+Homebrew cask 이름은 관례대로 소문자 `offiky` 를 쓴다.
+
+**빌드 번호는 표시하지 않는다.** 배포마다 버전과 함께 올라가므로 따로 알릴 것이 없다.
+
 ## 7. 채팅 입력
 
 전역 단축키 **`⌥Space`** 로 입력줄을 표시한다. Carbon `RegisterEventHotKey` 로 등록한다.
