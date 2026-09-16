@@ -3,8 +3,9 @@ import SpriteKit
 import SwiftUI
 
 struct CharacterPickerView: View {
+    /// 고르는 동안은 이 창 안에서만 바뀐다. 적용해야 화면과 동료에게 간다
     @State private var look = World.myLook
-    @State private var sendTask: Task<Void, Never>?
+    @State private var applied = World.myLook
 
     private let goatPack = URL(string: "https://chaoswitchnikol.itch.io/goat-characters")!
     private let animalPack = URL(string: "https://chaoswitchnikol.itch.io/animal-characters")!
@@ -46,6 +47,19 @@ struct CharacterPickerView: View {
                 Spacer()
             }
 
+            HStack {
+                Spacer()
+                Button("적용") {
+                    applied = look
+                    World.myLook = look
+                    Session.shared.sendProfile()
+                }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+                // 바꾼 것이 없으면 누를 수 없다. 연타해도 한 번만 나간다
+                .disabled(look == applied)
+            }
+
             // CC BY 4.0 은 출처 표기가 조건이다
             Divider()
             VStack(alignment: .leading, spacing: 2) {
@@ -59,7 +73,6 @@ struct CharacterPickerView: View {
         }
         .padding(16)
         .frame(width: 300)
-        .onChange(of: look) { _, value in apply(value) }
     }
 
     private func thumbnail(_ index: Int) -> some View {
@@ -113,24 +126,14 @@ struct CharacterPickerView: View {
             Slider(value: value, in: range)
         }
     }
-
-    /// 화면은 즉시 바꾸고 전송만 늦춘다. 슬라이더를 한 번 끌면
-    /// 전원에게 가는 브로드캐스트가 수십 개 나간다.
-    private func apply(_ value: Look) {
-        World.myLook = value
-        sendTask?.cancel()
-        sendTask = Task {
-            try? await Task.sleep(for: .milliseconds(300))
-            guard !Task.isCancelled else { return }
-            Session.shared.sendProfile()
-        }
-    }
 }
 
 private var pickerWindow: NSWindow?
 
 func openCharacterPicker() {
     if let window = pickerWindow {
+        // 적용하지 않고 닫았던 초안을 버리고 지금 모습에서 다시 시작한다
+        window.contentView = NSHostingView(rootView: CharacterPickerView())
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         return
