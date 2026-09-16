@@ -16,7 +16,6 @@ final class Session {
 
     private var posTimer: Timer?
     private var snapTimer: Timer?
-    private var lastPosSentAt: TimeInterval = 0
 
     private init() {}
 
@@ -32,7 +31,7 @@ final class Session {
         }
 
         posTimer = Timer.scheduledTimer(withTimeInterval: snapshotInterval, repeats: true) {
-            [weak self] _ in self?.sendPositionIfDue()
+            [weak self] _ in self?.sendPosition()
         }
         snapTimer = Timer.scheduledTimer(withTimeInterval: snapshotInterval, repeats: true) {
             [weak self] _ in self?.sendSnapshotIfHost()
@@ -59,12 +58,8 @@ final class Session {
         return n
     }
 
-    private func sendPositionIfDue() {
-        let now = ProcessInfo.processInfo.systemUptime
+    private func sendPosition() {
         let me = World.shared.me
-        guard now - lastPosSentAt >= snapshotInterval else { return }
-        lastPosSentAt = now
-
         let msg = PosMsg(x: Double(me.x), y: me.y > 0 ? Double(me.y) : nil)
         if Mesh.shared.isHost {
             positions[World.shared.myID] = PeerPos(id: World.shared.myID, x: msg.x, y: msg.y)
