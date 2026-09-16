@@ -104,13 +104,6 @@ struct FloorStrip {
         return nil
     }
 
-    /// 띠 좌표를 전역 화면 좌표로. 화면 구성이 바뀔 때 보이는 자리를 지키는 데 쓴다
-    func globalPoint(x: CGFloat, y: CGFloat) -> CGPoint? {
-        guard let spot = place(x: x, y: y) else { return nil }
-        let frame = frames[spot.screenIndex]
-        return CGPoint(x: frame.minX + spot.point.x, y: frame.minY + spot.point.y)
-    }
-
     /// 캐릭터가 띠를 벗어나지 않게 한다
     func clamp(_ x: CGFloat) -> CGFloat {
         let half = spriteDisplaySize / 2

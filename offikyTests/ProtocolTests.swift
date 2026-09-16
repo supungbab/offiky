@@ -155,7 +155,10 @@ struct FloorStripTests {
     @Test func 좌표와_화면_변환이_왕복한다() throws {
         for strip in [single, rightSide, leftSide, stacked] {
             for x in stride(from: strip.minX + 30, to: strip.maxX - 30, by: 137) {
-                let global = try #require(strip.globalPoint(x: x, y: 0))
+                let spot = try #require(strip.place(x: x, y: 0))
+                let frame = strip.frames[spot.screenIndex]
+                let global = CGPoint(x: frame.minX + spot.point.x,
+                                     y: frame.minY + spot.point.y)
                 let back = try #require(strip.locate(global: global))
                 #expect(abs(back.x - x) < 0.001, "x=\(x) 에서 \(back.x) 로 돌아왔다")
             }

@@ -38,7 +38,6 @@ final class CharacterNode: SKNode {
 
     private var walkPhase: TimeInterval = 0
     private var previousX: CGFloat = 0
-    private(set) var lastAnimation: Animation = .idle
     /// 부딪히면 다칠 만큼 앞으로 나아가는 중인지. 표시용 동작이 아니라 실제 속도로 판정한다.
     private(set) var isCharging = false
     var hurtUntil: TimeInterval = 0
@@ -214,7 +213,6 @@ final class CharacterNode: SKNode {
             let index = isDragging ? 0 : Int(walkPhase * animation.fps) % textures.count
             image.texture = textures[index]
         }
-        lastAnimation = animation
         // 공중에서는 앞으로 나아가는 점프만, 바닥에서는 대시만 해당한다
         isCharging = !isDragging && now >= hurtUntil
             && (y > 0 ? speed > 35 : speed > CharacterNode.chargeSpeed)
