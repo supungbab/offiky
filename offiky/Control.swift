@@ -33,7 +33,7 @@ import SwiftUI
     func start() {
         let screen = NSScreen.screens.first { $0.frame.contains(NSEvent.mouseLocation) }
             ?? NSScreen.main ?? NSScreen.screens[0]
-        let size = CGSize(width: 540, height: 36)
+        let size = panelSize
         // 채팅 입력창과 같은 높이에 둔다
         let origin = CGPoint(x: screen.visibleFrame.midX - size.width / 2,
                              y: screen.visibleFrame.minY + screen.visibleFrame.height * 0.22)

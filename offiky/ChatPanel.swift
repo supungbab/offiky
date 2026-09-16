@@ -39,6 +39,9 @@ final class HotKey {
     }
 }
 
+/// 채팅과 조작 안내는 같은 자리에 번갈아 뜬다. 크기가 다르면 바뀔 때 눈에 띈다
+let panelSize = CGSize(width: 540, height: 52)
+
 /// borderless 윈도우는 기본적으로 키 윈도우가 되지 않아 입력을 받지 못한다.
 final class KeyPanel: NSPanel {
     override var canBecomeKey: Bool { true }
@@ -49,11 +52,11 @@ private struct ChatInputView: View {
     @FocusState private var focused: Bool
 
     var body: some View {
-        TextField("", text: $draft, prompt: Text("메시지").foregroundStyle(.secondary))
+        TextField("", text: $draft, prompt: Text("엔터로 보내기").foregroundStyle(.secondary))
             .textFieldStyle(.plain)
             .font(.system(size: 17))
             .padding(.horizontal, 18)
-            .frame(height: 52)
+            .frame(maxHeight: .infinity)
             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
             .overlay(RoundedRectangle(cornerRadius: 12)
                 .strokeBorder(.white.opacity(0.15), lineWidth: 1))
@@ -102,7 +105,7 @@ private struct ChatInputView: View {
     func show() {
         let screen = NSScreen.screens.first { $0.frame.contains(NSEvent.mouseLocation) }
             ?? NSScreen.main ?? NSScreen.screens[0]
-        let size = CGSize(width: 520, height: 52)
+        let size = panelSize
         // 화면 가운데 아래
         let origin = CGPoint(x: screen.visibleFrame.midX - size.width / 2,
                              y: screen.visibleFrame.minY + screen.visibleFrame.height * 0.22)
