@@ -10,6 +10,8 @@ final class CharacterNode: SKNode {
     var y: CGFloat = 0
 
     var isDragging = false
+    /// 캐릭터 설정 창이 열려 있는 동안. 색을 고르는 사이에 걸어가 버리면 볼 수가 없다
+    var isPosing = false
 
     private let image = SKSpriteNode()
     private let shadow = SKSpriteNode()
@@ -234,6 +236,13 @@ final class CharacterNode: SKNode {
                 }
             }
             isWalking = false
+            return
+        }
+
+        if isPosing {
+            isWalking = false
+            motion = .idle
+            motionEnd = now
             return
         }
 
