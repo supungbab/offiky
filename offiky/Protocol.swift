@@ -24,7 +24,9 @@ struct Placement: Equatable {
 struct FloorStrip {
     /// 주 디스플레이 기준으로 좌우에 배치한 화면들
     let frames: [CGRect]
-    /// 띠 왼쪽 끝에서 원점(x = 0)까지의 거리
+    /// 띠 왼쪽 끝에서 원점(x = 0)까지의 거리.
+    /// 원점은 주 디스플레이의 왼쪽 모서리다 — 모니터를 꽂고 빼도 그 자리가 유지된다.
+    /// 띠 왼쪽 끝을 원점으로 삼으면 왼쪽에 모니터가 붙는 순간 모두의 좌표가 밀린다.
     let originOffset: CGFloat
 
     init(visibleFrames: [CGRect], main: CGRect?) {
@@ -39,11 +41,11 @@ struct FloorStrip {
         let left = others.filter { $0.midX < main.midX }.sorted { $0.midX < $1.midX }
         let right = others.filter { $0.midX >= main.midX }.sorted { $0.midX < $1.midX }
         frames = left + [main] + right
-        originOffset = left.reduce(0) { $0 + $1.width } + main.width / 2
+        originOffset = left.reduce(0) { $0 + $1.width }
     }
 
     var length: CGFloat { frames.reduce(0) { $0 + $1.width } }
-    /// 원점은 주 디스플레이 한가운데이므로 왼쪽은 음수다
+    /// 주 디스플레이 왼쪽에 화면이 있으면 그만큼 음수다
     var minX: CGFloat { -originOffset }
     var maxX: CGFloat { length - originOffset }
 
