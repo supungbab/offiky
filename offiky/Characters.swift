@@ -12,9 +12,9 @@ func stableHash(_ s: String) -> UInt64 {
     return h
 }
 
-/// 값은 스프라이트 시트의 행 번호다. 4행은 달리기 직전 자세 한 장이라 아직 쓰지 않는다
+/// 값은 스프라이트 시트의 행 번호다
 enum Animation: Int, CaseIterable {
-    case idle = 0, walk = 1, hurt = 2, jump = 3, dash = 5
+    case idle = 0, walk = 1, hurt = 2, jump = 3, charge = 4, dash = 5
 
     var frameCount: Int {
         switch self {
@@ -22,6 +22,7 @@ enum Animation: Int, CaseIterable {
         case .walk: 6
         case .hurt: 4
         case .jump: 3
+        case .charge: 1
         case .dash: 6
         }
     }
@@ -32,9 +33,13 @@ enum Animation: Int, CaseIterable {
         case .walk: 12
         case .hurt: 14
         case .jump: 11
+        case .charge: 1
         case .dash: 18
         }
     }
+
+    /// 달리기로 넘어가기 전에 웅크린 자세를 보여 주는 시간
+    static let chargeHold: TimeInterval = 0.1
 }
 
 /// 에셋의 스프라이트 시트를 잘라 색을 입힌 텍스처로 만든다

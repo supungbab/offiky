@@ -11,7 +11,8 @@ struct CharacterTests {
     }
 
     @Test func 애니메이션_프레임_수() {
-        #expect(Animation.allCases.count == 5)
+        #expect(Animation.allCases.count == 6)
+        #expect(Animation.charge.frameCount == 1)
         #expect(Animation.idle.frameCount == 4)
         #expect(Animation.walk.frameCount == 6)
         #expect(Animation.hurt.frameCount == 4)
