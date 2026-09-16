@@ -3,7 +3,7 @@
 # 공증까지 끝나면 받는 사람은 드래그해서 넣고 더블클릭만 하면 된다.
 #
 # 공증 자격증명은 한 번만 만들면 된다. 앱 암호는
-# appleid.apple.com > 로그인 및 보안 > 앱 암호 에서 발급한다.
+# account.apple.com > 로그인 및 보안 > 앱 암호 에서 발급한다.
 #
 #   xcrun notarytool store-credentials offiky \
 #     --apple-id supungbab@gmail.com --team-id 75J3AS52HQ --password <앱-암호>
