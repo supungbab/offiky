@@ -130,8 +130,6 @@ struct CharacterPickerView: View {
 private var pickerWindow: NSWindow?
 
 func openCharacterPicker() {
-    // 색을 고르는 동안 캐릭터가 걸어가 버리면 결과를 볼 수가 없다
-    World.shared.me.isPosing = true
     if let window = pickerWindow {
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
@@ -145,9 +143,5 @@ func openCharacterPicker() {
     window.isReleasedWhenClosed = false
     window.makeKeyAndOrderFront(nil)
     NSApp.activate(ignoringOtherApps: true)
-    NotificationCenter.default.addObserver(
-        forName: NSWindow.willCloseNotification, object: window, queue: .main) { _ in
-        World.shared.me.isPosing = false
-    }
     pickerWindow = window
 }

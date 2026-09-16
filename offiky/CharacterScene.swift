@@ -10,8 +10,6 @@ final class CharacterNode: SKNode {
     var y: CGFloat = 0
 
     var isDragging = false
-    /// 캐릭터 설정 창이 열려 있는 동안. 색을 고르는 사이에 걸어가 버리면 볼 수가 없다
-    var isPosing = false
 
     private let image = SKSpriteNode()
     private let shadow = SKSpriteNode()
@@ -20,18 +18,15 @@ final class CharacterNode: SKNode {
     private var renderedName: String?
 
     private var verticalSpeed: CGFloat = 0
-    enum Motion {
-        case idle, walk, dash
-        var speed: CGFloat { self == .dash ? 90 : 20 }
-        var span: ClosedRange<CGFloat> { self == .dash ? 200...420 : 80...250 }
-    }
-
-    private var motion: Motion = .idle
-    private var motionEnd: TimeInterval = 0
-    private var segmentTarget: CGFloat = 0
-    private var nextJumpAt: TimeInterval = 0
-    private var airSpeed: CGFloat = 0
     private var isWalking = false
+
+    /// 조종 입력. -1 왼쪽, +1 오른쪽, 0 정지
+    private(set) var holding: CGFloat = 0
+    private(set) var isDashing = false
+    static let walkSpeed: CGFloat = 70
+    static let dashSpeed: CGFloat = 180
+    /// 이 속도를 넘으면 대시 동작을 그리고 부딪힐 때 아파한다
+    static let chargeSpeed: CGFloat = 110
     /// 이동 방향. +1 오른쪽, -1 왼쪽
     private var facing: CGFloat = -1
     var facingSign: CGFloat { facing }
@@ -55,11 +50,8 @@ final class CharacterNode: SKNode {
     /// 마지막으로 좌표를 받은 시각. 끊김을 놓쳐도 이걸로 정리한다
     var lastSeen: TimeInterval = ProcessInfo.processInfo.systemUptime
     private var samples: [(t: TimeInterval, x: CGFloat, y: CGFloat)] = []
-    /// 받은 표본 두 개 사이를 재생하려면 늘 이만큼 과거를 그려야 한다.
-    /// 실측하면 0.1초 주기로 보낸 좌표가 Wi-Fi 에서 최대 0.21초 만에 온다.
-    /// 지연이 그보다 짧으면 버퍼가 바닥나 캐릭터가 한두 프레임 얼어붙는다 —
-    /// 대시처럼 빠른 동작에서 끊겨 보인다. 0.3초면 관측된 편차를 덮는다.
-    static let renderDelay: TimeInterval = 0.3
+    /// 받은 표본 두 개 사이를 재생하려면 늘 이만큼 과거를 그린다
+    static let renderDelay: TimeInterval = 0.2
     static let gravity: CGFloat = 1100
     static let jumpApex: CGFloat = 48
 
@@ -99,20 +91,18 @@ final class CharacterNode: SKNode {
         image.texture = sheet.frames[.idle]?.first
     }
 
-    /// 점프는 세 가지다. 제자리·걷기·대시 순으로 높고 멀리 뛴다.
-    private func startJump() {
-        let apex: CGFloat
-        if motion == .dash {
-            apex = 72
-            airSpeed = facing * 140
-        } else if isWalking {
-            apex = 52
-            airSpeed = facing * 75
-        } else {
-            apex = CharacterNode.jumpApex
-            airSpeed = 0
-        }
+    /// 방향키를 누르고 있는 정도에 따라 제자리·걷기·대시 순으로 높이 뛴다
+    func jump() {
+        guard isLocal, !isDragging, y <= 0, verticalSpeed == 0 else { return }
+        let apex: CGFloat = holding == 0 ? CharacterNode.jumpApex : (isDashing ? 72 : 52)
         verticalSpeed = (2 * CharacterNode.gravity * apex).squareRoot()
+    }
+
+    /// 조종 입력을 받는다. 공중에서도 방향을 바꿀 수 있다.
+    func hold(_ direction: CGFloat, dash: Bool) {
+        holding = direction
+        isDashing = dash && direction != 0
+        face(direction)
     }
 
     /// 집어 드는 순간 진행 중이던 모든 운동을 지운다.
@@ -123,23 +113,18 @@ final class CharacterNode: SKNode {
         previousX = newX
         y = 0
         verticalSpeed = 0
-        airSpeed = 0
         peakY = 0
         wasAirborne = false
-        motion = .idle
-        motionEnd = 0
-        segmentTarget = newX
+        hold(0, dash: false)
         isWalking = false
     }
 
     func beginDrag() {
         isDragging = true
         verticalSpeed = 0
-        airSpeed = 0
-        motion = .idle
-        motionEnd = 0
         hurtUntil = 0
         walkPhase = 0
+        hold(0, dash: false)
         isWalking = false
     }
 
@@ -162,8 +147,7 @@ final class CharacterNode: SKNode {
     func takeHit(now: TimeInterval) {
         hurtUntil = now + 0.6
         walkPhase = 0
-        motion = .idle
-        airSpeed = 0
+        isDashing = false
     }
 
     func setRemoteTarget(x newX: CGFloat, y newY: CGFloat, at now: TimeInterval) {
@@ -202,7 +186,7 @@ final class CharacterNode: SKNode {
         if isDragging { animation = .idle }          // 들려 있는 동안은 가만히 서 있는다
         else if now < hurtUntil { animation = .hurt }
         else if y > 0 { animation = .jump }
-        else if speed > 70 { animation = .dash }
+        else if speed > CharacterNode.chargeSpeed { animation = .dash }
         else if isWalking { animation = .walk }
         else { animation = .idle }
 
@@ -213,113 +197,25 @@ final class CharacterNode: SKNode {
         }
         lastAnimation = animation
         // 공중에서는 앞으로 나아가는 점프만, 바닥에서는 대시만 해당한다
-        isCharging = !isDragging && now >= hurtUntil && (y > 0 ? speed > 35 : speed > 70)
+        isCharging = !isDragging && now >= hurtUntil
+            && (y > 0 ? speed > 35 : speed > CharacterNode.chargeSpeed)
     }
 
     private func simulate(dt: TimeInterval, now: TimeInterval, strip: FloorStrip) {
-        if isDragging { isWalking = false; return }
-        if now < hurtUntil {
-            isWalking = false
-            motion = .idle
-            motionEnd = now + 0.6
-            return
-        }
+        isWalking = false
+        guard !isDragging, now >= hurtUntil else { return }
+
+        let step = CGFloat(dt)
+        x = strip.clamp(x + holding * (isDashing ? CharacterNode.dashSpeed
+                                                 : CharacterNode.walkSpeed) * step)
 
         if y > 0 || verticalSpeed != 0 {
-            let step = CGFloat(dt)
             y += verticalSpeed * step - 0.5 * CharacterNode.gravity * step * step
             verticalSpeed -= CharacterNode.gravity * step
-            if airSpeed != 0 { x = strip.clamp(x + airSpeed * step) }
-            if y <= 0 {
-                y = 0
-                verticalSpeed = 0
-                airSpeed = 0
-                // 점프한 만큼 나아갔으니 착지 지점에서 가던 방향으로 새 구간을 고른다.
-                // 예전 목표로 되돌아가면 뒤돌아 걷는다
-                if motion != .idle {
-                    chooseNext(from: motion, now: now, strip: strip, keepFacing: true)
-                }
-            }
-            isWalking = false
+            if y <= 0 { y = 0; verticalSpeed = 0 }
             return
         }
-
-        if isPosing {
-            isWalking = false
-            motion = .idle
-            motionEnd = now
-            return
-        }
-
-        if nextJumpAt == 0 { nextJumpAt = now + Double.random(in: 30...90) }
-        if now >= nextJumpAt {
-            nextJumpAt = now + Double.random(in: 30...90)
-            startJump()
-            return
-        }
-
-        switch motion {
-        case .idle:
-            isWalking = false
-            if now >= motionEnd { chooseNext(from: .idle, now: now, strip: strip) }
-        case .walk, .dash:
-            // 목표에 닿아도 멈추지 않고 남은 걸음을 다음 구간에서 이어 간다.
-            // 거리로만 판정하면 뛸 때 목표를 넘나들며 제자리에서 떤다
-            var budget = motion.speed * CGFloat(dt)
-            var hops = 0
-            while motion != .idle, budget > 0, hops < 4 {
-                let delta = segmentTarget - x
-                if abs(delta) > budget {
-                    x = strip.clamp(x + (delta > 0 ? 1 : -1) * budget)
-                    break
-                }
-                x = strip.clamp(segmentTarget)
-                budget -= abs(delta)
-                hops += 1
-                chooseNext(from: motion, now: now, strip: strip)
-            }
-            isWalking = motion != .idle
-        }
-    }
-
-    /// 상태 전이표. 방향을 먼저 정하고 다음 상태를 고른다.
-    private func chooseNext(from: Motion, now: TimeInterval, strip: FloorStrip,
-                           keepFacing: Bool = false) {
-        let roll = Double.random(in: 0...1)
-        var next: Motion
-        switch from {
-        case .idle: next = roll < 0.7 ? .walk : .dash            // 걷기 70 / 뛰기 30
-        case .walk: next = roll < 0.7 ? .walk : (roll < 0.85 ? .dash : .idle)
-        case .dash: next = roll < 0.7 ? .walk : (roll < 0.85 ? .dash : .idle)
-        }
-        if next == .idle {
-            motion = .idle
-            motionEnd = now + Double.random(in: 4...8)
-            return
-        }
-
-        var direction: CGFloat
-        switch from {
-        case _ where keepFacing: direction = facing              // 착지 뒤에는 방향을 바꾸지 않는다
-        case .idle: direction = Bool.random() ? 1 : -1           // 좌우 50:50
-        case .walk: direction = Double.random(in: 0...1) < 0.8 ? facing : -facing
-        case .dash: direction = Double.random(in: 0...1) < 0.9 ? facing : -facing
-        }
-        // 구간 최소 거리를 못 채우면 반대로 간다. 양쪽 다 좁으면 뛰지 않고 걷는다
-        if room(direction, strip) < next.span.lowerBound,
-           room(-direction, strip) < next.span.lowerBound, next == .dash {
-            next = .walk
-        }
-        if room(direction, strip) < next.span.lowerBound { direction = -direction }
-
-        motion = next
-        segmentTarget = strip.clamp(x + direction * CGFloat.random(in: next.span))
-        // 달리는 도중 절반은 점프한다
-        if next == .dash, Bool.random() { nextJumpAt = now + Double.random(in: 0.4...1.1) }
-    }
-
-    private func room(_ direction: CGFloat, _ strip: FloorStrip) -> CGFloat {
-        direction > 0 ? strip.maxX - x : x - strip.minX
+        isWalking = holding != 0
     }
 
     /// 렌더 시각을 감싸는 두 표본 사이를 재생한다. 앞뒤를 다 쥐고 있으므로 추정하지 않는다.

@@ -82,3 +82,62 @@ struct PeerTimeoutTests {
         #expect(World.peerTimeout > snapshotInterval * 100)
     }
 }
+
+struct ControlTests {
+
+    private let strip = FloorStrip(visibleFrames: [CGRect(x: 0, y: 0, width: 1800, height: 1000)],
+                                   main: CGRect(x: 0, y: 0, width: 1800, height: 1000))
+
+    private func node() -> CharacterNode {
+        let node = CharacterNode(id: "me", name: "me", isLocal: true)
+        node.teleport(to: 900)
+        return node
+    }
+
+    @MainActor @Test func 입력이_없으면_제자리에_선다() {
+        let node = node()
+        for _ in 0..<60 { node.update(dt: 1.0 / 60, now: 0, strip: strip) }
+        #expect(node.x == 900)
+        #expect(node.y == 0)
+    }
+
+    @MainActor @Test func 방향키를_누르는_동안_걷는다() {
+        let node = node()
+        node.hold(1, dash: false)
+        for i in 0..<60 { node.update(dt: 1.0 / 60, now: Double(i) / 60, strip: strip) }
+        #expect(abs(node.x - (900 + CharacterNode.walkSpeed)) < 2)
+        #expect(node.facingSign == 1)
+
+        node.hold(0, dash: false)
+        let stopped = node.x
+        for i in 0..<60 { node.update(dt: 1.0 / 60, now: 1 + Double(i) / 60, strip: strip) }
+        #expect(node.x == stopped)
+    }
+
+    @MainActor @Test func 대시가_걷기보다_빠르다() {
+        #expect(CharacterNode.dashSpeed > CharacterNode.chargeSpeed)
+        #expect(CharacterNode.chargeSpeed > CharacterNode.walkSpeed)
+    }
+
+    @MainActor @Test func 점프는_바닥에서만_시작한다() {
+        let node = node()
+        node.jump()
+        node.update(dt: 1.0 / 60, now: 0, strip: strip)
+        #expect(node.y > 0)
+        let rising = node.y
+        node.jump()                                   // 공중에서는 다시 뛰지 않는다
+        node.update(dt: 1.0 / 60, now: 1.0 / 60, strip: strip)
+        #expect(node.y > rising)
+
+        var now = 2.0 / 60
+        while node.y > 0, now < 3 { node.update(dt: 1.0 / 60, now: now, strip: strip); now += 1.0 / 60 }
+        #expect(node.y == 0)
+    }
+
+    @MainActor @Test func 띠_밖으로는_나가지_않는다() {
+        let node = node()
+        node.hold(-1, dash: true)
+        for i in 0..<1200 { node.update(dt: 1.0 / 60, now: Double(i) / 60, strip: strip) }
+        #expect(node.x == strip.clamp(strip.minX))
+    }
+}

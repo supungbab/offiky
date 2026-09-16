@@ -18,6 +18,12 @@ struct offikyApp: App {
             if !ChatPanel.shared.hotKeyWorks {
                 Text("⌥F 를 다른 앱이 쓰고 있습니다")
             }
+            Button(Control.shared.isOn ? "조종 끝내기  esc" : "캐릭터 조종  ⌥D") {
+                Control.shared.toggle()
+            }
+            if !Control.shared.hotKeyWorks {
+                Text("⌥D 를 다른 앱이 쓰고 있습니다")
+            }
             Button("참가자 \(Presence.shared.count)명…") { openRoster() }
             Button("내 캐릭터…") { openCharacterPicker() }
             Button("내 이름 변경…") { changeName() }
@@ -84,6 +90,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Session.shared.start()
         Mesh.shared.start()
         ChatPanel.shared.install()
+        Control.shared.install()
         Task { await UpdateChecker.shared.check() }
         Timer.scheduledTimer(withTimeInterval: 6 * 3600, repeats: true) { _ in
             Task { await UpdateChecker.shared.check() }

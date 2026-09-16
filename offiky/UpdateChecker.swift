@@ -86,7 +86,8 @@ final class UpdateChecker {
     /// 터미널에 붙여넣기만 하면 되도록 클립보드에 넣는다
     private func copyCommand() {
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString("brew upgrade --cask \(cask)", forType: .string)
+        NSPasteboard.general.setString("brew update && brew upgrade --cask \(cask)",
+                                     forType: .string)
     }
 
     private func openReleasePage() {

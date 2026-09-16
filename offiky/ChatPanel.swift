@@ -40,7 +40,7 @@ final class HotKey {
 }
 
 /// borderless 윈도우는 기본적으로 키 윈도우가 되지 않아 입력을 받지 못한다.
-private final class KeyPanel: NSPanel {
+final class KeyPanel: NSPanel {
     override var canBecomeKey: Bool { true }
 }
 
