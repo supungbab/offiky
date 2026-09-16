@@ -111,6 +111,21 @@ final class CharacterNode: SKNode {
 
     /// 집어 드는 순간 진행 중이던 모든 운동을 지운다.
     /// 남겨두면 놓는 순간 이전 속도로 튀어 나가거나 하던 대시를 이어서 한다.
+    /// 이동한 것으로 세지 않는다. 그러면 대시 동작이 나오고 피격 판정까지 걸린다.
+    func teleport(to newX: CGFloat) {
+        x = newX
+        previousX = newX
+        y = 0
+        verticalSpeed = 0
+        airSpeed = 0
+        peakY = 0
+        wasAirborne = false
+        motion = .idle
+        motionEnd = 0
+        segmentTarget = newX
+        isWalking = false
+    }
+
     func beginDrag() {
         isDragging = true
         verticalSpeed = 0
@@ -453,14 +468,12 @@ final class World {
 
     private var scenes: [CharacterScene] = []
     private var lastTick: TimeInterval = 0
+    private var placed = false
 
     private init() {
         let stored = UserDefaults.standard.string(forKey: "name") ?? NSFullUserName()
         me = CharacterNode(id: myID, name: sanitizeName(stored), isLocal: true)
         me.apply(World.myLook)
-
-        // 시작 위치만 분산시킨다. 이후로는 띠 전체를 자유롭게 돌아다닌다
-        me.x = CGFloat(stableHash(World.installID) % 800) - 400
     }
 
     static var myLook: Look {
@@ -483,6 +496,12 @@ final class World {
         self.strip = strip
         // 화면이 하나도 없는 순간에는 건드리지 않는다. 띠 길이가 0이라 좌표가 전부 0이 된다
         guard !strip.frames.isEmpty else { return }
+
+        // 시작 위치는 바닥 아무 데나. 띠를 알아야 정할 수 있어 여기서 한 번만 한다
+        if !placed {
+            placed = true
+            me.teleport(to: CGFloat.random(in: strip.clamp(strip.minX)...strip.clamp(strip.maxX)))
+        }
         // 로컬에서 도는 캐릭터만 당긴다. 동료 좌표는 그쪽이 기준이다
         for node in [me] + peers.values.filter(\.isLocal) {
             node.x = strip.clamp(node.x)
