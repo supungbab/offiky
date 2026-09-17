@@ -12,7 +12,7 @@
 [![Homebrew](https://img.shields.io/badge/Homebrew-cask-FBB040?style=flat-square&logo=homebrew&logoColor=white)](https://github.com/supungbab/homebrew-tap)
 [![라이선스](https://img.shields.io/github/license/supungbab/offiky?style=flat-square)](LICENSE)
 
-<img src="docs/demo.gif" width="420" alt="걷다가 달리고 뛰어오르는 개구리">
+<img src="docs/demo.gif" width="340" alt="걷고 달리고 뛰어오르고 부딪치는 개구리">
 
 </div>
 
@@ -56,18 +56,15 @@
 
 ## 동작
 
-| 걷기 | 달리기 | 점프 | 피격 |
-|:---:|:---:|:---:|:---:|
-| <img src="docs/walk.gif" width="108"> | <img src="docs/dash.gif" width="108"> | <img src="docs/jump.gif" width="108"> | <img src="docs/hurt.gif" width="108"> |
-| 6장 · 12fps | 6장 · 18fps | 3장 · 11fps | 4장 · 14fps |
+<img src="docs/animations.png" width="600" alt="동작 여섯 가지">
 
-<img src="docs/animations.png" width="600" alt="동작 여섯 가지 전체">
+한 캐릭터가 **24장**을 쓴다. 위에서부터 대기 · 걷기 · 피격 · 점프 · 준비 · 달리기이고,
+차례로 4 · 6 · 4 · 3 · 1 · 6장이다. 재생 속도도 동작마다 다르다 — 대기 5fps, 걷기 12,
+피격 14, 점프 11, 달리기 18. 준비 자세는 달리기에 들어서는 순간 0.1초만 나온다.
 
-한 캐릭터가 **24장**을 쓴다. 위에서부터 대기 · 걷기 · 피격 · 점프 · 준비 · 달리기다.
-준비 자세는 달리기에 들어서는 순간 0.1초만 나온다.
-
-움직이는 그림은 `scripts/make_gifs.py` 가 만든다. 앱이 실제로 쓰는 값을 그대로 써서
-그린다 — 걷기 70pt/s, 대시 180pt/s, 중력 1100, 동작마다 다른 재생 속도.
+맨 위 움직이는 그림은 `scripts/make_gifs.py` 가 이 시트에서 만든다. 앱이 실제로 쓰는
+값을 그대로 쓴다 — 걷기 70pt/s, 대시 180pt/s, 중력 1100. 점프 정점 72pt 는 키의
+1.5배라 도화지가 그만큼 높다.
 
 ## 설치
 

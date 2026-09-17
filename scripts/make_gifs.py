@@ -51,21 +51,26 @@ def strip(name, animation, scale=4, pad=6):
     return out
 
 
-def scene(name, scale=3, width=210, height=78):
-    """걷다가 달리고 뛰어오른다. 바닥이 흘러 움직임을 보여 준다"""
+def scene(name, scale=3, width=264, height=186):
+    """걷고 달리고 뛰어오르고 부딪친다. 바닥이 흘러 움직임을 보여 준다.
+
+    스프라이트 한 칸(24)이 화면에서 48pt 이므로 1pt 는 scale/2 픽셀이다.
+    정점 72pt 를 이 비율로 올리려면 도화지가 그만큼 높아야 한다."""
     cut = frames(name)
     ground_h = 10
     floor_y = height - ground_h
     cx = width // 2 - 12 * scale
 
-    plan = [("idle", 1.2), ("walk", 2.0), ("charge", CHARGE_HOLD),
-            ("dash", 1.6), ("jump", 0.95), ("dash", 0.7), ("idle", 1.2)]
+    plan = [("idle", 0.9), ("walk", 1.8), ("charge", CHARGE_HOLD),
+            ("dash", 1.1), ("jump", 0.95), ("dash", 0.5),
+            ("hurt", 0.7), ("idle", 1.1)]
     out, phase, scroll, t = [], 0.0, 0.0, 0.0
     jump_t = None
     for action, seconds in plan:
         for _ in range(round(seconds * STEP)):
             dt = 1.0 / STEP
             phase += dt
+            # 부딪히면 그 자리에 멈춘다. 앱에서도 대시가 끊긴다
             speed = {"walk": WALK, "charge": DASH, "dash": DASH}.get(action, 0.0)
             scroll += speed * dt
             lift = 0.0
@@ -90,7 +95,8 @@ def scene(name, scale=3, width=210, height=78):
                         canvas.putpixel((x, y), GROUND_DARK)
             cell = sprite(cut, shown, phase).resize(
                 (24 * scale, 24 * scale), Image.NEAREST)
-            canvas.alpha_composite(cell, (cx, floor_y - 24 * scale + 4 - round(lift * scale / 12)))
+            canvas.alpha_composite(
+                cell, (cx, floor_y - 24 * scale + 4 - round(lift * scale / 2)))
             out.append(canvas)
             t += dt
     return out
@@ -104,5 +110,3 @@ def save(path, images):
 
 OUT.mkdir(exist_ok=True)
 save(OUT / "demo.gif", scene("frog_green"))
-for animation in ("walk", "dash", "jump", "hurt"):
-    save(OUT / f"{animation}.gif", strip("frog_green", animation))
