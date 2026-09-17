@@ -22,7 +22,9 @@ struct AboutView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 14) {
-                Image(nsImage: NSApp.applicationIconImage)
+                // NSApp.applicationIconImage 는 LaunchServices 를 거쳐, 그 캐시가
+                // 낡으면 옛 아이콘이 나온다. 내 에셋에서 직접 읽는다
+                Image(nsImage: NSImage(named: "AppIcon") ?? NSApp.applicationIconImage)
                     .resizable()
                     .frame(width: 64, height: 64)
                 VStack(alignment: .leading, spacing: 2) {

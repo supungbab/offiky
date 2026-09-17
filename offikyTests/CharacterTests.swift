@@ -1,3 +1,4 @@
+import AppKit
 import CoreGraphics
 import Foundation
 import Testing
@@ -594,5 +595,14 @@ struct FacingTests {
             for _ in 0..<6 { node.update(dt: 1.0 / 60, now: now, strip: strip); now += 1.0 / 60 }
         }
         #expect(node.facingSign == 1)
+    }
+}
+
+@Suite("앱 자원")
+struct AppResourceTests {
+    /// 정보 창이 이 이름으로 읽는다. 시스템이 주는 아이콘은 캐시가 낡으면 옛것이 나온다
+    @MainActor @Test func 아이콘을_에셋_이름으로_읽을_수_있다() {
+        #expect(NSImage(named: "AppIcon") != nil)
+        #expect(NSImage(named: "MenuBarIcon") != nil)
     }
 }
