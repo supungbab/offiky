@@ -31,6 +31,7 @@ final class Mesh {
     private var monitor: NWPathMonitor?
     private var restartWork: DispatchWorkItem?
     private var lastPath = ""
+    private var running = false
 
     static let retryDelay: TimeInterval = 5
 
@@ -40,16 +41,25 @@ final class Mesh {
 
     private init() {}
 
+    /// 절전 알림과 앱 시작은 메인에서 온다. 상태는 전부 메시 큐 것이므로 넘겨서 만진다
     func start() {
-        startListener()
-        startBrowser()
-        startPathMonitor()
+        queue.async {
+            guard !self.running else { return }
+            self.running = true
+            self.startListener()
+            self.startBrowser()
+            self.startPathMonitor()
+        }
     }
 
     func stop() {
-        monitor?.cancel(); monitor = nil
-        lastPath = ""
-        teardown()
+        queue.async {
+            guard self.running else { return }
+            self.running = false
+            self.monitor?.cancel(); self.monitor = nil
+            self.lastPath = ""
+            self.teardown()
+        }
     }
 
     /// 경로 감시는 남겨 둔다. 다시 시작할 때 이걸 쓴다
@@ -185,7 +195,8 @@ final class Mesh {
             case .ready:
                 if let peerID { self.retryAfter[peerID] = nil }
                 DispatchQueue.main.async { self.onReady?(key) }
-            case .failed, .cancelled:
+            // .waiting 은 기한이 없다. 남겨 두면 dial 이 연결된 것으로 보고 다시 걸지 않는다
+            case .failed, .cancelled, .waiting:
                 self.drop(key)
             default:
                 break
@@ -206,15 +217,24 @@ final class Mesh {
         DispatchQueue.main.async { self.onGone?(key) }
     }
 
-    /// hello 를 받아 상대를 알게 됐다. 같은 상대와 두 번 붙어 있으면 하나를 끊는다
+    /// hello 를 받아 상대를 알게 됐다. 먼저 자리를 잡은 연결이 이긴다 —
+    /// 나중에 온 쪽은 남의 id 를 대도 그 자리를 밀어내지 못하고 자기가 끊긴다
     func identify(_ key: String, as id: String) {
         queue.async {
             guard let link = self.links[key] else { return }
-            for (other, existing) in self.links where other != key && existing.peerID == id {
-                self.drop(other)
+            // 내가 건 연결은 상대를 알고 시작했다. 다른 이름을 대면 그 연결이 아니다
+            if let known = link.peerID, known != id { self.drop(key); return }
+            if self.links.contains(where: { $0.key != key && $0.value.peerID == id }) {
+                self.drop(key)
+                return
             }
             link.peerID = id
         }
+    }
+
+    /// 쓸 수 없는 hello 를 보낸 연결을 끊는다. 두면 인사도 못 한 채 방송만 받아 간다
+    func dropLink(_ key: String) {
+        queue.async { self.drop(key) }
     }
 
     /// 좌표가 끊겨 없는 것으로 판정했다. 연결이 살아 있어도 쓸모없으므로 끊는다.
@@ -242,6 +262,8 @@ final class Mesh {
                     if line.count > Limits.maxMessageBytes { self.drop(key); return }
                     if !line.isEmpty { self.onLine?(line, key) }
                 }
+                // 개행이 없으면 위 검사에 닿지 않는다. 한 줄이 될 수 없는 조각이면 끊는다
+                if link.buffer.count > Limits.maxMessageBytes { self.drop(key); return }
             }
 
             if isComplete || error != nil { self.drop(key); return }

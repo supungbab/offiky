@@ -265,3 +265,23 @@ struct MessageTests {
         #expect(back.id == "abc")
     }
 }
+
+@Suite("사칭")
+struct ImpersonationTests {
+    /// TXT 레코드에 id 가 그대로 노출되므로 남의 id 를 대고 연결할 수 있다.
+    /// 먼저 자리를 잡은 연결이 이겨야 그 사람이 밀려나지 않는다
+    @Test func 남이_쓰는_id_는_받지_않는다() {
+        let table = ["연결A": "철수", "연결B": "영희"]
+        #expect(idIsTaken("철수", by: "공격자", in: table))
+        #expect(idIsTaken("영희", by: "공격자", in: table))
+        #expect(!idIsTaken("민수", by: "공격자", in: table))
+    }
+
+    @Test func 같은_연결이_다시_인사하면_받는다() {
+        #expect(!idIsTaken("철수", by: "연결A", in: ["연결A": "철수"]))
+    }
+
+    @Test func 빈_표에서는_누구든_받는다() {
+        #expect(!idIsTaken("철수", by: "연결A", in: [:]))
+    }
+}

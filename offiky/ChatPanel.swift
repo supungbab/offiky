@@ -103,8 +103,10 @@ private struct ChatInputView: View {
     }
 
     func show() {
-        let screen = NSScreen.screens.first { $0.frame.contains(NSEvent.mouseLocation) }
-            ?? NSScreen.main ?? NSScreen.screens[0]
+        // 화면 구성이 바뀌는 순간에는 화면이 0개로 보고된다. 띄울 곳이 없다
+        guard let screen = NSScreen.screens
+            .first(where: { $0.frame.contains(NSEvent.mouseLocation) }) ?? NSScreen.main
+        else { return }
         let size = panelSize
         // 화면 가운데 아래
         let origin = CGPoint(x: screen.visibleFrame.midX - size.width / 2,

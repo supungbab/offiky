@@ -22,9 +22,13 @@ final class Session {
             DispatchQueue.main.async { self?.linkGone(key) }
         }
 
-        posTimer = Timer.scheduledTimer(withTimeInterval: snapshotInterval, repeats: true) {
+        // 기본 모드 타이머는 대화상자나 메뉴를 열어 두면 멈춘다.
+        // 그동안 좌표가 끊겨 동료 쪽 15초 판정에 해당해 내 캐릭터가 사라진다
+        let timer = Timer(timeInterval: snapshotInterval, repeats: true) {
             [weak self] _ in self?.sendPosition()
         }
+        RunLoop.main.add(timer, forMode: .common)
+        posTimer = timer
     }
 
     private func encode<T: Encodable>(_ value: T) -> Data {
@@ -91,8 +95,12 @@ final class Session {
     private func handleHello(_ data: Data, key: String) {
         guard let msg = try? JSONDecoder().decode(HelloMsg.self, from: data),
               msg.pv == protocolVersion,
-              msg.id != World.shared.myID
-        else { return }
+              msg.id != World.shared.myID,
+              !idIsTaken(msg.id, by: key, in: peerByKey)
+        else {
+            Mesh.shared.dropLink(key)
+            return
+        }
         peerByKey[key] = msg.id
         Mesh.shared.identify(key, as: msg.id)
         World.shared.addPeer(id: msg.id, name: sanitizeName(msg.name), look: msg.look.sanitized)

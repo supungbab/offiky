@@ -31,8 +31,10 @@ import SwiftUI
     func toggle() { isOn ? stop() : start() }
 
     func start() {
-        let screen = NSScreen.screens.first { $0.frame.contains(NSEvent.mouseLocation) }
-            ?? NSScreen.main ?? NSScreen.screens[0]
+        // 화면 구성이 바뀌는 순간에는 화면이 0개로 보고된다. 띄울 곳이 없다
+        guard let screen = NSScreen.screens
+            .first(where: { $0.frame.contains(NSEvent.mouseLocation) }) ?? NSScreen.main
+        else { return }
         let size = panelSize
         // 채팅 입력창과 같은 높이에 둔다
         let origin = CGPoint(x: screen.visibleFrame.midX - size.width / 2,

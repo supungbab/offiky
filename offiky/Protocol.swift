@@ -120,6 +120,12 @@ struct FloorStrip {
     }
 }
 
+/// 다른 연결이 이미 그 id 를 쓰고 있는지. 연결은 상대를 증명하지 못하므로
+/// 먼저 자리를 잡은 쪽이 이긴다 — 나중에 온 쪽이 남을 밀어내지 못하게 한다
+func idIsTaken(_ id: String, by key: String, in table: [String: String]) -> Bool {
+    table.contains { $0.key != key && $0.value == id }
+}
+
 /// Bonjour 광고에서 프로토콜이 같은 피어만 고른다.
 /// 버전이 다른 피어와는 연결해도 서로 무시하므로 후보에 넣지 않는다.
 func compatiblePeers(_ entries: [(id: String, pv: String?)]) -> (ids: Set<String>, mismatched: Int) {

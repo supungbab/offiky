@@ -399,7 +399,7 @@ final class CharacterScene: SKScene {
 final class World {
     static let shared = World()
 
-    /// 이 실행에서만 유효하다. 호스트 선출 기준이자 seq 의 짝이다.
+    /// 이 실행에서만 유효하다. 누가 먼저 거는지를 이 값으로 정한다.
     let myID = UUID().uuidString
 
     /// 외형과 첫 위치를 정한다. myID 에 묶으면 실행할 때마다 색이 바뀐다.
