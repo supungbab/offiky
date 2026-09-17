@@ -10,6 +10,10 @@ let snapshotInterval: TimeInterval = 0.1
 
 enum Limits {
     static let maxMessageBytes = 16 * 1024
+    /// 받을 수 있는 연결 수. 실제 인원의 몇 배다
+    static let maxLinks = 128
+    /// 한 연결에서 초당 받을 수 있는 줄 수. 좌표가 10줄이라 스무 배다
+    static let maxLinesPerSecond = 200
     static let maxName = 20
     static let maxChat = 200
     static let maxX: Double = 10_000
@@ -130,11 +134,12 @@ func idIsTaken(_ id: String, by key: String, in table: [String: String]) -> Bool
 /// 버전이 다른 피어와는 연결해도 서로 무시하므로 후보에 넣지 않는다.
 func compatiblePeers(_ entries: [(id: String, pv: String?)]) -> (ids: Set<String>, mismatched: Int) {
     var ids: Set<String> = []
-    var mismatched = 0
+    var others: Set<String> = []
     for entry in entries {
-        if Int(entry.pv ?? "") == protocolVersion { ids.insert(entry.id) } else { mismatched += 1 }
+        if Int(entry.pv ?? "") == protocolVersion { ids.insert(entry.id) } else { others.insert(entry.id) }
     }
-    return (ids, mismatched)
+    // 같은 사람이 인터페이스마다 따로 보고된다. 줄 수가 아니라 사람 수를 센다
+    return (ids, others.subtracting(ids).count)
 }
 
 private func stripControls(_ s: String) -> String {

@@ -17,6 +17,8 @@ final class Mesh {
         let connection: NWConnection
         var peerID: String?
         var buffer = Data()
+        var windowStart: TimeInterval = 0
+        var lines = 0
         init(_ connection: NWConnection, peerID: String?) {
             self.connection = connection
             self.peerID = peerID
@@ -182,6 +184,8 @@ final class Mesh {
     }
 
     private func accept(_ connection: NWConnection) {
+        // 한 사람이 연결을 무한히 열지 못하게 한다
+        guard links.count < Limits.maxLinks else { connection.cancel(); return }
         add(connection, peerID: nil)
     }
 
@@ -256,10 +260,15 @@ final class Mesh {
 
             if let data, !data.isEmpty {
                 link.buffer.append(data)
+                let now = ProcessInfo.processInfo.systemUptime
+                if now - link.windowStart >= 1 { link.windowStart = now; link.lines = 0 }
                 while let newline = link.buffer.firstIndex(of: 0x0A) {
                     let line = Data(link.buffer[link.buffer.startIndex..<newline])
                     link.buffer.removeSubrange(link.buffer.startIndex...newline)
                     if line.count > Limits.maxMessageBytes { self.drop(key); return }
+                    link.lines += 1
+                    // 쏟아부어 메인 큐를 메우지 못하게 한다
+                    if link.lines > Limits.maxLinesPerSecond { self.drop(key); return }
                     if !line.isEmpty { self.onLine?(line, key) }
                 }
                 // 개행이 없으면 위 검사에 닿지 않는다. 한 줄이 될 수 없는 조각이면 끊는다

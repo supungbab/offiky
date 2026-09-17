@@ -29,22 +29,28 @@ struct FloorStripTests {
         return FloorStrip(visibleFrames: [second, main], main: main)
     }
 
-    @Test func 원점은_띠의_왼쪽_끝이다() {
+    @Test func 띠의_양_끝이_첫_화면과_마지막_화면이다() {
         for strip in [single, rightSide, leftSide, stacked] {
-            #expect(strip.minX == 0)
-            #expect(strip.maxX == strip.length)
+            let left = strip.place(x: strip.minX, y: 0)
+            #expect(left?.screenIndex == 0)
+            #expect(left?.point.x == 0)
+            #expect(strip.place(x: strip.maxX, y: 0)?.screenIndex == strip.frames.count - 1)
         }
     }
 
-    /// 배치가 달라도 화면 개수와 폭이 같으면 띠가 같아진다.
-    /// 이것 때문에 좌우 방향이 엇갈려도 서로 다 보인다.
-    @Test func 좌우_배치가_달라도_띠가_같다() {
-        let left = CGRect(x: -1000, y: 0, width: 1000, height: 800)
-        let right = CGRect(x: 1000, y: 0, width: 1000, height: 800)
+    /// 보조 화면을 왼쪽에 둔 사람과 오른쪽에 둔 사람은 띠의 구성이 다르다.
+    /// 길이만 같으면 같은 x 가 양쪽 모두에서 놓이므로 서로 다 보인다
+    @Test func 좌우_배치가_달라도_같은_x_가_놓인다() {
+        let left = CGRect(x: -800, y: 0, width: 800, height: 600)
+        let right = CGRect(x: 1000, y: 0, width: 800, height: 600)
         let a = FloorStrip(visibleFrames: [left, main], main: main)
         let b = FloorStrip(visibleFrames: [right, main], main: main)
-        #expect(a.minX == b.minX)
-        #expect(a.maxX == b.maxX)
+        // 폭이 다른 화면이라 배치 순서가 실제로 갈린다
+        #expect(a.frames.map(\.width) != b.frames.map(\.width))
+        #expect(a.length == b.length)
+        for x in stride(from: CGFloat(0), through: a.length, by: 50) {
+            #expect((a.place(x: x, y: 0) == nil) == (b.place(x: x, y: 0) == nil))
+        }
     }
 
     @Test func 같은_행에서는_왼쪽부터_잇는다() {
@@ -283,5 +289,34 @@ struct ImpersonationTests {
 
     @Test func 빈_표에서는_누구든_받는다() {
         #expect(!idIsTaken("철수", by: "연결A", in: [:]))
+    }
+}
+
+@Suite("버전 거르기")
+struct CompatiblePeerTests {
+    @Test func 같은_버전만_후보가_된다() {
+        let seen = compatiblePeers([("철수", "\(protocolVersion)"),
+                                    ("영희", "\(protocolVersion + 1)")])
+        #expect(seen.ids == ["철수"])
+        #expect(seen.mismatched == 1)
+    }
+
+    @Test func pv_가_없거나_숫자가_아니면_다른_버전으로_본다() {
+        let seen = compatiblePeers([("철수", nil), ("영희", "둘"), ("민수", "")])
+        #expect(seen.ids.isEmpty)
+        #expect(seen.mismatched == 3)
+    }
+
+    /// 같은 사람이 인터페이스마다 따로 보고된다. Wi-Fi 와 이더넷이 함께 켜져 있으면 두 번이다
+    @Test func 같은_사람이_두_번_보고돼도_한_명이다() {
+        let old = "\(protocolVersion + 1)"
+        let seen = compatiblePeers([("철수", old), ("철수", old), ("영희", old)])
+        #expect(seen.mismatched == 2)
+    }
+
+    @Test func 아무도_없으면_비어_있다() {
+        let seen = compatiblePeers([])
+        #expect(seen.ids.isEmpty)
+        #expect(seen.mismatched == 0)
     }
 }
