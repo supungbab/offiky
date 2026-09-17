@@ -12,7 +12,7 @@
 [![Homebrew](https://img.shields.io/badge/Homebrew-cask-FBB040?style=flat-square&logo=homebrew&logoColor=white)](https://github.com/supungbab/homebrew-tap)
 [![라이선스](https://img.shields.io/github/license/supungbab/offiky?style=flat-square)](LICENSE)
 
-<img src="docs/demo.gif" width="342" alt="걷고 뛰어오르다 달려온 동료와 부딪쳐 인사하고 각자 간다">
+<img src="docs/demo.gif" width="342" alt="데모">
 
 </div>
 
