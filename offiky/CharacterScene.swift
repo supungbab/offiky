@@ -27,6 +27,11 @@ final class CharacterNode: SKNode {
     private(set) var isDashing = false
     static let walkSpeed: CGFloat = 70
     static let dashSpeed: CGFloat = 180
+    /// 웅크린 채로 기어갈 때. 걷기보다 느리다
+    static let crawlSpeed: CGFloat = 40
+    /// 기어갈 때는 달리기 그림을 쓰되 천천히 넘긴다.
+    /// 걷기가 한 장에 5.8pt 가므로 같은 비율이 되는 값이다
+    static let crawlFPS: Double = 7
     /// 이 속도를 넘으면 대시 동작을 그리고 부딪힐 때 아파한다
     static let chargeSpeed: CGFloat = 110
     /// 이동 방향. +1 오른쪽, -1 왼쪽
@@ -211,14 +216,16 @@ final class CharacterNode: SKNode {
         if isDragging { animation = .idle }          // 들려 있는 동안은 가만히 서 있는다
         else if now < hurtUntil { animation = .hurt }
         else if y > 0 { animation = .jump }
-        else if isBowing { animation = .bow }
+        else if isBowing { animation = isWalking ? .dash : .bow }
         else if running { animation = .dash }
         else if isWalking { animation = .walk }
         else { animation = .idle }
 
         if !isDragging { walkPhase += dt }
         if let textures = sheet.frames[animation], !textures.isEmpty {
-            let index = isDragging ? 0 : Int(walkPhase * animation.fps) % textures.count
+            // 기어갈 때는 달리기 그림을 천천히 넘긴다
+            let fps = isBowing && animation == .dash ? CharacterNode.crawlFPS : animation.fps
+            let index = isDragging ? 0 : Int(walkPhase * fps) % textures.count
             image.texture = textures[index]
         }
         // 공중에서는 앞으로 나아가는 점프만, 바닥에서는 대시만 해당한다
@@ -229,12 +236,12 @@ final class CharacterNode: SKNode {
     private func simulate(dt: TimeInterval, now: TimeInterval, strip: FloorStrip) {
         isWalking = false
         guard !isDragging, now >= hurtUntil else { return }
-        // 인사하는 동안은 제자리에 있는다. 방향키를 누르고 있어도 움직이지 않는다
-        if isBowing, y <= 0, verticalSpeed == 0 { return }
-
         let step = CGFloat(dt)
-        x = strip.clamp(x + holding * (isDashing ? CharacterNode.dashSpeed
-                                                 : CharacterNode.walkSpeed) * step)
+        // 웅크린 채로는 천천히 기어간다
+        let crouching = isBowing && y <= 0 && verticalSpeed == 0
+        let speed = crouching ? CharacterNode.crawlSpeed
+            : (isDashing ? CharacterNode.dashSpeed : CharacterNode.walkSpeed)
+        x = strip.clamp(x + holding * speed * step)
 
         if y > 0 || verticalSpeed != 0 {
             y += verticalSpeed * step - 0.5 * CharacterNode.gravity * step * step

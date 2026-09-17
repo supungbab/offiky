@@ -305,16 +305,23 @@ struct BowTests {
         return node
     }
 
-    @MainActor @Test func 인사하는_동안은_방향키를_눌러도_제자리다() {
+    @MainActor @Test func 웅크리면_걷기보다_느리게_간다() {
+        func travel(bowing: Bool) -> CGFloat {
+            let node = node()
+            node.isBowing = bowing
+            node.hold(1, dash: false)
+            for i in 0..<60 { node.update(dt: 1.0 / 60, now: Double(i) / 60, strip: strip) }
+            return node.x - 900
+        }
+        #expect(abs(travel(bowing: true) - CharacterNode.crawlSpeed) < 2)
+        #expect(travel(bowing: true) < travel(bowing: false))
+    }
+
+    @MainActor @Test func 방향키를_놓으면_웅크린_채_멈춘다() {
         let node = node()
-        node.hold(1, dash: false)
         node.isBowing = true
         for i in 0..<60 { node.update(dt: 1.0 / 60, now: Double(i) / 60, strip: strip) }
         #expect(node.x == 900)
-
-        node.isBowing = false
-        for i in 0..<60 { node.update(dt: 1.0 / 60, now: 1 + Double(i) / 60, strip: strip) }
-        #expect(node.x > 900)
     }
 
     @MainActor @Test func 공중에서는_인사가_걸리지_않는다() {

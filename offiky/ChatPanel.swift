@@ -40,7 +40,7 @@ final class HotKey {
 }
 
 /// 채팅과 조작 안내는 같은 자리에 번갈아 뜬다. 크기가 다르면 바뀔 때 눈에 띈다
-let panelSize = CGSize(width: 600, height: 52)
+let panelSize = CGSize(width: 620, height: 52)
 
 /// borderless 윈도우는 기본적으로 키 윈도우가 되지 않아 입력을 받지 못한다.
 final class KeyPanel: NSPanel {
