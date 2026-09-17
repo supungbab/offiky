@@ -604,9 +604,12 @@ extension World {
         peers.removeAll()
     }
 
-    func setPeerTarget(id: String, x: CGFloat, y: CGFloat, bowing: Bool) {
+    func setPeerTarget(id: String, x: CGFloat, y: CGFloat, bowing: Bool, dragging: Bool) {
         guard let node = peers[id] else { return }
         node.isBowing = bowing
+        // 들고 다닌 높이는 낙하가 아니다. 내 캐릭터와 같은 판정이 나오게 맞춘다
+        if dragging { node.isDragging = true }
+        else if node.isDragging { node.endDrag() }
         node.setRemoteTarget(x: x, y: y, at: ProcessInfo.processInfo.systemUptime)
     }
 

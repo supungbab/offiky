@@ -174,6 +174,8 @@ struct PosMsg: Codable {
     let y: Double?
     /// 인사 중일 때만 싣는다. 옛 버전은 이 값을 무시하고 서 있는 것으로 본다
     var b: Bool?
+    /// 들려 있을 때만 싣는다. 받는 쪽은 좌표만으로 이걸 알 수 없다
+    var d: Bool?
 }
 
 struct SayMsg: Codable {

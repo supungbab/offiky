@@ -244,6 +244,22 @@ struct MessageTests {
         #expect(msg.y == nil)
     }
 
+    /// 옛 버전이 보낸 좌표에는 이 값이 없다. 그때는 서 있는 것으로 본다
+    @Test func 들려_있다는_표시가_없어도_읽힌다() throws {
+        let json = #"{"t":"pos","x":100}"#
+        let msg = try JSONDecoder().decode(PosMsg.self, from: Data(json.utf8))
+        #expect(msg.d == nil)
+        #expect(msg.b == nil)
+    }
+
+    @Test func 들고_있을_때만_표시를_싣는다() throws {
+        let still = String(decoding: try JSONEncoder().encode(PosMsg(x: 1, y: nil)), as: UTF8.self)
+        let held = String(decoding: try JSONEncoder().encode(PosMsg(x: 1, y: nil, d: true)),
+                          as: UTF8.self)
+        #expect(!still.contains("d"))
+        #expect(held.contains("\"d\":true"))
+    }
+
     @Test func 종류를_먼저_읽을_수_있다() throws {
         let json = #"{"t":"say","msg":"안녕"}"#
         let env = try JSONDecoder().decode(Envelope.self, from: Data(json.utf8))

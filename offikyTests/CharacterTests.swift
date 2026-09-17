@@ -411,3 +411,41 @@ struct BowTests {
         #expect(try JSONDecoder().decode(PosMsg.self, from: Data(old.utf8)).b == nil)
     }
 }
+
+@Suite("들고 다니기")
+struct RemoteDragTests {
+    private let strip = FloorStrip(visibleFrames: [CGRect(x: 0, y: 0, width: 1800, height: 1000)],
+                                   main: CGRect(x: 0, y: 0, width: 1800, height: 1000))
+
+    /// 상대가 캐릭터를 높이 들었다 바닥에 내려놓는 동안 내가 받는 좌표를 그대로 재생한다.
+    /// 들려 있다는 것을 같이 보내지 않으면 살살 내려놓아도 피격 동작이 나온다
+    @MainActor @Test func 상대가_들고_내려놓으면_아프지_않다() {
+        let node = CharacterNode(id: "peer", name: "peer", isLocal: false)
+        var now: TimeInterval = 0
+        func feed(_ y: CGFloat) {
+            node.setRemoteTarget(x: 900, y: y, at: now)
+            for _ in 0..<6 { node.update(dt: 1.0 / 60, now: now, strip: strip); now += 1.0 / 60 }
+        }
+        node.isDragging = true
+        for y in stride(from: CGFloat(0), through: 400, by: 40) { feed(y) }
+        for y in stride(from: CGFloat(400), through: 0, by: -40) { feed(y) }
+        node.endDrag()
+        for _ in 0..<40 { feed(0) }
+        #expect(node.hurtUntil == 0)
+    }
+
+    @MainActor @Test func 상대가_높은_곳에서_놓으면_아파한다() {
+        let node = CharacterNode(id: "peer", name: "peer", isLocal: false)
+        var now: TimeInterval = 0
+        func feed(_ y: CGFloat) {
+            node.setRemoteTarget(x: 900, y: y, at: now)
+            for _ in 0..<6 { node.update(dt: 1.0 / 60, now: now, strip: strip); now += 1.0 / 60 }
+        }
+        node.isDragging = true
+        feed(300)
+        node.endDrag()
+        for y in stride(from: CGFloat(300), through: 0, by: -100) { feed(y) }
+        for _ in 0..<10 { feed(0) }
+        #expect(node.hurtUntil > 0)
+    }
+}
