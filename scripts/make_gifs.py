@@ -66,7 +66,7 @@ def burst(canvas, cx, cy, step):
                 canvas.putpixel((x, y), color)
 
 
-def scene(scale=3, width=300, height=186):
+def scene(scale=3, width=342, height=186):
     """걷다가 달리는데 밖에서 누가 달려와 정면으로 부딪친다.
 
     스프라이트 한 칸(24)이 화면에서 48pt 이므로 1pt 는 scale/2 픽셀이다.
@@ -78,13 +78,16 @@ def scene(scale=3, width=300, height=186):
     foot = floor_y - 24 * scale + 4
     cx = width // 2 - 12 * scale
 
-    plan = [("idle", 0.7), ("walk", 1.4), ("jump", 0.9),
-            ("charge", CHARGE_HOLD), ("dash", 6.0)]
+    plan = [("idle", 0.8), ("walk", 2.0), ("charge", CHARGE_HOLD),
+            ("dash", 1.2), ("jump", 0.9), ("dash", 4.0)]
     out = []
     phase = other_phase = 0.0
+    running = False
     x = 0.0                      # 내 위치(pt)
-    # 상대는 한참 멀리 있다. 가까우면 걷는 동안 붙어 버려 달리기도 전에 부딪친다
-    ox = 380.0
+    # 상대는 한참 멀리 있다가 이만큼 가까워지면 달려 나온다. 처음부터 보이면
+    # 부딪칠 것이 뻔해지고, 너무 늦게 나오면 나타나자마자 부딪친다
+    ox = 830.0
+    OTHER_START = 190.0
     jump_t = None
     hit = None                   # 부딪힌 프레임 번호
     for action, seconds in plan:
@@ -95,16 +98,16 @@ def scene(scale=3, width=300, height=186):
             phase += dt
             other_phase += dt
             lift = 0.0
-            speed = {"walk": WALK, "jump": WALK,
-                     "charge": DASH, "dash": DASH}.get(action, 0.0)
+            speed = {"walk": WALK, "charge": DASH,
+                     "dash": DASH, "jump": DASH}.get(action, 0.0)
             if hit is None:
                 x += speed * dt
-                # 상대는 내가 달리기 시작할 때 같이 달려온다
-                if action in ("charge", "dash"):
+                if ox - x < OTHER_START:
                     ox -= DASH * dt
+                    running = True
             if action == "jump":
                 jump_t = 0.0 if jump_t is None else jump_t + dt
-                v0 = (2 * GRAVITY * APEX["walk"]) ** 0.5
+                v0 = (2 * GRAVITY * APEX["dash"]) ** 0.5
                 lift = max(0.0, v0 * jump_t - 0.5 * GRAVITY * jump_t ** 2)
             else:
                 jump_t = None
@@ -120,7 +123,7 @@ def scene(scale=3, width=300, height=186):
                         "jump" if lift > 0 else action)
             # 달려오기 전에는 서 있다. 계속 달리는 자세면 제자리 뜀박질로 보인다
             other_act = (mine_act if since is not None else
-                         "dash" if action in ("charge", "dash") else "idle")
+                         "dash" if running else "idle")
 
             canvas = Image.new("RGBA", (width, height), SKY)
             for y in range(floor_y, height):
