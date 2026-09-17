@@ -75,11 +75,20 @@ final class CharacterNode: SKNode {
     /// 지연을 갑자기 바꾸면 위치가 튄다. 초당 이만큼만 옮긴다
     static let delaySlew: TimeInterval = 0.1
     static let gravity: CGFloat = 1100
+    /// 누르고 있는 정도에 따라 제자리·걷기·대시 순으로 높이 뛴다
     static let jumpApex: CGFloat = 48
+    static let walkJumpApex: CGFloat = 52
+    static let dashJumpApex: CGFloat = 72
     /// 공중에서 한 번 더 뛴다. 착지해야 다시 찬다
     static let maxJumps = 2
     static let airJumpApex: CGFloat = 40
     private var jumpsUsed = 0
+
+    /// 뛰어서 닿는 최고점. 대시 점프 정점에서 한 번 더 차는 경우다
+    static let maxJumpHeight = dashJumpApex + airJumpApex
+    /// 이보다 높은 데서 떨어져야 아프다. 뛰어서는 닿지 않는다 —
+    /// 마우스로 들어 올렸을 때만 해당한다. 점프를 손대면 이 값이 같이 올라간다
+    static let hurtDropHeight = maxJumpHeight * 1.4
 
     init(id: String, name: String, isLocal: Bool) {
         self.id = id
@@ -127,7 +136,8 @@ final class CharacterNode: SKNode {
         jumpsUsed += 1
         let apex: CGFloat = jumpsUsed > 1
             ? CharacterNode.airJumpApex
-            : (holding == 0 ? CharacterNode.jumpApex : (isDashing ? 72 : 52))
+            : (holding == 0 ? CharacterNode.jumpApex
+               : (isDashing ? CharacterNode.dashJumpApex : CharacterNode.walkJumpApex))
         verticalSpeed = (2 * CharacterNode.gravity * apex).squareRoot()
     }
 
@@ -316,12 +326,8 @@ final class CharacterNode: SKNode {
             return
         }
         let airborne = y > 0
-        if wasAirborne && !airborne {
-            let impact = (2 * CharacterNode.gravity * peakY).squareRoot()
-            // 점프 정점(48pt)에서 떨어지면 약 320pt/s 다. 그보다 높은 데서
-            // 떨어졌을 때만 피격한다
-            if impact > 500 { takeHit(now: now) }
-        }
+        // 속도로 바꿔 견줄 이유가 없다. 높이가 높을수록 충격도 크다
+        if wasAirborne && !airborne, peakY > CharacterNode.hurtDropHeight { takeHit(now: now) }
         if !airborne { peakY = 0 }
         wasAirborne = airborne
     }

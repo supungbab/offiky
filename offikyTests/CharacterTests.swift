@@ -606,3 +606,44 @@ struct AppResourceTests {
         #expect(NSImage(named: "MenuBarIcon") != nil)
     }
 }
+
+@Suite("낙하 피격")
+struct FallDamageTests {
+    /// 기준이 최고점 바로 위에 있으면, 점프 높이를 조금만 올려도
+    /// 2단 점프 착지가 아파진다. 그 관계를 여기서 고정한다
+    @Test func 뛰어서_닿는_높이보다_확실히_높다() {
+        #expect(CharacterNode.hurtDropHeight > CharacterNode.maxJumpHeight * 1.3)
+    }
+
+    @Test func 최고점은_대시_점프에_2단을_더한_것이다() {
+        #expect(CharacterNode.maxJumpHeight
+                == CharacterNode.dashJumpApex + CharacterNode.airJumpApex)
+        #expect(CharacterNode.dashJumpApex > CharacterNode.walkJumpApex)
+        #expect(CharacterNode.walkJumpApex > CharacterNode.jumpApex)
+    }
+
+    /// 가장 높이 뛰는 방법으로 뛰어도 착지가 아프지 않아야 한다
+    @MainActor @Test func 가장_높이_뛰어도_아프지_않다() {
+        let strip = FloorStrip(visibleFrames: [CGRect(x: 0, y: 0, width: 1800, height: 1000)],
+                               main: nil)
+        let node = CharacterNode(id: "me", name: "me", isLocal: true)
+        node.teleport(to: 900)
+        node.hold(1, dash: true)                       // 대시 점프가 제일 높다
+        node.jump()
+        var now: TimeInterval = 0
+        var used = 1
+        var best: CGFloat = 0
+        var previous: CGFloat = 0
+        while now < 3 {
+            node.update(dt: 1.0 / 60, now: now, strip: strip)
+            best = max(best, node.y)
+            // 더 오르지 않으면 정점이다. 거기서 한 번 더 차야 제일 높이 간다
+            if used < 2, node.y > 0, node.y <= previous { node.jump(); used = 2 }
+            previous = node.y
+            now += 1.0 / 60
+        }
+        #expect(node.y == 0)
+        #expect(best > CharacterNode.maxJumpHeight - 1)   // 실제로 최고점까지 갔다
+        #expect(node.hurtUntil == 0)
+    }
+}
