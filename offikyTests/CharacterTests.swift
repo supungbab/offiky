@@ -21,7 +21,7 @@ struct CharacterTests {
 
     @Test func 애니메이션_프레임_수() {
         #expect(Animation.allCases.count == 6)
-        #expect(Animation.charge.frameCount == 1)
+        #expect(Animation.bow.frameCount == 1)
         #expect(Animation.idle.frameCount == 4)
         #expect(Animation.walk.frameCount == 6)
         #expect(Animation.hurt.frameCount == 4)
@@ -291,5 +291,47 @@ struct DoubleJumpTests {
         node.jump()
         node.update(dt: 1.0 / 60, now: now, strip: strip)
         #expect(node.y > 0)
+    }
+}
+
+struct BowTests {
+
+    private let strip = FloorStrip(visibleFrames: [CGRect(x: 0, y: 0, width: 1800, height: 1000)],
+                                   main: nil)
+
+    @MainActor private func node() -> CharacterNode {
+        let node = CharacterNode(id: "me", name: "me", isLocal: true)
+        node.teleport(to: 900)
+        return node
+    }
+
+    @MainActor @Test func 인사하는_동안은_방향키를_눌러도_제자리다() {
+        let node = node()
+        node.hold(1, dash: false)
+        node.isBowing = true
+        for i in 0..<60 { node.update(dt: 1.0 / 60, now: Double(i) / 60, strip: strip) }
+        #expect(node.x == 900)
+
+        node.isBowing = false
+        for i in 0..<60 { node.update(dt: 1.0 / 60, now: 1 + Double(i) / 60, strip: strip) }
+        #expect(node.x > 900)
+    }
+
+    @MainActor @Test func 공중에서는_인사가_걸리지_않는다() {
+        let node = node()
+        node.jump()
+        node.isBowing = true
+        node.update(dt: 1.0 / 60, now: 0, strip: strip)
+        #expect(node.y > 0)                       // 인사해도 물리는 그대로 돈다
+    }
+
+    @Test func 인사는_인사할_때만_실린다() throws {
+        let quiet = try JSONEncoder().encode(PosMsg(x: 1, y: nil))
+        let bowing = try JSONEncoder().encode(PosMsg(x: 1, y: nil, b: true))
+        #expect(!String(decoding: quiet, as: UTF8.self).contains("b"))
+        #expect(try JSONDecoder().decode(PosMsg.self, from: bowing).b == true)
+        // 옛 메시지에는 값이 없다. 서 있는 것으로 본다
+        let old = #"{"t":"pos","x":1}"#
+        #expect(try JSONDecoder().decode(PosMsg.self, from: Data(old.utf8)).b == nil)
     }
 }

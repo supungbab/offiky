@@ -161,6 +161,8 @@ struct PosMsg: Codable {
     var t = "pos"
     let x: Double
     let y: Double?
+    /// 인사 중일 때만 싣는다. 옛 버전은 이 값을 무시하고 서 있는 것으로 본다
+    var b: Bool?
 }
 
 struct SayMsg: Codable {

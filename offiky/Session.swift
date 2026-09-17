@@ -40,7 +40,9 @@ final class Session {
 
     private func sendPosition() {
         let me = World.shared.me
-        Mesh.shared.broadcast(encode(PosMsg(x: Double(me.x), y: me.y > 0 ? Double(me.y) : nil)))
+        Mesh.shared.broadcast(encode(PosMsg(x: Double(me.x),
+                                            y: me.y > 0 ? Double(me.y) : nil,
+                                            b: me.isBowing ? true : nil)))
     }
 
     func sendSay(_ text: String) {
@@ -102,7 +104,8 @@ final class Session {
               abs(msg.x) <= Limits.maxX,
               msg.y == nil || (msg.y! >= 0 && msg.y! <= Limits.maxY)
         else { return }
-        World.shared.setPeerTarget(id: id, x: CGFloat(msg.x), y: CGFloat(msg.y ?? 0))
+        World.shared.setPeerTarget(id: id, x: CGFloat(msg.x), y: CGFloat(msg.y ?? 0),
+                                   bowing: msg.b == true)
     }
 
     private func handleSay(_ data: Data, key: String) {

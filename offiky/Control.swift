@@ -75,6 +75,7 @@ import SwiftUI
         isOn = false
         pressed.removeAll()
         dashing = false
+        World.shared.me.isBowing = false
         World.shared.me.hold(0, dash: false)
         panel?.orderOut(nil)
 
@@ -95,6 +96,8 @@ import SwiftUI
             stop()
         case kVK_UpArrow:
             if !event.isARepeat { World.shared.me.jump() }
+        case kVK_DownArrow:
+            World.shared.me.isBowing = true
         case kVK_LeftArrow, kVK_RightArrow:
             guard !event.isARepeat else { return }
             let now = ProcessInfo.processInfo.systemUptime
@@ -110,6 +113,7 @@ import SwiftUI
 
     fileprivate func keyUp(_ event: NSEvent) {
         let code = Int(event.keyCode)
+        if code == kVK_DownArrow { World.shared.me.isBowing = false; return }
         guard code == kVK_LeftArrow || code == kVK_RightArrow else { return }
         pressed.removeAll { $0 == code }
         if pressed.isEmpty { dashing = false }
@@ -142,6 +146,7 @@ struct HintView: View {
             item("←← →→", "대시")
             item("↑", "점프")
             item("↑↑", "2단 점프")
+            item("↓", "인사")
             item("esc", "끝내기")
         }
         .font(.system(size: 12))

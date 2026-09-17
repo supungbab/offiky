@@ -11,13 +11,12 @@ SHEET = "offiky/Assets.xcassets/characters/%s.imageset/%s.png"
 OUT = pathlib.Path("docs")
 
 # Characters.swift 와 같은 값
-ROW = {"idle": 0, "walk": 1, "hurt": 2, "jump": 3, "charge": 4, "dash": 5}
-COUNT = {"idle": 4, "walk": 6, "hurt": 4, "jump": 3, "charge": 1, "dash": 6}
-FPS = {"idle": 5, "walk": 12, "hurt": 14, "jump": 11, "charge": 1, "dash": 18}
+ROW = {"idle": 0, "walk": 1, "hurt": 2, "jump": 3, "bow": 4, "dash": 5}
+COUNT = {"idle": 4, "walk": 6, "hurt": 4, "jump": 3, "bow": 1, "dash": 6}
+FPS = {"idle": 5, "walk": 12, "hurt": 14, "jump": 11, "bow": 1, "dash": 18}
 # CharacterScene.swift 와 같은 값
 WALK, DASH, GRAVITY = 70.0, 180.0, 1100.0
 APEX = {"stand": 48.0, "walk": 52.0, "dash": 72.0, "air": 40.0}
-CHARGE_HOLD = 0.1
 
 SKY = (0x2b, 0x30, 0x42, 255)
 GROUND = (0x8a, 0x5a, 0x38, 255)
@@ -78,8 +77,8 @@ def scene(scale=3, width=342, height=186):
     foot = floor_y - 24 * scale + 4
     cx = width // 2 - 12 * scale
 
-    plan = [("idle", 0.8), ("walk", 2.0), ("charge", CHARGE_HOLD),
-            ("dash", 1.2), ("jump", 0.9), ("dash", 4.0)]
+    plan = [("idle", 0.8), ("walk", 2.0),
+            ("dash", 1.3), ("jump", 0.9), ("dash", 4.0)]
     out = []
     phase = other_phase = 0.0
     running = False
@@ -98,8 +97,7 @@ def scene(scale=3, width=342, height=186):
             phase += dt
             other_phase += dt
             lift = 0.0
-            speed = {"walk": WALK, "charge": DASH,
-                     "dash": DASH, "jump": DASH}.get(action, 0.0)
+            speed = {"walk": WALK, "dash": DASH, "jump": DASH}.get(action, 0.0)
             if hit is None:
                 x += speed * dt
                 if ox - x < OTHER_START:
@@ -113,7 +111,7 @@ def scene(scale=3, width=342, height=186):
                 jump_t = None
 
             # 앱과 같은 판정 — 마주 보고 달리다 22pt 안으로 들어오면 둘 다 아프다
-            if hit is None and action in ("charge", "dash") and ox - x < 22:
+            if hit is None and action == "dash" and ox - x < 22:
                 hit = len(out)
                 phase = other_phase = 0.0
 

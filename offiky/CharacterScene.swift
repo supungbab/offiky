@@ -22,6 +22,8 @@ final class CharacterNode: SKNode {
 
     /// 조종 입력. -1 왼쪽, +1 오른쪽, 0 정지
     private(set) var holding: CGFloat = 0
+    /// 고개를 숙이고 있는지. 웅크림 자세를 그대로 쓴다
+    var isBowing = false
     private(set) var isDashing = false
     static let walkSpeed: CGFloat = 70
     static let dashSpeed: CGFloat = 180
@@ -43,8 +45,6 @@ final class CharacterNode: SKNode {
     var hurtUntil: TimeInterval = 0
     private var bubbleUntil: TimeInterval = 0
     private var wasAirborne = false
-    private var wasRunning = false
-    private var chargeUntil: TimeInterval = 0
     private var peakY: CGFloat = 0
     private var shadowStep = -1
 
@@ -204,17 +204,15 @@ final class CharacterNode: SKNode {
         if !isLocal, !isDragging, abs(moved) > 0.1 { face(moved) }
         let speed = abs(moved) / CGFloat(max(dt, 0.001))
 
-        // 달리기에 막 들어선 순간을 잡는다. 원격도 같은 속도로 판정하므로 함께 나온다
         let running = !isDragging && now >= hurtUntil && y <= 0
             && speed > CharacterNode.chargeSpeed
-        if running, !wasRunning { chargeUntil = now + Animation.chargeHold }
-        wasRunning = running
 
         let animation: Animation
         if isDragging { animation = .idle }          // 들려 있는 동안은 가만히 서 있는다
         else if now < hurtUntil { animation = .hurt }
         else if y > 0 { animation = .jump }
-        else if running { animation = now < chargeUntil ? .charge : .dash }
+        else if isBowing { animation = .bow }
+        else if running { animation = .dash }
         else if isWalking { animation = .walk }
         else { animation = .idle }
 
@@ -231,6 +229,8 @@ final class CharacterNode: SKNode {
     private func simulate(dt: TimeInterval, now: TimeInterval, strip: FloorStrip) {
         isWalking = false
         guard !isDragging, now >= hurtUntil else { return }
+        // 인사하는 동안은 제자리에 있는다. 방향키를 누르고 있어도 움직이지 않는다
+        if isBowing, y <= 0, verticalSpeed == 0 { return }
 
         let step = CGFloat(dt)
         x = strip.clamp(x + holding * (isDashing ? CharacterNode.dashSpeed
@@ -590,8 +590,10 @@ extension World {
         peers.removeAll()
     }
 
-    func setPeerTarget(id: String, x: CGFloat, y: CGFloat) {
-        peers[id]?.setRemoteTarget(x: x, y: y, at: ProcessInfo.processInfo.systemUptime)
+    func setPeerTarget(id: String, x: CGFloat, y: CGFloat, bowing: Bool) {
+        guard let node = peers[id] else { return }
+        node.isBowing = bowing
+        node.setRemoteTarget(x: x, y: y, at: ProcessInfo.processInfo.systemUptime)
     }
 
     func showBubble(id: String, text: String) {
