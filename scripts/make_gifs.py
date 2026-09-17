@@ -51,54 +51,86 @@ def strip(name, animation, scale=4, pad=6):
     return out
 
 
-def scene(name, scale=3, width=264, height=186):
-    """걷고 달리고 뛰어오르고 부딪친다. 바닥이 흘러 움직임을 보여 준다.
+def scene(scale=2, width=336, height=132):
+    """둘이 마주 보고 달려와 부딪친다. 앱에서 피격이 생기는 방식 그대로다.
 
-    스프라이트 한 칸(24)이 화면에서 48pt 이므로 1pt 는 scale/2 픽셀이다.
-    정점 72pt 를 이 비율로 올리려면 도화지가 그만큼 높아야 한다."""
-    cut = frames(name)
-    ground_h = 10
+    스프라이트 한 칸(24)이 화면에서 48pt 이므로 1pt 는 scale/2 픽셀이다."""
+    left, right = frames("frog_green"), frames("pig_pink")
+    px_per_pt = scale / 2
+    ground_h = 12
     floor_y = height - ground_h
-    cx = width // 2 - 12 * scale
+    foot = floor_y - 24 * scale + 4
 
-    plan = [("idle", 0.9), ("walk", 1.8), ("charge", CHARGE_HOLD),
-            ("dash", 1.1), ("jump", 0.95), ("dash", 0.5),
-            ("hurt", 0.7), ("idle", 1.1)]
-    out, phase, scroll, t = [], 0.0, 0.0, 0.0
-    jump_t = None
+    class Body:
+        def __init__(self, cut, x, facing):
+            self.cut, self.x, self.facing = cut, x, facing
+            self.phase, self.lift, self.jump_t, self.hurt = 0.0, 0.0, None, 0.0
+            self.stopped = False
+
+        def draw(self, canvas):
+            action = ("hurt" if self.hurt > 0 else
+                      "jump" if self.lift > 0 else
+                      self.action)
+            cell = sprite(self.cut, action, self.phase)
+            if self.facing < 0:
+                cell = cell.transpose(Image.FLIP_LEFT_RIGHT)
+            cell = cell.resize((24 * scale, 24 * scale), Image.NEAREST)
+            canvas.alpha_composite(
+                cell, (round(self.x * px_per_pt) - 12 * scale,
+                       foot - round(self.lift * px_per_pt)))
+
+    a = Body(left, 20, 1)
+    b = Body(right, 316 / px_per_pt, -1)
+    plan = [("idle", 0.7), ("walk", 1.0), ("jump", 0.9), ("dash", 9.0)]
+    out, done, hurt_at = [], False, None
     for action, seconds in plan:
         for _ in range(round(seconds * STEP)):
+            if done:
+                break
             dt = 1.0 / STEP
-            phase += dt
-            # 부딪히면 그 자리에 멈춘다. 앱에서도 대시가 끊긴다
-            speed = {"walk": WALK, "charge": DASH, "dash": DASH}.get(action, 0.0)
-            scroll += speed * dt
-            lift = 0.0
-            shown = action
-            if action == "jump":
-                jump_t = 0.0 if jump_t is None else jump_t + dt
-                v0 = (2 * GRAVITY * APEX["dash"]) ** 0.5
-                lift = max(0.0, v0 * jump_t - 0.5 * GRAVITY * jump_t * jump_t)
-                scroll += DASH * dt
+            for body in (a, b):
+                body.action = "idle" if action == "jump" else action
+                body.phase += dt
+                if body.hurt > 0:
+                    body.hurt -= dt
+                    continue
+                # 부딪히고 나면 멈춰 선다. 앱에서도 대시가 끊긴다
+                if body.stopped:
+                    body.action = "idle"
+                    continue
+                speed = {"walk": WALK, "dash": DASH}.get(body.action, 0.0)
+                if action == "jump":
+                    speed = WALK
+                body.x += speed * dt * body.facing
+
+            if action == "jump":                       # 개구리만 뛴다
+                a.jump_t = 0.0 if a.jump_t is None else a.jump_t + dt
+                v0 = (2 * GRAVITY * APEX["walk"]) ** 0.5
+                a.lift = max(0.0, v0 * a.jump_t - 0.5 * GRAVITY * a.jump_t ** 2)
             else:
-                jump_t = None
+                a.lift = 0.0
+
+            # 앱과 같은 판정 — 마주 보고 달리다 22pt 안으로 들어오면 둘 다 아프다
+            if hurt_at is None and action == "dash" and abs(a.x - b.x) < 22:
+                hurt_at = len(out)
+                a.hurt = b.hurt = 0.7
+                a.stopped = b.stopped = True
+                a.phase = b.phase = 0.0
+            if hurt_at is not None and len(out) > hurt_at + round(1.6 * STEP):
+                done = True
 
             canvas = Image.new("RGBA", (width, height), SKY)
             for y in range(floor_y, height):
                 color = GROUND_TOP if y < floor_y + 2 else GROUND
                 for x in range(width):
                     canvas.putpixel((x, y), color)
-            # 바닥 눈금이 흘러 속도를 보여 준다. 흐릿하면 걷는지 서 있는지 모른다
             for x in range(width):
-                if (int(x + scroll) // 10) % 3 == 0:
+                if (x // 10) % 3 == 0:
                     for y in range(floor_y + 2, floor_y + 5):
                         canvas.putpixel((x, y), GROUND_DARK)
-            cell = sprite(cut, shown, phase).resize(
-                (24 * scale, 24 * scale), Image.NEAREST)
-            canvas.alpha_composite(
-                cell, (cx, floor_y - 24 * scale + 4 - round(lift * scale / 2)))
+            for body in (a, b):
+                body.draw(canvas)
             out.append(canvas)
-            t += dt
     return out
 
 
@@ -109,4 +141,4 @@ def save(path, images):
 
 
 OUT.mkdir(exist_ok=True)
-save(OUT / "demo.gif", scene("frog_green"))
+save(OUT / "demo.gif", scene())
