@@ -66,7 +66,7 @@ def burst(canvas, cx, cy, step):
                 canvas.putpixel((x, y), color)
 
 
-def scene(scale=3, width=252, height=186):
+def scene(scale=3, width=300, height=186):
     """걷다가 달리는데 밖에서 누가 달려와 정면으로 부딪친다.
 
     스프라이트 한 칸(24)이 화면에서 48pt 이므로 1pt 는 scale/2 픽셀이다.
@@ -78,12 +78,13 @@ def scene(scale=3, width=252, height=186):
     foot = floor_y - 24 * scale + 4
     cx = width // 2 - 12 * scale
 
-    plan = [("idle", 0.8), ("walk", 1.6), ("jump", 0.9),
+    plan = [("idle", 0.7), ("walk", 1.4), ("jump", 0.9),
             ("charge", CHARGE_HOLD), ("dash", 6.0)]
     out = []
     phase = other_phase = 0.0
     x = 0.0                      # 내 위치(pt)
-    ox = 210.0                   # 상대 위치. 처음에는 화면 밖이다
+    # 상대는 한참 멀리 있다. 가까우면 걷는 동안 붙어 버려 달리기도 전에 부딪친다
+    ox = 380.0
     jump_t = None
     hit = None                   # 부딪힌 프레임 번호
     for action, seconds in plan:
