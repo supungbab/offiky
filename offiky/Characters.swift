@@ -72,7 +72,6 @@ enum Characters {
         let design = look.sanitized.design
         if let hit = cache[design] { return hit }
         let made = build(design)
-        if cache.count > 64 { cache.removeAll() }
         cache[design] = made
         return made
     }
