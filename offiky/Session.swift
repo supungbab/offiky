@@ -8,6 +8,8 @@ final class Session {
     /// 연결 → 그 너머에 있는 사람
     private var peerByKey: [String: String] = [:]
     private var posTimer: Timer?
+    private var lastSent: PosMsg?
+    private var lastSentAt: TimeInterval = 0
 
     private init() {}
 
@@ -40,14 +42,25 @@ final class Session {
         let me = World.shared.me
         Mesh.shared.send(encode(HelloMsg(id: World.shared.myID,
                                          name: me.displayName, look: World.myLook)), to: key)
+        // 서 있으면 다음 좌표가 몇 초 뒤다. 그때까지 내가 띠 왼쪽 끝에 서 있는 것으로 보인다
+        Mesh.shared.send(encode(currentPosition()), to: key)
+    }
+
+    private func currentPosition() -> PosMsg {
+        let me = World.shared.me
+        return PosMsg(x: Double(me.x),
+                      y: me.y > 0 ? Double(me.y) : nil,
+                      b: me.isBowing ? true : nil,
+                      d: me.isDragging ? true : nil)
     }
 
     private func sendPosition() {
-        let me = World.shared.me
-        Mesh.shared.broadcast(encode(PosMsg(x: Double(me.x),
-                                            y: me.y > 0 ? Double(me.y) : nil,
-                                            b: me.isBowing ? true : nil,
-                                            d: me.isDragging ? true : nil)))
+        let msg = currentPosition()
+        let now = ProcessInfo.processInfo.systemUptime
+        guard shouldSend(msg, last: lastSent, since: now - lastSentAt) else { return }
+        lastSent = msg
+        lastSentAt = now
+        Mesh.shared.broadcast(encode(msg))
     }
 
     func sendSay(_ text: String) {
@@ -65,6 +78,7 @@ final class Session {
     /// 남겨 두면 다시 붙을 때까지 멈춘 캐릭터가 화면에 남는다.
     func reset() {
         peerByKey.removeAll()
+        lastSent = nil
         World.shared.removeAllPeers()
     }
 

@@ -92,11 +92,17 @@ struct RemoteTests {
                                main: nil)
         let node = CharacterNode(id: "p", name: "p", isLocal: false)
         var now: TimeInterval = 0
+        var walked: CGFloat = 100
         func run(seconds: TimeInterval, gap: TimeInterval) {
             let end = now + seconds
             var nextSample = now
             while now < end {
-                if now >= nextSample { node.setRemoteTarget(x: 100, y: 0, at: now); nextSample += gap }
+                if now >= nextSample {
+                    // 서 있으면 간격을 재지 않는다. 걷는 동안의 도착만 지연에 반영된다
+                    walked += 7
+                    node.setRemoteTarget(x: walked, y: 0, at: now)
+                    nextSample += gap
+                }
                 node.update(dt: 1.0 / 30, now: now, strip: strip)
                 now += 1.0 / 30
             }
@@ -447,5 +453,77 @@ struct RemoteDragTests {
         for y in stride(from: CGFloat(300), through: 0, by: -100) { feed(y) }
         for _ in 0..<10 { feed(0) }
         #expect(node.hurtUntil > 0)
+    }
+}
+
+@Suite("서 있을 때")
+struct StillTests {
+    private let strip = FloorStrip(visibleFrames: [CGRect(x: 0, y: 0, width: 1800, height: 1000)],
+                                   main: nil)
+
+    private func pos(_ x: Double, b: Bool? = nil) -> PosMsg {
+        PosMsg(x: x, y: nil, b: b)
+    }
+
+    @Test func 바뀐_것이_없으면_보내지_않는다() {
+        #expect(!shouldSend(pos(100), last: pos(100), since: 0.1))
+    }
+
+    @Test func 처음에는_보낸다() {
+        #expect(shouldSend(pos(100), last: nil, since: 0))
+    }
+
+    @Test func 한_칸이라도_움직이면_보낸다() {
+        #expect(shouldSend(pos(100.5), last: pos(100), since: 0.1))
+    }
+
+    /// 자세만 바뀌어도 알려야 상대 화면에서 같이 웅크린다
+    @Test func 자리가_같아도_자세가_바뀌면_보낸다() {
+        #expect(shouldSend(pos(100, b: true), last: pos(100), since: 0.1))
+    }
+
+    @Test func 가만히_있어도_생존_주기마다_보낸다() {
+        #expect(!shouldSend(pos(100), last: pos(100), since: keepaliveInterval - 0.01))
+        #expect(shouldSend(pos(100), last: pos(100), since: keepaliveInterval))
+    }
+
+    @Test func 생존_주기가_제한시간보다_넉넉하다() {
+        #expect(keepaliveInterval * 3 < World.peerTimeout)
+    }
+
+    /// 서 있던 몇 초가 도착 간격으로 들어가면 움직이기 시작할 때 반 초 늦게 보인다
+    @MainActor @Test func 서_있던_구간은_보간_지연을_늘리지_않는다() {
+        let node = CharacterNode(id: "p", name: "p", isLocal: false)
+        var now: TimeInterval = 0
+        var walked: CGFloat = 100
+
+        func step(moving: Bool, gap: TimeInterval, seconds: TimeInterval) {
+            let end = now + seconds
+            var next = now
+            while now < end {
+                if now >= next {
+                    if moving { walked += 7 }
+                    node.setRemoteTarget(x: walked, y: 0, at: now)
+                    next += gap
+                }
+                node.update(dt: 1.0 / 30, now: now, strip: strip)
+                now += 1.0 / 30
+            }
+        }
+
+        step(moving: true, gap: 0.1, seconds: 6)          // 걸어온다
+        let walking = node.renderDelay
+        #expect(abs(walking - CharacterNode.delayRange.lowerBound) < 0.01)
+
+        step(moving: false, gap: keepaliveInterval, seconds: 12)   // 서 있는다
+        step(moving: true, gap: 0.1, seconds: 3)          // 다시 걷는다
+        #expect(abs(node.renderDelay - CharacterNode.delayRange.lowerBound) < 0.01)
+    }
+
+    @MainActor @Test func 같은_자리를_받아도_살아_있는_것으로_센다() {
+        let node = CharacterNode(id: "p", name: "p", isLocal: false)
+        node.setRemoteTarget(x: 100, y: 0, at: 0)
+        node.setRemoteTarget(x: 100, y: 0, at: 5)
+        #expect(node.lastSeen == 5)
     }
 }

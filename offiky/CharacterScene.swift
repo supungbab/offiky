@@ -60,6 +60,8 @@ final class CharacterNode: SKNode {
     /// 최근 도착 간격의 최대치를 따라간다 — 망이 좋으면 빠르게, 흔들리면 안정되게
     private(set) var renderDelay: TimeInterval = 0.2
     private var gaps: [TimeInterval] = []
+    /// 직전에 같은 자리를 다시 받았다. 그 간격은 망이 느린 것이 아니다
+    private var wasStill = false
     static let delayRange: ClosedRange<TimeInterval> = 0.15...0.5
     /// 지연을 갑자기 바꾸면 위치가 튄다. 초당 이만큼만 옮긴다
     static let delaySlew: TimeInterval = 0.1
@@ -178,10 +180,17 @@ final class CharacterNode: SKNode {
 
     func setRemoteTarget(x newX: CGFloat, y newY: CGFloat, at now: TimeInterval) {
         lastSeen = now
-        if let last = samples.last {
+        // 같은 자리를 다시 알려 온 것은 살아 있다는 뜻뿐이다
+        if let last = samples.last, last.x == newX, last.y == newY {
+            wasStill = true
+            return
+        }
+        // 서 있던 구간의 간격을 지연에 반영하면 움직이기 시작할 때 반 초 늦게 보인다
+        if let last = samples.last, !wasStill {
             gaps.append(now - last.t)
             if gaps.count > 30 { gaps.removeFirst() }
         }
+        wasStill = false
         // 걷거나 뛰어서는 한 주기에 나올 수 없는 간격이면 순간이동이다.
         // 이어 붙이면 보간이 초고속 이동으로 해석해 대시 판정과 피격이 난다.
         if let last = samples.last, abs(newX - last.x) > 400 {

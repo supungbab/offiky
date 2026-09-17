@@ -8,6 +8,16 @@ let floorOffset: CGFloat = 8
 /// 좌표 전송·중계 주기. 점프가 0.6초라 0.5초로는 표본이 한두 개뿐이다
 let snapshotInterval: TimeInterval = 0.1
 
+/// 서 있으면 좌표가 그대로라 보내지 않는다. 그래도 이만큼마다 한 번은 보내야
+/// 받는 쪽 15초 판정에서 없는 사람이 되지 않는다
+let keepaliveInterval: TimeInterval = 3
+
+/// 바뀐 것이 없으면 생존 신호 주기마다 한 번만 보낸다
+func shouldSend(_ msg: PosMsg, last: PosMsg?, since: TimeInterval) -> Bool {
+    guard let last else { return true }
+    return msg != last || since >= keepaliveInterval
+}
+
 enum Limits {
     static let maxMessageBytes = 16 * 1024
     /// 받을 수 있는 연결 수. 실제 인원의 몇 배다
@@ -168,7 +178,7 @@ struct HelloMsg: Codable {
     let look: Look
 }
 
-struct PosMsg: Codable {
+struct PosMsg: Codable, Equatable {
     var t = "pos"
     let x: Double
     let y: Double?
