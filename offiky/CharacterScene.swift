@@ -137,6 +137,12 @@ final class CharacterNode: SKNode {
     /// 집어 드는 순간 진행 중이던 운동을 지운다. 방향키는 지우지 않는다 —
     /// 누르고 있으면 놓는 순간부터 그쪽으로 가는 것이 맞다.
     /// 조종을 끝내면 Control 이 직접 지운다
+    /// 놓는 순간의 높이부터 낙하로 센다. 들고 다니며 지나간 최고점은 떨어진 것이 아니다
+    func endDrag() {
+        isDragging = false
+        peakY = y
+    }
+
     func beginDrag() {
         isDragging = true
         verticalSpeed = 0
@@ -488,7 +494,7 @@ final class World {
 
     func beginDrag() { me.beginDrag() }
 
-    func endDrag() { me.isDragging = false }
+    func endDrag() { me.endDrag() }
 
     /// 전역 커서 좌표를 띠 좌표로 바꾼다. 세로는 커서가 있는 화면의
     /// 바닥을 기준으로 잡는다.

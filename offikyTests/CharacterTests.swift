@@ -176,6 +176,33 @@ struct ControlTests {
         #expect(node.x > 500)
     }
 
+    /// 들고 다니는 동안 지나간 높이로 충격을 계산하면, 바닥에 놓아도 아파한다
+    @MainActor @Test func 높이_들었다_바닥에_놓으면_아프지_않다() {
+        let node = node()
+        node.beginDrag()
+        node.y = 400                                  // 마우스로 높이 들어 올린다
+        node.update(dt: 1.0 / 60, now: 0, strip: strip)
+        node.y = 4                                    // 바닥 가까이 내린다
+        node.update(dt: 1.0 / 60, now: 1.0 / 60, strip: strip)
+        node.endDrag()
+
+        var now = 2.0 / 60
+        while node.y > 0, now < 2 { node.update(dt: 1.0 / 60, now: now, strip: strip); now += 1.0 / 60 }
+        #expect(node.hurtUntil == 0)
+    }
+
+    @MainActor @Test func 높은_곳에서_놓으면_아파한다() {
+        let node = node()
+        node.beginDrag()
+        node.y = 400
+        node.update(dt: 1.0 / 60, now: 0, strip: strip)
+        node.endDrag()
+
+        var now = 1.0 / 60
+        while node.y > 0, now < 2 { node.update(dt: 1.0 / 60, now: now, strip: strip); now += 1.0 / 60 }
+        #expect(node.hurtUntil > 0)
+    }
+
     @MainActor @Test func 집었다_놓아도_누르던_방향을_지킨다() {
         let node = node()
         node.hold(1, dash: false)
