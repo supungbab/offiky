@@ -102,6 +102,7 @@ final class CharacterNode: SKNode {
     func apply(_ look: Look) {
         self.look = look
         sheet = Characters.sheet(look)
+        shadowStep = -1   // 몸 너비가 달라졌다. 높이 단계가 그대로여도 다시 만들어야 한다
         image.size = CGSize(width: sheet.size.width * 2, height: sheet.size.height * 2)
         // 칸 아래 빈 줄만큼 내려야 발이 바닥선에 닿는다
         image.position = CGPoint(x: 0, y: -spriteDisplaySize / 2 - sheet.footPadding * 2)
@@ -126,21 +127,15 @@ final class CharacterNode: SKNode {
         face(direction)
     }
 
-    /// 집어 드는 순간 진행 중이던 모든 운동을 지운다.
-    /// 남겨두면 놓는 순간 이전 속도로 튀어 나가거나 하던 대시를 이어서 한다.
-    /// 이동한 것으로 세지 않는다. 그러면 대시 동작이 나오고 피격 판정까지 걸린다.
+    /// 화면 구성이 바뀌어 자리를 옮긴다. 이동한 것으로 세지 않는다.
+    /// 그러면 대시 동작이 나오고 피격 판정까지 성립한다
     func teleport(to newX: CGFloat) {
         x = newX
         previousX = newX
-        y = 0
-        verticalSpeed = 0
-        peakY = 0
-        wasAirborne = false
-        jumpsUsed = 0
-        hold(0, dash: false)
-        isWalking = false
     }
 
+    /// 집어 드는 순간 진행 중이던 모든 운동을 지운다.
+    /// 남겨두면 놓는 순간 이전 속도로 튀어 나가거나 하던 대시를 이어서 한다.
     func beginDrag() {
         isDragging = true
         verticalSpeed = 0
@@ -171,6 +166,8 @@ final class CharacterNode: SKNode {
         hurtUntil = now + 0.6
         walkPhase = 0
         isDashing = false
+        // 맞으면 올라가던 힘이 사라진다. 떨어지던 중이면 그대로 둔다
+        verticalSpeed = min(verticalSpeed, 0)
     }
 
     func setRemoteTarget(x newX: CGFloat, y newY: CGFloat, at now: TimeInterval) {
@@ -235,13 +232,17 @@ final class CharacterNode: SKNode {
 
     private func simulate(dt: TimeInterval, now: TimeInterval, strip: FloorStrip) {
         isWalking = false
-        guard !isDragging, now >= hurtUntil else { return }
+        guard !isDragging else { return }
         let step = CGFloat(dt)
-        // 웅크린 채로는 천천히 기어간다
-        let crouching = isBowing && y <= 0 && verticalSpeed == 0
-        let speed = crouching ? CharacterNode.crawlSpeed
-            : (isDashing ? CharacterNode.dashSpeed : CharacterNode.walkSpeed)
-        x = strip.clamp(x + holding * speed * step)
+        // 맞은 동안에는 조종만 막는다. 중력까지 멈추면 공중에 떠 있는다
+        let hurt = now < hurtUntil
+        if !hurt {
+            // 웅크린 채로는 천천히 기어간다
+            let crouching = isBowing && y <= 0 && verticalSpeed == 0
+            let speed = crouching ? CharacterNode.crawlSpeed
+                : (isDashing ? CharacterNode.dashSpeed : CharacterNode.walkSpeed)
+            x = strip.clamp(x + holding * speed * step)
+        }
 
         if y > 0 || verticalSpeed != 0 {
             y += verticalSpeed * step - 0.5 * CharacterNode.gravity * step * step
@@ -249,7 +250,7 @@ final class CharacterNode: SKNode {
             if y <= 0 { y = 0; verticalSpeed = 0; jumpsUsed = 0 }
             return
         }
-        isWalking = holding != 0
+        isWalking = !hurt && holding != 0
     }
 
     /// 렌더 시각을 감싸는 두 표본 사이를 재생한다. 앞뒤를 다 쥐고 있으므로 추정하지 않는다.

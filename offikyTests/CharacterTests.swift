@@ -163,17 +163,47 @@ struct ControlTests {
         #expect(CharacterNode.chargeSpeed > CharacterNode.walkSpeed)
     }
 
-    @MainActor @Test func 점프는_바닥에서만_시작한다() {
+    /// 화면을 꽂았다 빼면 자리를 다시 잡는데, 그때 누르고 있던 방향이 사라지면
+    /// 키를 뗐다 다시 누르기 전까지 서 있는다
+    @MainActor @Test func 자리를_옮겨도_누르던_방향을_지킨다() {
+        let node = node()
+        node.hold(1, dash: false)
+        node.update(dt: 1.0 / 60, now: 0, strip: strip)
+        #expect(node.x > 900)
+
+        node.teleport(to: 500)
+        node.update(dt: 1.0 / 60, now: 1.0 / 60, strip: strip)
+        #expect(node.x > 500)
+    }
+
+    /// 맞은 동안 중력까지 멈추면 공중에 뜬 채로 0.6초를 보내고 원래 궤적을 이어간다
+    @MainActor @Test func 공중에서_맞으면_떨어진다() {
+        let node = node()
+        node.jump()
+        for i in 0..<6 { node.update(dt: 1.0 / 60, now: Double(i) / 60, strip: strip) }
+        #expect(node.y > 0)
+
+        let hitAt = 6.0 / 60
+        node.takeHit(now: hitAt)
+        var highest = node.y
+        var now = hitAt
+        while node.y > 0, now < hitAt + 2 {
+            now += 1.0 / 60
+            node.update(dt: 1.0 / 60, now: now, strip: strip)
+            #expect(node.y <= highest)          // 맞은 뒤에 다시 올라가지 않는다
+            highest = node.y
+        }
+        #expect(node.y == 0)
+        #expect(now < hitAt + 0.6)              // 피격이 끝나기 전에 바닥에 닿는다
+    }
+
+    @MainActor @Test func 뛰면_올라갔다_바닥으로_돌아온다() {
         let node = node()
         node.jump()
         node.update(dt: 1.0 / 60, now: 0, strip: strip)
         #expect(node.y > 0)
-        let rising = node.y
-        node.jump()                                   // 공중에서는 다시 뛰지 않는다
-        node.update(dt: 1.0 / 60, now: 1.0 / 60, strip: strip)
-        #expect(node.y > rising)
 
-        var now = 2.0 / 60
+        var now = 1.0 / 60
         while node.y > 0, now < 3 { node.update(dt: 1.0 / 60, now: now, strip: strip); now += 1.0 / 60 }
         #expect(node.y == 0)
     }
