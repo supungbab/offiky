@@ -146,7 +146,11 @@ private struct ChatInputView: View {
         panel.setFrame(CGRect(origin: origin, size: size), display: true)
         NSApp.activate(ignoringOtherApps: true)
         panel.makeKeyAndOrderFront(nil)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { self.presenting = false }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            self.presenting = false
+            // 그 사이에 다른 곳을 클릭했으면 알림이 무시됐다. 여기서 확인한다
+            if self.panel?.isKeyWindow == false { self.hide(restoringFocus: false) }
+        }
     }
 
     /// Esc·전송으로 닫을 때는 띄우기 직전의 앱으로 포커스를 되돌린다.
