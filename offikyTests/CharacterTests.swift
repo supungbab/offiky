@@ -176,6 +176,18 @@ struct ControlTests {
         #expect(node.x > 500)
     }
 
+    @MainActor @Test func 집었다_놓아도_누르던_방향을_지킨다() {
+        let node = node()
+        node.hold(1, dash: false)
+        node.beginDrag()
+        node.update(dt: 1.0 / 60, now: 0, strip: strip)
+        #expect(node.x == 900)              // 들려 있는 동안은 움직이지 않는다
+
+        node.isDragging = false
+        node.update(dt: 1.0 / 60, now: 1.0 / 60, strip: strip)
+        #expect(node.x > 900)
+    }
+
     /// 맞은 동안 중력까지 멈추면 공중에 뜬 채로 0.6초를 보내고 원래 궤적을 이어간다
     @MainActor @Test func 공중에서_맞으면_떨어진다() {
         let node = node()

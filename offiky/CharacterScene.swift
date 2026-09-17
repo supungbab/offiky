@@ -134,15 +134,15 @@ final class CharacterNode: SKNode {
         previousX = newX
     }
 
-    /// 집어 드는 순간 진행 중이던 모든 운동을 지운다.
-    /// 남겨두면 놓는 순간 이전 속도로 튀어 나가거나 하던 대시를 이어서 한다.
+    /// 집어 드는 순간 진행 중이던 운동을 지운다. 방향키는 지우지 않는다 —
+    /// 누르고 있으면 놓는 순간부터 그쪽으로 가는 것이 맞다.
+    /// 조종을 끝내면 Control 이 직접 지운다
     func beginDrag() {
         isDragging = true
         verticalSpeed = 0
         jumpsUsed = 0
         hurtUntil = 0
         walkPhase = 0
-        hold(0, dash: false)
         isWalking = false
     }
 
