@@ -65,85 +65,114 @@ def burst(canvas, cx, cy, step):
                 canvas.putpixel((x, y), color)
 
 
+class Actor:
+    def __init__(self, cut, x, facing):
+        self.cut, self.x, self.facing = cut, x, facing
+        self.action, self.move, self.phase, self.lift = "idle", 0.0, 0.0, 0.0
+
+    def step(self, dt):
+        self.phase += dt
+        speed = {"walk": WALK, "dash": DASH, "jump": DASH}.get(self.action, 0.0)
+        self.x += speed * dt * self.move
+
+    def draw(self, canvas, camera, cx, foot, scale, ppt):
+        cell = sprite(self.cut, self.action, self.phase)
+        if self.facing < 0:
+            cell = cell.transpose(Image.FLIP_LEFT_RIGHT)
+        cell = cell.resize((24 * scale, 24 * scale), Image.NEAREST)
+        canvas.alpha_composite(
+            cell, (cx + round((self.x - camera) * ppt), foot - round(self.lift * ppt)))
+
+
+# 부딪힌 뒤. 동시에 꾸벅하면 로봇 같다 — 하나가 먼저 숙이고 상대가 답하고 짧게 한 번 더
+# (초, 내 동작, 내 이동, 내 방향, 상대 동작, 상대 이동, 상대 방향)
+AFTER = [
+    (0.7, "hurt", 0, +1, "hurt", 0, -1),      # 아프다
+    (0.7, "walk", +1, +1, "walk", -1, -1),    # 서로 지나쳐 몇 걸음
+    (0.5, "idle", 0, -1, "idle", 0, +1),      # 멈춰 돌아본다
+    (0.8, "bow", 0, -1, "idle", 0, +1),       # 내가 먼저 숙인다
+    (0.4, "idle", 0, -1, "idle", 0, +1),
+    (0.9, "idle", 0, -1, "bow", 0, +1),       # 상대가 답한다
+    (0.3, "idle", 0, -1, "idle", 0, +1),
+    (0.5, "bow", 0, -1, "bow", 0, +1),        # 아이고 아니에요, 둘이 한 번 더
+    (0.6, "idle", 0, -1, "idle", 0, +1),
+    (0.4, "idle", 0, +1, "idle", 0, -1),      # 다시 갈 길을 본다
+    (1.3, "walk", +1, +1, "walk", -1, -1),    # 각자 간다
+]
+
+
 def scene(scale=3, width=342, height=186):
-    """걷다가 달리는데 밖에서 누가 달려와 정면으로 부딪친다.
+    """걷다 달리다 뛰고, 달려온 동료와 부딪쳐 인사하고 각자 간다.
 
     스프라이트 한 칸(24)이 화면에서 48pt 이므로 1pt 는 scale/2 픽셀이다.
     점프 정점 72pt 가 키의 1.5배라 도화지가 그만큼 높다."""
-    mine, other = frames("frog_green"), frames("pig_pink")
     ppt = scale / 2
     ground_h = 12
     floor_y = height - ground_h
     foot = floor_y - 24 * scale + 4
     cx = width // 2 - 12 * scale
 
-    plan = [("idle", 0.8), ("walk", 2.0),
-            ("dash", 1.3), ("jump", 0.9), ("dash", 4.0)]
-    out = []
-    phase = other_phase = 0.0
-    running = False
-    x = 0.0                      # 내 위치(pt)
-    # 상대는 한참 멀리 있다가 이만큼 가까워지면 달려 나온다. 처음부터 보이면
-    # 부딪칠 것이 뻔해지고, 너무 늦게 나오면 나타나자마자 부딪친다
-    ox = 830.0
+    me = Actor(frames("frog_green"), 0.0, +1)
+    you = Actor(frames("pig_pink"), 830.0, -1)
     OTHER_START = 190.0
+    out, camera, hit = [], 0.0, None
+
+    def render(step_from_hit=None):
+        canvas = Image.new("RGBA", (width, height), SKY)
+        for y in range(floor_y, height):
+            color = GROUND_TOP if y < floor_y + 2 else GROUND
+            for px in range(width):
+                canvas.putpixel((px, y), color)
+        for px in range(width):
+            if (int(px + camera * ppt) // 10) % 3 == 0:
+                for y in range(floor_y + 2, floor_y + 5):
+                    canvas.putpixel((px, y), GROUND_DARK)
+        for body in (me, you):
+            body.draw(canvas, camera, cx, foot, scale, ppt)
+        if step_from_hit is not None and step_from_hit < 3:
+            burst(canvas, cx + 12 * scale + round((you.x - camera) * ppt / 2),
+                  foot + 10 * scale, step_from_hit)
+        out.append(canvas)
+
+    # 부딪히기 전. 상대가 가까워지면 달려 나온다
+    plan = [("idle", 0.8), ("walk", 2.0), ("dash", 1.3), ("jump", 0.9), ("dash", 4.0)]
     jump_t = None
-    hit = None                   # 부딪힌 프레임 번호
     for action, seconds in plan:
         for _ in range(round(seconds * STEP)):
-            if hit is not None and len(out) > hit + round(1.7 * STEP):
+            if hit is not None:
                 break
             dt = 1.0 / STEP
-            phase += dt
-            other_phase += dt
-            lift = 0.0
-            speed = {"walk": WALK, "dash": DASH, "jump": DASH}.get(action, 0.0)
-            if hit is None:
-                x += speed * dt
-                if ox - x < OTHER_START:
-                    ox -= DASH * dt
-                    running = True
+            me.action, me.move = ("jump" if action == "jump" else action), 1
+            you.action = "dash" if you.x - me.x < OTHER_START else "idle"
+            you.move = -1 if you.action == "dash" else 0
+            me.step(dt)
+            you.step(dt)
+            camera = me.x
             if action == "jump":
                 jump_t = 0.0 if jump_t is None else jump_t + dt
                 v0 = (2 * GRAVITY * APEX["dash"]) ** 0.5
-                lift = max(0.0, v0 * jump_t - 0.5 * GRAVITY * jump_t ** 2)
+                me.lift = max(0.0, v0 * jump_t - 0.5 * GRAVITY * jump_t ** 2)
             else:
-                jump_t = None
-
+                me.lift = 0.0
             # 앱과 같은 판정 — 마주 보고 달리다 22pt 안으로 들어오면 둘 다 아프다
-            if hit is None and action == "dash" and ox - x < 22:
+            if action == "dash" and you.x - me.x < 22:
                 hit = len(out)
-                phase = other_phase = 0.0
+                me.phase = you.phase = 0.0
+            render(0 if hit is not None else None)
 
-            since = None if hit is None else len(out) - hit
-            mine_act = ("hurt" if since is not None and since < 0.7 * STEP else
-                        "idle" if since is not None else
-                        "jump" if lift > 0 else action)
-            # 달려오기 전에는 서 있다. 계속 달리는 자세면 제자리 뜀박질로 보인다
-            other_act = (mine_act if since is not None else
-                         "dash" if running else "idle")
-
-            canvas = Image.new("RGBA", (width, height), SKY)
-            for y in range(floor_y, height):
-                color = GROUND_TOP if y < floor_y + 2 else GROUND
-                for px in range(width):
-                    canvas.putpixel((px, y), color)
-            for px in range(width):
-                if (int(px + x * ppt) // 10) % 3 == 0:
-                    for y in range(floor_y + 2, floor_y + 5):
-                        canvas.putpixel((px, y), GROUND_DARK)
-
-            cell = sprite(mine, mine_act, phase).resize(
-                (24 * scale, 24 * scale), Image.NEAREST)
-            canvas.alpha_composite(cell, (cx, foot - round(lift * ppt)))
-            ocell = sprite(other, other_act, other_phase).transpose(
-                Image.FLIP_LEFT_RIGHT).resize((24 * scale, 24 * scale), Image.NEAREST)
-            canvas.alpha_composite(ocell, (cx + round((ox - x) * ppt), foot))
-
-            if since is not None and since < 3:
-                burst(canvas, cx + 12 * scale + round((ox - x) * ppt / 2),
-                      foot + 10 * scale, since)
-            out.append(canvas)
+    # 부딪힌 뒤. 화면을 고정해 둘이 같이 보이게 한다
+    frame = 1
+    for seconds, act, mv, face, oact, omv, oface in AFTER:
+        for i in range(round(seconds * STEP)):
+            dt = 1.0 / STEP
+            if i == 0:
+                me.phase = you.phase = 0.0
+            me.action, me.move, me.facing = act, mv, face
+            you.action, you.move, you.facing = oact, omv, oface
+            me.step(dt)
+            you.step(dt)
+            render(frame if frame < 3 else None)
+            frame += 1
     return out
 
 
