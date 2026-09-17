@@ -97,8 +97,13 @@ AFTER = [
     (0.5, "bow", 0, -1, "bow", 0, +1),        # 아이고 아니에요, 둘이 한 번 더
     (0.6, "idle", 0, -1, "idle", 0, +1),
     (0.4, "idle", 0, +1, "idle", 0, -1),      # 다시 갈 길을 본다
-    (1.3, "walk", +1, +1, "walk", -1, -1),    # 각자 간다
 ]
+# 무한으로 도니 끝이 처음과 이어져야 한다. 카메라가 개구리를 다시 잡고,
+# 개구리가 가운데에 서 있는 채로 끝나야 첫 장면과 맞물린다
+CATCHUP = 0.8                  # 멈춰 있던 화면이 개구리를 따라잡는 시간
+TAIL_WALK = 0.6                # 따라잡은 뒤 더 걷는 최소 시간
+TAIL_IDLE = 0.8                # 끝에 서 있는 시간. 첫 장면의 대기와 이어진다
+TICK = 20.0                    # 바닥 눈금 한 주기(pt). 위상이 같아야 이음매가 없다
 
 
 def scene(scale=3, width=342, height=186):
@@ -173,7 +178,40 @@ def scene(scale=3, width=342, height=186):
             you.step(dt)
             render(frame if frame < 3 else None)
             frame += 1
-    return out
+
+    # 각자 간다. 멈춰 있던 화면이 개구리를 따라잡는다
+    me.action, me.move, me.facing = "walk", 1, +1
+    you.action, you.move, you.facing = "walk", -1, -1
+    me.phase = you.phase = 0.0
+    dt = 1.0 / STEP
+    behind = me.x - camera
+    for i in range(round(CATCHUP * STEP)):
+        me.step(dt)
+        you.step(dt)
+        camera += WALK * dt + behind / (CATCHUP * STEP)
+        render()
+
+    # 눈금 위상이 처음과 같아질 때까지 더 걷는다. 안 맞으면 되감길 때 바닥이 튄다
+    camera = me.x
+    steps = 0
+    while steps < round(TAIL_WALK * STEP) or abs(camera % TICK) > 0.01:
+        me.step(dt)
+        you.step(dt)
+        camera = me.x
+        render()
+        steps += 1
+        if steps > round((TAIL_WALK + 2.5) * STEP):
+            break
+
+    # 가운데에 서서 끝난다. 다음 바퀴의 첫 장면으로 그대로 이어진다
+    me.action, me.move = "idle", 0
+    you.action, you.move = "idle", 0
+    me.phase = 0.0
+    for _ in range(round(TAIL_IDLE * STEP)):
+        me.step(dt)
+        render()
+    # 마지막 장은 첫 장과 똑같다. 그대로 두면 되감기는 자리에서 한 박자 멈춘다
+    return out[:-1]
 
 
 def save(path, images):
