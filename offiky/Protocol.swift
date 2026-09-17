@@ -186,6 +186,8 @@ struct PosMsg: Codable, Equatable {
     var b: Bool?
     /// 들려 있을 때만 싣는다. 받는 쪽은 좌표만으로 이걸 알 수 없다
     var d: Bool?
+    /// 보고 있는 쪽. +1 오른쪽, -1 왼쪽. 옛 버전은 싣지 않는다
+    var f: Int?
 }
 
 struct SayMsg: Codable {

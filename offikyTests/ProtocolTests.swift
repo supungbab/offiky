@@ -274,9 +274,12 @@ struct MessageTests {
         #expect(!say.contains("id"))
     }
 
+    /// 걷는 동안 초당 열 번, 전원에게 나간다. 붙는 값마다 그만큼 곱해진다
     @Test func 좌표_한_건이_작다() throws {
-        let data = try JSONEncoder().encode(PosMsg(x: 1234.5, y: 48))
-        #expect(data.count < 40)
+        let walking = try JSONEncoder().encode(PosMsg(x: 1234.5, y: nil, f: 1))
+        #expect(walking.count < 32)
+        let everything = try JSONEncoder().encode(PosMsg(x: 1234.5, y: 48, b: true, d: true, f: 1))
+        #expect(everything.count < 60)
     }
 
     @Test func hello_는_프로토콜_번호를_싣는다() throws {

@@ -43,6 +43,15 @@ final class CharacterNode: SKNode {
         facing = direction > 0 ? 1 : -1
     }
 
+    /// 주인이 알려 준 방향. 이걸 받기 시작하면 움직임으로 읽지 않는다 —
+    /// 보간이 늦게 재생하는 탓에 들고 놓은 뒤 혼자 돌아서는 일이 있다
+    private(set) var facingTold = false
+
+    func faceAsTold(_ direction: CGFloat) {
+        facingTold = true
+        face(direction)
+    }
+
     private var walkPhase: TimeInterval = 0
     private var previousX: CGFloat = 0
     /// 부딪히면 다칠 만큼 앞으로 나아가는 중인지. 표시용 동작이 아니라 실제 속도로 판정한다.
@@ -218,7 +227,7 @@ final class CharacterNode: SKNode {
         let moved = x - previousX
         previousX = x
         // 내 캐릭터는 입력이 방향을 정한다. 원격은 움직임으로 읽는다
-        if !isLocal, !isDragging, abs(moved) > 0.1 { face(moved) }
+        if !isLocal, !facingTold, !isDragging, abs(moved) > 0.1 { face(moved) }
         let speed = abs(moved) / CGFloat(max(dt, 0.001))
 
         let running = !isDragging && now >= hurtUntil && y <= 0
@@ -613,9 +622,11 @@ extension World {
         peers.removeAll()
     }
 
-    func setPeerTarget(id: String, x: CGFloat, y: CGFloat, bowing: Bool, dragging: Bool) {
+    func setPeerTarget(id: String, x: CGFloat, y: CGFloat,
+                       bowing: Bool, dragging: Bool, facing: Int?) {
         guard let node = peers[id] else { return }
         node.isBowing = bowing
+        if let facing { node.faceAsTold(CGFloat(facing)) }
         // 들고 다닌 높이는 낙하가 아니다. 내 캐릭터와 같은 판정이 나오게 맞춘다
         if dragging { node.isDragging = true }
         else if node.isDragging { node.endDrag() }

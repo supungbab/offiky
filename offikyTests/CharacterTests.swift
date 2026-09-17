@@ -527,3 +527,72 @@ struct StillTests {
         #expect(node.lastSeen == 5)
     }
 }
+
+@Suite("얼굴 방향")
+struct FacingTests {
+    private let strip = FloorStrip(visibleFrames: [CGRect(x: 0, y: 0, width: 1800, height: 1000)],
+                                   main: CGRect(x: 0, y: 0, width: 1800, height: 1000))
+
+    /// 내 캐릭터를 오른쪽으로 끌었다 놓는 동안, 상대가 받는 것을 그대로 재생한다.
+    /// 방향을 같이 보내지 않으면 상대 쪽만 놓은 뒤에 혼자 돌아선다
+    @MainActor @Test func 끌었다_놓아도_양쪽_방향이_같다() {
+        let mine = CharacterNode(id: "me", name: "me", isLocal: true)
+        let theirs = CharacterNode(id: "me", name: "me", isLocal: false)
+        var now: TimeInterval = 0
+        var sent: TimeInterval = -1
+
+        func relay() {
+            guard now - sent >= snapshotInterval else { return }
+            sent = now
+            if mine.isDragging { theirs.isDragging = true }
+            else if theirs.isDragging { theirs.endDrag() }
+            theirs.faceAsTold(mine.facingSign)
+            theirs.setRemoteTarget(x: mine.x, y: mine.y, at: now)
+        }
+
+        mine.teleport(to: 100)
+        mine.beginDrag()
+        for step in 0...40 {
+            mine.x = 100 + CGFloat(step) * 10        // 오른쪽으로 400pt 끈다
+            mine.update(dt: 1.0 / 60, now: now, strip: strip)
+            relay()
+            theirs.update(dt: 1.0 / 60, now: now, strip: strip)
+            now += 1.0 / 60
+        }
+        #expect(mine.facingSign == theirs.facingSign)
+
+        mine.endDrag()
+        var everMatched = true
+        for _ in 0..<120 {                           // 놓은 뒤 2초
+            mine.update(dt: 1.0 / 60, now: now, strip: strip)
+            relay()
+            theirs.update(dt: 1.0 / 60, now: now, strip: strip)
+            // 한 프레임이라도 갈리면 깜박인다. 0.1초 뒤 바로잡혀도 보인다
+            if mine.facingSign != theirs.facingSign { everMatched = false }
+            now += 1.0 / 60
+        }
+        #expect(everMatched)
+    }
+
+    /// 띠 끝에서는 눌러도 움직이지 않는다. 움직임으로 읽으면 상대는 돌아선 것을 모른다
+    @MainActor @Test func 벽에_붙어_돌아서도_상대가_안다() {
+        let node = CharacterNode(id: "p", name: "p", isLocal: false)
+        node.faceAsTold(1)
+        for i in 0..<30 { node.setRemoteTarget(x: 100, y: 0, at: Double(i) / 10) }
+        #expect(node.facingSign == 1)
+    }
+
+    /// 옛 버전은 방향을 싣지 않는다. 그때는 예전처럼 움직임으로 읽는다
+    @MainActor @Test func 방향을_안_보내는_상대는_움직임으로_읽는다() {
+        let node = CharacterNode(id: "p", name: "p", isLocal: false)
+        #expect(node.facingSign == -1)
+        var now: TimeInterval = 0
+        var walked: CGFloat = 100
+        for _ in 0..<40 {
+            walked += 7
+            node.setRemoteTarget(x: walked, y: 0, at: now)
+            for _ in 0..<6 { node.update(dt: 1.0 / 60, now: now, strip: strip); now += 1.0 / 60 }
+        }
+        #expect(node.facingSign == 1)
+    }
+}
