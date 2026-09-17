@@ -3,7 +3,6 @@ import SwiftUI
 @main
 struct offikyApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
-    @State private var hidden = false
 
     var body: some Scene {
         MenuBarExtra {
@@ -27,9 +26,6 @@ struct offikyApp: App {
             Button("참가자 \(Presence.shared.count)명…") { openRoster() }
             Button("내 캐릭터…") { openCharacterPicker() }
             Button("내 이름 변경…") { changeName() }
-            Toggle("캐릭터 숨기기", isOn: binding($hidden) {
-                OverlayController.shared.setHidden($0)
-            })
             if Presence.shared.otherVersions > 0 {
                 Divider()
                 Text("버전이 다른 동료 \(Presence.shared.otherVersions)명은 보이지 않습니다")
@@ -45,14 +41,6 @@ struct offikyApp: App {
             Image("MenuBarIcon")
             #endif
         }
-    }
-
-    /// 메뉴가 닫혀 있으면 뷰가 갱신되지 않아 onChange 가 다음 열 때까지 미뤄진다.
-    /// setter 에서 바로 실행한다.
-    private func binding(_ source: Binding<Bool>,
-                         perform: @escaping (Bool) -> Void) -> Binding<Bool> {
-        Binding(get: { source.wrappedValue },
-                set: { source.wrappedValue = $0; perform($0) })
     }
 
     private func changeName() {

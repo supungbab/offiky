@@ -19,11 +19,6 @@ final class OverlayController {
             name: NSApplication.didChangeScreenParametersNotification, object: nil)
     }
 
-    func setHidden(_ hidden: Bool) {
-        windows.forEach { $0.setIsVisible(!hidden) }
-        handle?.setIsVisible(!hidden)
-    }
-
     /// 오버레이가 표시 전용이라 내 캐릭터 위에 겹쳐 두고 드래그를 받는다.
     /// 클릭만 받으면 되므로 캐릭터를 매 프레임 따라갈 이유가 없다. 창을 옮길 때마다
     /// 윈도우 서버와 왕복이 생겨서, 60fps 로 부르면 그것만으로 CPU 의 3할을 쓴다.
