@@ -28,6 +28,10 @@ enum Limits {
     /// 한 연결에서 초당 받을 수 있는 줄 수. 좌표가 10줄이라 스무 배다
     static let maxLinesPerSecond = 200
     static let maxName = 20
+    /// 방 이름 길이. 글자 수와 바이트 수 둘 다 막는다
+    static let maxRoom = 20
+    /// Bonjour TXT 는 한 쌍이 255바이트를 넘을 수 없다. 넘으면 광고가 통째로 실패한다
+    static let maxRoomBytes = 60
     static let maxChat = 200
     static let maxX: Double = 10_000
     static let maxY: Double = 4_000
@@ -143,31 +147,49 @@ func idIsTaken(_ id: String, by key: String, in table: [String: String]) -> Bool
     table.contains { $0.key != key && $0.value == id }
 }
 
+/// 방을 구분하는 값. 만들 때 새로 뽑는다 — 이름이 같아도 다른 방이고,
+/// 이름을 바꿔도 같은 방이다
+func newRoomID() -> String {
+    String(UUID().uuidString.prefix(8))
+}
+
 /// 참여하기 목록에 쓰는 한 줄
 struct RoomListing: Identifiable, Equatable {
-    var id: String { name }
+    let id: String
     let name: String
+    /// 목록에 보여 줄 글자. 이름이 같은 방이 둘이면 뒤에 짧은 코드가 붙는다
+    let label: String
     let count: Int
 }
 
 /// Bonjour 광고에서 프로토콜이 같고 같은 방에 있는 피어만 고른다.
 /// 방에 없으면 아무와도 연결하지 않는다 — 혼자다.
 /// 버전이 다른 피어와는 연결해도 서로 무시하므로 후보에 넣지 않는다.
-func compatiblePeers(_ entries: [(id: String, pv: String?, room: String?)], myRoom: String?)
+func compatiblePeers(_ entries: [(id: String, pv: String?, room: String?, roomName: String?)],
+                     myRoom: String?)
     -> (ids: Set<String>, mismatched: Int, rooms: [RoomListing]) {
     var ids: Set<String> = []
     var others: Set<String> = []
-    var byRoom: [String: Set<String>] = [:]
+    var members: [String: Set<String>] = [:]
+    var names: [String: String] = [:]
     for entry in entries {
         guard Int(entry.pv ?? "") == protocolVersion else { others.insert(entry.id); continue }
         guard let room = entry.room, !room.isEmpty else { continue }
-        byRoom[room, default: []].insert(entry.id)
+        // 같은 사람이 인터페이스마다 따로 보고된다. 줄 수가 아니라 사람 수를 센다
+        members[room, default: []].insert(entry.id)
+        if names[room] == nil, let name = entry.roomName, !name.isEmpty { names[room] = name }
         if room == myRoom { ids.insert(entry.id) }
     }
-    // 같은 사람이 인터페이스마다 따로 보고된다. 줄 수가 아니라 사람 수를 센다
-    let rooms = byRoom
-        .map { RoomListing(name: $0.key, count: $0.value.count) }
-        .sorted { $0.count != $1.count ? $0.count > $1.count : $0.name < $1.name }
+    var counts: [String: Int] = [:]
+    for room in members.keys { counts[names[room] ?? room, default: 0] += 1 }
+    let rooms = members
+        .map { room, people -> RoomListing in
+            let name = names[room] ?? room
+            // 이름이 같은 방이 둘이면 목록에서 구분할 수 있어야 한다
+            let label = (counts[name] ?? 0) > 1 ? "\(name) · \(room.prefix(4))" : name
+            return RoomListing(id: room, name: name, label: label, count: people.count)
+        }
+        .sorted { $0.count != $1.count ? $0.count > $1.count : $0.label < $1.label }
     return (ids, others.subtracting(ids).count, rooms)
 }
 
@@ -179,6 +201,20 @@ func sanitizeName(_ raw: String) -> String {
     let cleaned = stripControls(raw).trimmingCharacters(in: .whitespaces)
     if cleaned.isEmpty { return "?" }
     return String(cleaned.prefix(Limits.maxName))
+}
+
+/// 이 값은 Bonjour TXT 에 실린다. 이모지는 한 글자가 스물다섯 바이트까지 가므로
+/// 글자 수만 막으면 255바이트 제한을 넘겨 리스너가 실패하고, 아무에게도 보이지 않는다.
+/// 빈 문자열은 방을 만들지 않겠다는 뜻이다
+func sanitizeRoom(_ raw: String) -> String {
+    var out = ""
+    for character in stripControls(raw).trimmingCharacters(in: .whitespaces) {
+        guard out.count < Limits.maxRoom,
+              out.utf8.count + String(character).utf8.count <= Limits.maxRoomBytes
+        else { break }
+        out.append(character)
+    }
+    return out
 }
 
 func validChat(_ raw: String) -> String? {

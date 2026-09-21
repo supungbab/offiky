@@ -136,6 +136,7 @@ final class Mesh {
     /// 방에 없으면 광고하지 않는다. 망에 흔적이 남지 않고 아무도 나를 못 찾는다
     private func startListener() {
         guard let room = World.myRoom else { return }
+        let roomName = World.myRoomName ?? room
         guard let listener = try? NWListener(using: Mesh.tcp) else { return }
         listener.service = NWListener.Service(
             name: World.shared.myID, type: serviceType,
@@ -143,6 +144,7 @@ final class Mesh {
                 "id": World.shared.myID,
                 "pv": String(protocolVersion),
                 "room": room,
+                "rname": roomName,
             ]).data)
         listener.newConnectionHandler = { [weak self] connection in
             self?.accept(connection)
@@ -159,10 +161,10 @@ final class Mesh {
         let browser = NWBrowser(for: descriptor, using: .tcp)
         browser.browseResultsChangedHandler = { [weak self] results, _ in
             guard let self else { return }
-            var entries: [(id: String, pv: String?, room: String?)] = []
+            var entries: [(id: String, pv: String?, room: String?, roomName: String?)] = []
             for result in results {
                 if case let .bonjour(txt) = result.metadata, let id = txt["id"] {
-                    entries.append((id, txt["pv"], txt["room"]))
+                    entries.append((id, txt["pv"], txt["room"], txt["rname"]))
                 }
             }
             // 방에 없어도 듣기는 한다. 참여할 방 목록을 보여줘야 하기 때문이다

@@ -26,7 +26,7 @@ struct offikyApp: App {
             Divider()
             if let room = Presence.shared.room {
                 Text("방 · \(room)")
-                Button("방 나가기") { World.myRoom = nil }
+                Button("방 나가기") { World.leaveRoom() }
             } else {
                 Text("방에 없습니다 — 나만 보입니다")
             }
@@ -36,7 +36,9 @@ struct offikyApp: App {
                     Text("보이는 방이 없습니다")
                 }
                 ForEach(Presence.shared.rooms) { room in
-                    Button("\(room.name)  \(room.count)명") { World.myRoom = room.name }
+                    Button("\(room.label)  \(room.count)명") {
+                        World.join(room: room.id, name: room.name)
+                    }
                 }
             }
             Divider()
@@ -60,11 +62,11 @@ struct offikyApp: App {
         }
     }
 
-    /// 같은 이름을 적은 사람끼리 한 방이다. 만드는 것과 참여하는 것이 같은 동작이다
+    /// 방은 만들 때마다 새로 생긴다. 이름이 같아도 다른 방이다
     private func createRoom() {
         let alert = NSAlert()
         alert.messageText = "방 만들기"
-        alert.informativeText = "같은 이름을 적은 동료끼리 서로 보입니다."
+        alert.informativeText = "동료는 메뉴의 방 참여하기에서 이 방을 고르면 됩니다."
         alert.addButton(withTitle: "만들기")
         alert.addButton(withTitle: "취소")
         let field = NSTextField(frame: CGRect(x: 0, y: 0, width: 220, height: 24))
@@ -72,9 +74,9 @@ struct offikyApp: App {
         alert.accessoryView = field
         NSApp.activate(ignoringOtherApps: true)
         guard alert.runModal() == .alertFirstButtonReturn else { return }
-        let name = sanitizeName(field.stringValue)
-        guard !field.stringValue.trimmingCharacters(in: .whitespaces).isEmpty else { return }
-        World.myRoom = name
+        let name = sanitizeRoom(field.stringValue)
+        guard !name.isEmpty else { return }
+        World.join(room: newRoomID(), name: name)
     }
 
     private func changeName() {

@@ -507,17 +507,24 @@ final class World {
         defaults.set(try? JSONEncoder().encode(Look(design: moved)), forKey: "look")
     }
 
-    /// 들어가 있는 방. nil 이면 혼자다 — 광고도 연결도 하지 않는다.
+    /// 들어가 있는 방의 id. nil 이면 혼자다 — 광고도 연결도 하지 않는다.
     /// 다음에 켤 때도 그대로 있으려고 저장한다
-    static var myRoom: String? {
-        get { UserDefaults.standard.string(forKey: "room") }
-        set {
-            let defaults = UserDefaults.standard
-            if let newValue { defaults.set(newValue, forKey: "room") }
-            else { defaults.removeObject(forKey: "room") }
-            Presence.shared.room = newValue
-            Mesh.shared.roomChanged()
-        }
+    static var myRoom: String? { UserDefaults.standard.string(forKey: "roomID") }
+    /// 보여 주기만 하는 이름. 짝짓기는 id 로 한다
+    static var myRoomName: String? { UserDefaults.standard.string(forKey: "roomName") }
+
+    static func join(room id: String, name: String) {
+        UserDefaults.standard.set(id, forKey: "roomID")
+        UserDefaults.standard.set(name, forKey: "roomName")
+        Presence.shared.room = name
+        Mesh.shared.roomChanged()
+    }
+
+    static func leaveRoom() {
+        UserDefaults.standard.removeObject(forKey: "roomID")
+        UserDefaults.standard.removeObject(forKey: "roomName")
+        Presence.shared.room = nil
+        Mesh.shared.roomChanged()
     }
 
     static var myLook: Look {
@@ -699,8 +706,8 @@ extension World {
     var count = 1
     /// 프로토콜이 달라 연결하지 않은 피어 수
     var otherVersions = 0
-    /// 지금 들어가 있는 방. nil 이면 혼자다
-    var room = World.myRoom
+    /// 지금 들어가 있는 방 이름. nil 이면 혼자다
+    var room = World.myRoomName
     /// 망에 보이는 방들. 참여하기 목록에 쓴다
     var rooms: [RoomListing] = []
     private init() {}

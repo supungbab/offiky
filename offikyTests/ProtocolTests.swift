@@ -312,23 +312,41 @@ struct ImpersonationTests {
     }
 }
 
-@Suite("버전 거르기")
-struct CompatiblePeerTests {
-    private let here = "디자인팀"
+@Suite("방 고르기")
+struct RoomFilterTests {
+    private let mine = "aaaa1111"
+    private let now = "\(protocolVersion)"
 
     @Test func 같은_방의_같은_버전만_후보가_된다() {
-        let seen = compatiblePeers([("철수", "\(protocolVersion)", here),
-                                    ("영희", "\(protocolVersion)", "2팀"),
-                                    ("민수", "\(protocolVersion + 1)", here)],
-                                   myRoom: here)
+        let seen = compatiblePeers([("철수", now, mine, "디자인팀"),
+                                    ("영희", now, "bbbb2222", "2팀"),
+                                    ("민수", "\(protocolVersion + 1)", mine, "디자인팀")],
+                                   myRoom: mine)
         #expect(seen.ids == ["철수"])
         #expect(seen.mismatched == 1)
     }
 
+    /// 이름이 아니라 id 로 짝을 짓는다. 같은 이름을 따로 만들면 다른 방이다
+    @Test func 이름이_같아도_id_가_다르면_다른_방이다() {
+        let seen = compatiblePeers([("철수", now, "bbbb2222", "디자인팀")], myRoom: mine)
+        #expect(seen.ids.isEmpty)
+        #expect(seen.rooms.count == 1)
+    }
+
+    /// 목록에서 어느 쪽인지 고를 수 있어야 한다
+    @Test func 이름이_같은_방이_둘이면_코드를_붙인다() {
+        let seen = compatiblePeers([("철수", now, "aaaa1111", "디자인팀"),
+                                    ("영희", now, "bbbb2222", "디자인팀"),
+                                    ("민수", now, "cccc3333", "2팀")],
+                                   myRoom: nil)
+        let labels = seen.rooms.map(\.label).sorted()
+        #expect(labels == ["2팀", "디자인팀 · aaaa", "디자인팀 · bbbb"])
+    }
+
     /// 방에 없으면 아무와도 연결하지 않는다. 그래도 방 목록은 보여야 한다
     @Test func 방에_없으면_혼자다() {
-        let seen = compatiblePeers([("철수", "\(protocolVersion)", here),
-                                    ("영희", "\(protocolVersion)", "2팀")],
+        let seen = compatiblePeers([("철수", now, mine, "디자인팀"),
+                                    ("영희", now, "bbbb2222", "2팀")],
                                    myRoom: nil)
         #expect(seen.ids.isEmpty)
         #expect(seen.rooms.count == 2)
@@ -336,44 +354,105 @@ struct CompatiblePeerTests {
 
     /// 옛 버전은 방을 모른다. 같이 놀 수 없으니 메뉴가 알려 줘야 한다
     @Test func 방을_안_싣는_옛_버전은_다른_버전으로_센다() {
-        let seen = compatiblePeers([("철수", "2", nil)], myRoom: here)
+        let seen = compatiblePeers([("철수", "2", nil, nil)], myRoom: mine)
         #expect(seen.ids.isEmpty)
         #expect(seen.mismatched == 1)
         #expect(seen.rooms.isEmpty)
     }
 
     @Test func pv_가_없거나_숫자가_아니면_다른_버전으로_본다() {
-        let seen = compatiblePeers([("철수", nil, here), ("영희", "둘", here), ("민수", "", here)],
-                                   myRoom: here)
+        let seen = compatiblePeers([("철수", nil, mine, "방"), ("영희", "둘", mine, "방"),
+                                    ("민수", "", mine, "방")],
+                                   myRoom: mine)
         #expect(seen.ids.isEmpty)
         #expect(seen.mismatched == 3)
     }
 
-    /// 같은 사람이 인터페이스마다 따로 보고된다. Wi-Fi 와 이더넷이 함께 켜져 있으면 두 번이다
+    /// Wi-Fi 와 이더넷이 함께 켜져 있으면 같은 사람이 두 번 보고된다
     @Test func 같은_사람이_두_번_보고돼도_한_명이다() {
         let old = "\(protocolVersion + 1)"
-        let seen = compatiblePeers([("철수", old, here), ("철수", old, here), ("영희", old, here)],
-                                   myRoom: here)
+        let seen = compatiblePeers([("철수", old, mine, "방"), ("철수", old, mine, "방"),
+                                    ("영희", old, mine, "방")],
+                                   myRoom: mine)
         #expect(seen.mismatched == 2)
 
-        let now = "\(protocolVersion)"
-        let rooms = compatiblePeers([("철수", now, "2팀"), ("철수", now, "2팀")], myRoom: nil).rooms
-        #expect(rooms == [RoomListing(name: "2팀", count: 1)])
+        let rooms = compatiblePeers([("철수", now, "bbbb2222", "2팀"),
+                                     ("철수", now, "bbbb2222", "2팀")], myRoom: nil).rooms
+        #expect(rooms.first?.count == 1)
     }
 
     @Test func 방_목록은_사람_많은_순이다() {
-        let now = "\(protocolVersion)"
-        let seen = compatiblePeers([("철수", now, "2팀"), ("영희", now, "디자인팀"),
-                                    ("민수", now, "디자인팀"), ("수지", now, "1팀")],
+        let seen = compatiblePeers([("철수", now, "b", "2팀"), ("영희", now, "a", "디자인팀"),
+                                    ("민수", now, "a", "디자인팀"), ("수지", now, "c", "1팀")],
                                    myRoom: nil)
         #expect(seen.rooms.map(\.name) == ["디자인팀", "1팀", "2팀"])
         #expect(seen.rooms.first?.count == 2)
     }
 
+    /// 이름을 못 받으면 코드라도 보여 준다. 빈 줄이 뜨면 고를 수가 없다
+    @Test func 이름이_없으면_코드를_보여_준다() {
+        let seen = compatiblePeers([("철수", now, "abcd1234", nil)], myRoom: nil)
+        #expect(seen.rooms.first?.label == "abcd1234")
+    }
+
     @Test func 아무도_없으면_비어_있다() {
-        let seen = compatiblePeers([], myRoom: here)
+        let seen = compatiblePeers([], myRoom: mine)
         #expect(seen.ids.isEmpty)
         #expect(seen.mismatched == 0)
         #expect(seen.rooms.isEmpty)
+    }
+
+    @Test func 방_id_는_매번_새로_나온다() {
+        #expect(newRoomID() != newRoomID())
+        #expect(newRoomID().count == 8)
+    }
+}
+
+@Suite("방 이름")
+struct RoomNameTests {
+    /// TXT 한 쌍이 255바이트를 넘으면 리스너가 실패해 아무에게도 안 보인다.
+    /// 이모지는 한 글자가 스물다섯 바이트까지 간다 — 글자 수로는 못 막는다
+    @Test func 바이트로도_자른다() {
+        let name = sanitizeRoom(String(repeating: "🧑", count: 20))   // 한 글자에 4바이트
+        #expect(name.utf8.count <= Limits.maxRoomBytes)
+        #expect(name.count < 20)
+        #expect(!name.isEmpty)
+    }
+
+    /// ZWJ 로 이어 붙인 이모지는 서식 문자라 통째로 걸러진다.
+    /// 같은 규칙이 글자 순서를 뒤집어 이름을 위장하는 U+202E 도 막는다
+    @Test func 서식_문자는_걸러진다() {
+        #expect(sanitizeRoom("👨‍👩‍👧‍👦").isEmpty)
+        #expect(sanitizeRoom("가\u{202E}나") == "가나")
+    }
+
+    @Test func 글자수로도_자른다() {
+        #expect(sanitizeRoom(String(repeating: "a", count: 100)).count == Limits.maxRoom)
+    }
+
+    @Test func 한글_스무자는_그대로다() {
+        let name = String(repeating: "가", count: 20)
+        #expect(sanitizeRoom(name) == name)
+        #expect(name.utf8.count <= Limits.maxRoomBytes)
+    }
+
+    @Test func 자르고도_쪼개진_글자가_없다() {
+        let name = sanitizeRoom(String(repeating: "🧑", count: 20))
+        #expect(String(decoding: Array(name.utf8), as: UTF8.self) == name)
+    }
+
+    @Test func 앞뒤_공백과_제어문자를_없앤다() {
+        #expect(sanitizeRoom("  디자인팀\n  ") == "디자인팀")
+    }
+
+    /// 빈 이름은 방을 만들지 않겠다는 뜻이다. 사람 이름과 달리 물음표로 바꾸지 않는다
+    @Test func 빈_이름은_빈_채로_돌려준다() {
+        #expect(sanitizeRoom("   ").isEmpty)
+        #expect(sanitizeRoom("").isEmpty)
+    }
+
+    /// TXT 는 첫 등호에서만 자른다. 값 안의 등호는 안전하다
+    @Test func 등호가_들어가도_된다() {
+        #expect(sanitizeRoom("a=b") == "a=b")
     }
 }
