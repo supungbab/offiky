@@ -13,8 +13,12 @@ set -euo pipefail
 
 IDENTITY="offiky Local"
 BUILD=/tmp/offiky-release
-OUT=~/Desktop/Offiky.zip
-DMG=~/Desktop/Offiky.dmg
+# 결과물은 프로젝트 안에 둔다. build/ 는 .gitignore 에 이미 들어 있다.
+# 데스크톱에 두면 파일마다 접근 권한이 따로 붙어, 만든 앱이 아닌 곳에서 돌릴 때
+# 지난 결과물을 지우지 못하고 멈춘다
+OUTDIR=build
+OUT="$OUTDIR/Offiky.zip"
+DMG="$OUTDIR/Offiky.dmg"
 APP="$BUILD/Build/Products/Release/Offiky.app"
 ENTITLEMENTS=offiky.entitlements
 
@@ -41,6 +45,7 @@ lipo -archs "$APP/Contents/MacOS/Offiky" | grep -q x86_64 \
   || { echo "인텔용이 빠졌다"; exit 1; }
 echo "==> 아키텍처 $(lipo -archs "$APP/Contents/MacOS/Offiky")"
 
+mkdir -p "$OUTDIR"
 rm -f "$OUT" "$DMG"
 ditto -c -k --sequesterRsrc --keepParent "$APP" "$OUT"
 STAGE=$(mktemp -d)
