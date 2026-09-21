@@ -24,20 +24,22 @@ struct offikyApp: App {
                 Text("⌥D 를 다른 앱이 쓰고 있습니다")
             }
             Divider()
+            // 들어가 있으면 나가는 것만, 없으면 들어가는 것만 보여 준다.
+            // 둘을 같이 내밀면 방 만들기가 이름 고치기로 읽힌다
             if let room = Presence.shared.room {
                 Text("방 · \(room)")
                 Button("방 나가기") { World.leaveRoom() }
             } else {
                 Text("방에 없습니다 — 나만 보입니다")
-            }
-            Button("방 만들기…") { createRoom() }
-            Menu("방 참여하기") {
-                if Presence.shared.rooms.isEmpty {
-                    Text("보이는 방이 없습니다")
-                }
-                ForEach(Presence.shared.rooms) { room in
-                    Button("\(room.label)  \(room.count)명") {
-                        World.join(room: room.id, name: room.name)
+                Button("방 만들기…") { createRoom() }
+                Menu("방 참여하기") {
+                    if Presence.shared.rooms.isEmpty {
+                        Text("보이는 방이 없습니다")
+                    }
+                    ForEach(Presence.shared.rooms) { room in
+                        Button("\(room.label)  \(room.count)명") {
+                            World.join(room: room.id, name: room.name)
+                        }
                     }
                 }
             }
@@ -63,14 +65,11 @@ struct offikyApp: App {
     }
 
     /// 방은 만들 때마다 새로 생긴다. 이름이 같아도 다른 방이다.
-    /// 들어가 있던 방에서는 나오게 되므로 그렇게 적어 준다
+    /// 방에 없을 때만 메뉴에 나온다
     private func createRoom() {
-        let inRoom = Presence.shared.room != nil
         let alert = NSAlert()
         alert.messageText = "방 만들기"
-        alert.informativeText = inRoom
-            ? "지금 방에서 나와 새 방을 만듭니다. 동료는 방 참여하기에서 고르면 됩니다."
-            : "동료는 메뉴의 방 참여하기에서 이 방을 고르면 됩니다."
+        alert.informativeText = "동료는 메뉴의 방 참여하기에서 이 방을 고르면 됩니다."
         alert.addButton(withTitle: "만들기")
         alert.addButton(withTitle: "취소")
         let field = NSTextField(frame: CGRect(x: 0, y: 0, width: 220, height: 24))
