@@ -713,3 +713,81 @@ struct ResumeTests {
         #expect((d.max() ?? 0) < 3)
     }
 }
+
+@Suite("보낸 시각")
+struct SendTimeTests {
+    private let strip = FloorStrip(visibleFrames: [CGRect(x: 0, y: 0, width: 1800, height: 1000)],
+                                   main: nil)
+
+    /// 상대가 고르게 걸어오는데 망이 흔들린다. 도착 시각으로 표본을 놓으면
+    /// 흔들림이 재생에 그대로 실려 걸음이 들쭉날쭉해진다
+    @MainActor private func walk(jitter: TimeInterval, useSendTime: Bool) -> [CGFloat] {
+        let node = CharacterNode(id: "p", name: "p", isLocal: false)
+        var now: TimeInterval = 0
+        var x: CGFloat = 500
+        var sendAt: TimeInterval = 0
+        var seed: UInt64 = 987654321
+        func rnd() -> Double {
+            seed = seed &* 6364136223846793005 &+ 1442695040888963407
+            return Double(seed >> 33) / Double(UInt32.max)
+        }
+        // 상대 시계는 우리와 원점이 다르다
+        let theirClock: TimeInterval = 9_999
+        var inflight: [(arrive: TimeInterval, sent: TimeInterval, x: CGFloat)] = []
+        var out: [CGFloat] = []
+        var previous: CGFloat = 0
+
+        while now < 5 {
+            if now >= sendAt {
+                sendAt += positionInterval
+                x += 7
+                inflight.append((now + jitter * rnd(), now + theirClock, x))
+            }
+            for item in inflight where item.arrive <= now {
+                node.setRemoteTarget(x: item.x, y: 0,
+                                     sent: useSendTime ? item.sent : nil, at: now)
+            }
+            inflight.removeAll { $0.arrive <= now }
+            node.update(dt: 1.0 / 30, now: now, strip: strip)
+            if now > 1 { out.append(node.x - previous) }   // 초반 적응 구간은 뺀다
+            previous = node.x
+            now += 1.0 / 30
+        }
+        return out
+    }
+
+    private func spread(_ d: [CGFloat]) -> CGFloat {
+        let mean = d.reduce(0, +) / CGFloat(max(1, d.count))
+        return (d.map { ($0 - mean) * ($0 - mean) }.reduce(0, +) / CGFloat(max(1, d.count))).squareRoot()
+    }
+
+    /// 30fps 에 70pt/s 면 프레임당 2.33pt 가 고르다
+    @MainActor @Test func 망이_흔들려도_고르게_걷는다() {
+        let d = walk(jitter: 0.15, useSendTime: true)
+        #expect(spread(d) < 0.3)
+        #expect((d.max() ?? 0) < 3)
+    }
+
+    /// 옛 버전은 보낸 시각을 싣지 않는다. 그때는 예전처럼 도착 시각으로 놓는다
+    @MainActor @Test func 시각을_안_보내는_상대도_걷는다() {
+        let d = walk(jitter: 0.15, useSendTime: false)
+        #expect(d.reduce(0, +) > 200)          // 어쨌든 걸어오기는 한다
+    }
+
+    @MainActor @Test func 순서가_뒤바뀐_옛_좌표는_버린다() {
+        let node = CharacterNode(id: "p", name: "p", isLocal: false)
+        node.setRemoteTarget(x: 100, y: 0, sent: 50.0, at: 0)
+        node.setRemoteTarget(x: 200, y: 0, sent: 50.2, at: 0.2)
+        let seen = node.lastSeen
+        node.setRemoteTarget(x: 150, y: 0, sent: 50.1, at: 0.3)   // 늦게 온 옛것
+        #expect(node.lastSeen == seen)                            // 아예 없던 일로 친다
+    }
+
+    @Test func 보낸_시각은_견주지_않는다() {
+        let a = PosMsg(x: 100, y: nil, m: 1000)
+        let b = PosMsg(x: 100, y: nil, m: 2000)
+        // 시각만 다른 것은 안 보낸다. 견주면 서 있어도 초당 열 번 나간다
+        #expect(!shouldSend(a, last: b, since: 0.1))
+        #expect(shouldSend(PosMsg(x: 101, y: nil, m: 2000), last: b, since: 0.1))
+    }
+}

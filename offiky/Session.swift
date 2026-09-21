@@ -43,7 +43,7 @@ final class Session {
         Mesh.shared.send(encode(HelloMsg(id: World.shared.myID,
                                          name: me.displayName, look: World.myLook)), to: key)
         // 서 있으면 다음 좌표가 몇 초 뒤다. 그때까지 내가 띠 왼쪽 끝에 서 있는 것으로 보인다
-        Mesh.shared.send(encode(currentPosition()), to: key)
+        Mesh.shared.send(encode(stamped(currentPosition())), to: key)
     }
 
     private func currentPosition() -> PosMsg {
@@ -55,13 +55,20 @@ final class Session {
                       f: Int(me.facingSign))
     }
 
+    /// 받는 쪽이 도착 시각 대신 이걸로 표본을 놓는다. 망이 흔들려도 걸음이 고르다
+    private func stamped(_ msg: PosMsg) -> PosMsg {
+        var out = msg
+        out.m = Int(ProcessInfo.processInfo.systemUptime * 1000)
+        return out
+    }
+
     private func sendPosition() {
         let msg = currentPosition()
         let now = ProcessInfo.processInfo.systemUptime
         guard shouldSend(msg, last: lastSent, since: now - lastSentAt) else { return }
         lastSent = msg
         lastSentAt = now
-        Mesh.shared.broadcast(encode(msg))
+        Mesh.shared.broadcast(encode(stamped(msg)))
     }
 
     func sendSay(_ text: String) {
@@ -130,7 +137,7 @@ final class Session {
         else { return }
         World.shared.setPeerTarget(id: id, x: CGFloat(msg.x), y: CGFloat(msg.y ?? 0),
                                    bowing: msg.b == true, dragging: msg.d == true,
-                                   facing: msg.f)
+                                   facing: msg.f, sent: msg.m.map { Double($0) / 1000 })
     }
 
     private func handleSay(_ data: Data, key: String) {

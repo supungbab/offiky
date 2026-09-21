@@ -69,6 +69,12 @@ final class CharacterNode: SKNode {
     /// 최근 도착 간격의 최대치를 따라간다 — 망이 좋으면 빠르게, 흔들리면 안정되게
     private(set) var renderDelay: TimeInterval = 0.2
     private var gaps: [TimeInterval] = []
+    /// 흔들림은 도착 시각으로 잰다. 표본 시각은 상대 시계로 놓기 때문이다
+    private var lastArrival: TimeInterval = 0
+    /// 상대 시계와 우리 시계의 차이. 가장 빨리 온 것이 가장 정확하다
+    private var offsets: [TimeInterval] = []
+    /// 상대가 마지막으로 보낸 시각. 이보다 옛것이 오면 순서가 뒤바뀐 것이다
+    private var lastSentTime: TimeInterval?
     /// 직전에 같은 자리를 다시 받았다. 그 간격은 망이 느린 것이 아니다
     private var wasStill = false
     /// 이보다 벌어지면 보내는 쪽이 서 있었던 것으로 본다
@@ -199,22 +205,41 @@ final class CharacterNode: SKNode {
         verticalSpeed = min(verticalSpeed, 0)
     }
 
-    func setRemoteTarget(x newX: CGFloat, y newY: CGFloat, at now: TimeInterval) {
+    func setRemoteTarget(x newX: CGFloat, y newY: CGFloat,
+                         sent: TimeInterval? = nil, at now: TimeInterval) {
+        // 순서가 뒤바뀌어 옛 좌표가 늦게 왔다. 최신만 쓴다
+        if let sent, let previous = lastSentTime, sent <= previous { return }
         lastSeen = now
+        if let sent { lastSentTime = sent }
+
         // 같은 자리를 다시 알려 온 것은 살아 있다는 뜻뿐이다
         if let last = samples.last, last.x == newX, last.y == newY {
             wasStill = true
+            lastArrival = now
             return
         }
         // 서 있던 구간의 간격을 지연에 반영하면 움직이기 시작할 때 반 초 늦게 보인다
-        if let last = samples.last, !wasStill {
-            gaps.append(now - last.t)
+        if lastArrival > 0, !wasStill {
+            gaps.append(now - lastArrival)
             if gaps.count > 30 { gaps.removeFirst() }
+        }
+        lastArrival = now
+
+        // 도착 시각으로 놓으면 망의 흔들림이 재생에 그대로 실린다. 상대가 보낸
+        // 시각 위에 놓되, 시계 원점이 다르므로 가장 빨리 온 것으로 차이를 잡는다
+        var stamp = now
+        if let sent {
+            offsets.append(now - sent)
+            if offsets.count > 30 { offsets.removeFirst() }
+            let candidate = sent + (offsets.min() ?? 0)
+            // 상대가 자다 깨면 시계가 튄다. 그때는 도착 시각으로 돌아간다
+            if abs(candidate - now) <= CharacterNode.stillGap { stamp = candidate }
+            else { offsets.removeAll() }
         }
         // 보내는 쪽이 서 있느라 건너뛴 구간이다. 한 구간으로 이으면 재생 시각이
         // 그 안에 갇혀, 걷기 시작할 때 튀었다가 멈춘 것처럼 보인다
-        if let last = samples.last, now - last.t > CharacterNode.stillGap {
-            samples[samples.count - 1].t = now - positionInterval
+        if let last = samples.last, stamp - last.t > CharacterNode.stillGap {
+            samples[samples.count - 1].t = stamp - positionInterval
         }
         wasStill = false
         // 걷거나 뛰어서는 한 주기에 나올 수 없는 간격이면 순간이동이다.
@@ -227,7 +252,9 @@ final class CharacterNode: SKNode {
             peakY = 0
             wasAirborne = newY > 0
         }
-        samples.append((now, newX, newY))
+        // 표본 시각은 늘 앞으로만 간다. 시계 차이가 줄면 뒤로 갈 수 있다
+        if let last = samples.last { stamp = max(stamp, last.t + 0.001) }
+        samples.append((stamp, newX, newY))
         if samples.count > 8 { samples.removeFirst(samples.count - 8) }
     }
 
@@ -636,14 +663,14 @@ extension World {
     }
 
     func setPeerTarget(id: String, x: CGFloat, y: CGFloat,
-                       bowing: Bool, dragging: Bool, facing: Int?) {
+                       bowing: Bool, dragging: Bool, facing: Int?, sent: TimeInterval?) {
         guard let node = peers[id] else { return }
         node.isBowing = bowing
         if let facing { node.faceAsTold(CGFloat(facing)) }
         // 들고 다닌 높이는 낙하가 아니다. 내 캐릭터와 같은 판정이 나오게 맞춘다
         if dragging { node.isDragging = true }
         else if node.isDragging { node.endDrag() }
-        node.setRemoteTarget(x: x, y: y, at: ProcessInfo.processInfo.systemUptime)
+        node.setRemoteTarget(x: x, y: y, sent: sent, at: ProcessInfo.processInfo.systemUptime)
     }
 
     func showBubble(id: String, text: String) {

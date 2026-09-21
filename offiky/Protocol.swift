@@ -15,7 +15,9 @@ let keepaliveInterval: TimeInterval = 3
 
 /// 바뀐 것이 없으면 생존 신호 주기마다 한 번만 보낸다
 func shouldSend(_ msg: PosMsg, last: PosMsg?, since: TimeInterval) -> Bool {
-    guard let last else { return true }
+    guard var last else { return true }
+    // 보낸 시각은 견주지 않는다. 매번 달라서 서 있어도 계속 보내게 된다
+    last.m = msg.m
     return msg != last || since >= keepaliveInterval
 }
 
@@ -189,6 +191,8 @@ struct PosMsg: Codable, Equatable {
     var d: Bool?
     /// 보고 있는 쪽. +1 오른쪽, -1 왼쪽. 옛 버전은 싣지 않는다
     var f: Int?
+    /// 보낸 시각(ms, 보낸 기계 기준). 받는 쪽은 도착 시각 대신 이걸로 표본을 놓는다
+    var m: Int?
 }
 
 struct SayMsg: Codable {
