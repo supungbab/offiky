@@ -538,6 +538,37 @@ struct StillTests {
         #expect(abs(node.renderDelay - CharacterNode.delayRange.lowerBound) < 0.01)
     }
 
+    /// 흔들림은 걷는 동안의 도착으로만 잰다. 건수로 기억하면 띄엄띄엄 걷는 사람은
+    /// 한참 전 흔들림이 창에 남아, 망이 멀쩡해진 뒤에도 계속 늦게 보인다
+    @MainActor @Test func 옛_흔들림은_시간이_지나면_잊는다() {
+        let strip = FloorStrip(visibleFrames: [CGRect(x: 0, y: 0, width: 4000, height: 1000)],
+                               main: nil)
+        let node = CharacterNode(id: "p", name: "p", isLocal: false)
+        var now: TimeInterval = 0
+        var walked: CGFloat = 100
+
+        func step(moving: Bool, gap: TimeInterval, seconds: TimeInterval) {
+            let end = now + seconds
+            var next = now
+            while now < end {
+                if now >= next {
+                    if moving { walked += 7 }
+                    node.setRemoteTarget(x: walked, y: 0, at: now)
+                    next += gap
+                }
+                node.update(dt: 1.0 / 30, now: now, strip: strip)
+                now += 1.0 / 30
+            }
+        }
+
+        step(moving: true, gap: 0.3, seconds: 3)                  // 걷는 중 망이 흔들린다
+        #expect(node.renderDelay > 0.3)
+        step(moving: false, gap: keepaliveInterval, seconds: 60)  // 1분 서 있는다
+        step(moving: true, gap: 0.1, seconds: 2)                  // 다시 두 걸음 걷는다
+        // 건수로 기억하던 때는 여기서 0.367 이 그대로 남았다
+        #expect(node.renderDelay <= CharacterNode.delayRange.lowerBound + positionInterval)
+    }
+
     @MainActor @Test func 같은_자리를_받아도_살아_있는_것으로_센다() {
         let node = CharacterNode(id: "p", name: "p", isLocal: false)
         node.setRemoteTarget(x: 100, y: 0, at: 0)

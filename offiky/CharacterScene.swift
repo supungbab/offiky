@@ -70,7 +70,8 @@ final class CharacterNode: SKNode {
     /// 받은 표본 두 개 사이를 재생하려면 늘 이만큼 과거를 그린다.
     /// 최근 도착 간격의 최대치를 따라간다 — 망이 좋으면 빠르게, 흔들리면 안정되게
     private(set) var renderDelay: TimeInterval = 0.2
-    private var gaps: [TimeInterval] = []
+    /// 흔들림을 잰 시각과 그 크기. 건수로 세면 띄엄띄엄 걷는 사람은 옛것이 오래 남는다
+    private var gaps: [(at: TimeInterval, gap: TimeInterval)] = []
     /// 흔들림은 도착 시각으로 잰다. 표본 시각은 상대 시계로 놓기 때문이다
     private var lastArrival: TimeInterval = 0
     /// 상대 시계와 우리 시계의 차이. 가장 빨리 온 것이 가장 정확하다
@@ -81,6 +82,8 @@ final class CharacterNode: SKNode {
     private var wasStill = false
     /// 이보다 벌어지면 보내는 쪽이 서 있었던 것으로 본다
     static let stillGap: TimeInterval = 0.3
+    /// 흔들림을 기억하는 기간. 쉬지 않고 걸을 때의 옛 창(30건 ÷ 10Hz)과 같은 길이다
+    static let gapMemory: TimeInterval = 3
     static let delayRange: ClosedRange<TimeInterval> = 0.15...0.5
     /// 지연을 갑자기 바꾸면 위치가 튄다. 초당 이만큼만 옮긴다
     static let delaySlew: TimeInterval = 0.1
@@ -226,8 +229,7 @@ final class CharacterNode: SKNode {
         }
         // 서 있던 구간의 간격을 지연에 반영하면 움직이기 시작할 때 반 초 늦게 보인다
         if lastArrival > 0, !wasStill {
-            gaps.append(now - lastArrival)
-            if gaps.count > 30 { gaps.removeFirst() }
+            gaps.append((now, now - lastArrival))
         }
         lastArrival = now
 
@@ -350,8 +352,13 @@ final class CharacterNode: SKNode {
     /// 표본이 끊기면 마지막 자리에 세워 둔다
     private func interpolate(now: TimeInterval, dt: TimeInterval) {
         guard let last = samples.last else { return }
+        // 재는 시각 순으로 쌓이므로 앞에서부터 버린다
+        while let first = gaps.first, now - first.at > CharacterNode.gapMemory {
+            gaps.removeFirst()
+        }
+        let worst = gaps.reduce(0) { max($0, $1.gap) }
         let target = min(CharacterNode.delayRange.upperBound,
-                         max(CharacterNode.delayRange.lowerBound, (gaps.max() ?? 0) + 1.0 / 30))
+                         max(CharacterNode.delayRange.lowerBound, worst + 1.0 / 30))
         let step = CharacterNode.delaySlew * dt
         renderDelay += max(-step, min(step, target - renderDelay))
         let renderAt = now - renderDelay
