@@ -1,5 +1,3 @@
-import AppKit
-import SpriteKit
 import SwiftUI
 
 struct CharacterPickerView: View {
@@ -119,38 +117,9 @@ struct CharacterPickerView: View {
     }
 }
 
-private var pickerWindow: NSWindow?
-/// 띄우는 동안 잠깐 키를 놓치는 것을 닫으라는 뜻으로 읽지 않는다
-private var presenting = false
+private let pickerPanel = Panel()
 
+/// 적용하지 않고 닫았던 초안을 버리고 지금 모습에서 다시 시작한다
 func openCharacterPicker() {
-    let isNew = pickerWindow == nil
-    let window = pickerWindow ?? {
-        let created = NSWindow(contentRect: .zero, styleMask: [.titled, .closable],
-                               backing: .buffered, defer: false)
-        created.title = "내 캐릭터"
-        created.isReleasedWhenClosed = false
-        // 채팅창처럼 다른 곳을 클릭하면 사라진다. 열어 둔 채 잊어버릴 일이 없다
-        NotificationCenter.default.addObserver(
-            forName: NSWindow.didResignKeyNotification, object: created, queue: .main
-        ) { _ in if !presenting { created.orderOut(nil) } }
-        pickerWindow = created
-        return created
-    }()
-
-    // 적용하지 않고 닫았던 초안을 버리고 지금 모습에서 다시 시작한다
-    let view = NSHostingView(rootView: CharacterPickerView())
-    window.contentView = view
-    window.setContentSize(view.fittingSize)
-    // 크기를 정한 뒤에 가운데로 옮긴다. 처음 열 때만이고 그 뒤엔 놓아둔 자리를 지킨다
-    if isNew { window.center() }
-
-    presenting = true
-    NSApp.activate(ignoringOtherApps: true)
-    window.makeKeyAndOrderFront(nil)
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-        presenting = false
-        // 그 사이에 다른 곳을 클릭했으면 알림이 무시됐다. 여기서 확인한다
-        if !window.isKeyWindow { window.orderOut(nil) }
-    }
+    pickerPanel.show(title: "내 캐릭터", content: CharacterPickerView())
 }

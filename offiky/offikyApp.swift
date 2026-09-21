@@ -24,29 +24,19 @@ struct offikyApp: App {
                 Text("⌥D 를 다른 앱이 쓰고 있습니다")
             }
             Divider()
-            // 들어가 있으면 나가는 것만, 없으면 들어가는 것만 보여 준다.
-            // 둘을 같이 내밀면 방 만들기가 이름 고치기로 읽힌다
+            // 방 만들기는 들어가 있을 때 내밀지 않는다. 이름 고치기로 읽힌다
             if let room = Presence.shared.room {
                 // 내가 나가면 남은 사람들이 잠깐 끊기므로 맡고 있다는 것이 보여야 한다
                 Text(Presence.shared.amHost ? "방 · 호스트 · \(room)" : "방 · \(room)")
                 // 누가 있는지는 방 이야기다. 방에 없으면 나뿐이라 내밀 것이 없다
                 Button("참가자 \(Presence.shared.count)명…") { openRoster() }
                 Button("방 나가기") { World.leaveRoom() }
+                // 여기까지가 지금 방 이야기다. 다른 방은 그다음이라 두 경우 모두 맨 아래에 온다
+                roomList
             } else {
                 Text("방에 없습니다 — 나만 보입니다")
                 Button("방 만들기…") { createRoom() }
-                Menu("방 참여하기") {
-                    if Presence.shared.rooms.isEmpty {
-                        Text("보이는 방이 없습니다")
-                    }
-                    ForEach(Presence.shared.rooms) { room in
-                        let full = room.count >= Limits.maxRoomMembers
-                        Button("\(room.label)  \(room.count)명\(full ? " · 정원" : "")") {
-                            World.join(room: room.id, name: room.name)
-                        }
-                        .disabled(full)
-                    }
-                }
+                roomList
             }
             Divider()
             Button("내 캐릭터…") { openCharacterPicker() }
@@ -65,6 +55,25 @@ struct offikyApp: App {
             #else
             Image("MenuBarIcon")
             #endif
+        }
+    }
+
+    /// 들어가 있어도 다른 방으로 바로 옮길 수 있어야 한다. 나갔다 다시 들어오게 하지 않는다.
+    /// 이름은 한 가지로 둔다 — 방 만들기 안내문이 이 이름을 그대로 부른다
+    private var roomList: some View {
+        Menu("방 참여하기") {
+            if Presence.shared.rooms.isEmpty {
+                Text("보이는 방이 없습니다")
+            }
+            ForEach(Presence.shared.rooms) { room in
+                let here = room.id == World.myRoom
+                let full = room.count >= Limits.maxRoomMembers
+                let mark = here ? " · 현재 방" : full ? " · 정원" : ""
+                Button("\(room.label)  \(room.count)명\(mark)") {
+                    World.join(room: room.id, name: room.name)
+                }
+                .disabled(here || full)
+            }
         }
     }
 
