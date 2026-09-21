@@ -9,6 +9,14 @@ final class Mesh {
     static let shared = Mesh()
 
     private let queue = DispatchQueue(label: "offiky.mesh")
+
+    /// 좌표는 30바이트씩 초당 열 번 간다. Nagle 이 켜져 있으면 앞 패킷의 ACK 를
+    /// 기다렸다 뭉쳐 보내, 상대의 지연 ACK 와 맞물리면 수십 ms 씩 늦는다
+    private static let tcp: NWParameters = {
+        let options = NWProtocolTCP.Options()
+        options.noDelay = true
+        return NWParameters(tls: nil, tcp: options)
+    }()
     private var listener: NWListener?
     private var browser: NWBrowser?
 
@@ -116,7 +124,7 @@ final class Mesh {
     }
 
     private func startListener() {
-        guard let listener = try? NWListener(using: .tcp) else { return }
+        guard let listener = try? NWListener(using: Mesh.tcp) else { return }
         listener.service = NWListener.Service(
             name: World.shared.myID, type: serviceType,
             txtRecord: NWTXTRecord([
@@ -180,7 +188,7 @@ final class Mesh {
     private func connect(to id: String) {
         let endpoint = NWEndpoint.service(name: id, type: serviceType,
                                           domain: "local.", interface: nil)
-        add(NWConnection(to: endpoint, using: .tcp), peerID: id)
+        add(NWConnection(to: endpoint, using: Mesh.tcp), peerID: id)
     }
 
     private func accept(_ connection: NWConnection) {

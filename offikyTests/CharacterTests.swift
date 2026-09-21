@@ -643,3 +643,63 @@ struct FallDamageTests {
         #expect(node.hurtUntil == 0)
     }
 }
+
+@Suite("다시 걷기")
+struct ResumeTests {
+    private let strip = FloorStrip(visibleFrames: [CGRect(x: 0, y: 0, width: 1800, height: 1000)],
+                                   main: nil)
+
+    /// 상대가 쉬었다 다시 걸을 때 프레임당 이동량. 30fps 에 70pt/s 면 2.33pt 가 고르다
+    @MainActor private func deltas(pause: TimeInterval) -> [CGFloat] {
+        let node = CharacterNode(id: "p", name: "p", isLocal: false)
+        var now: TimeInterval = 0
+        var x: CGFloat = 500
+        var next = now
+
+        while now < 1 {                                   // 걸어온다
+            if now >= next { next += positionInterval; x += 7
+                             node.setRemoteTarget(x: x, y: 0, at: now) }
+            node.update(dt: 1.0 / 30, now: now, strip: strip)
+            now += 1.0 / 30
+        }
+        let resumeAt = now + pause                        // 멈춰 선다
+        var keepalive = now
+        while now < resumeAt {
+            if now - keepalive >= keepaliveInterval {
+                keepalive = now
+                node.setRemoteTarget(x: x, y: 0, at: now)
+            }
+            node.update(dt: 1.0 / 30, now: now, strip: strip)
+            now += 1.0 / 30
+        }
+        var out: [CGFloat] = []                           // 다시 걷는다
+        var previous = node.x
+        next = now
+        let end = now + 1
+        while now < end {
+            if now >= next { next += positionInterval; x += 7
+                             node.setRemoteTarget(x: x, y: 0, at: now) }
+            node.update(dt: 1.0 / 30, now: now, strip: strip)
+            out.append(node.x - previous)
+            previous = node.x
+            now += 1.0 / 30
+        }
+        return out
+    }
+
+    /// 쉰 시간을 한 구간으로 이으면 재생 시각이 그 안에 갇혀,
+    /// 한 번 크게 튀었다가 여섯 프레임쯤 멈춘 것처럼 보인다
+    @MainActor @Test func 쉬었다_걸어도_고르게_움직인다() {
+        for pause in [0.5, 2.0, 5.0] {
+            let d = deltas(pause: pause)
+            #expect((d.max() ?? 0) < 3)                          // 고른 걸음은 2.33pt
+            #expect(d.prefix(20).filter { abs($0) < 0.3 }.count < 5)
+        }
+    }
+
+    /// 생존 신호가 한 번도 안 나가는 짧은 쉼에서도 같아야 한다
+    @MainActor @Test func 생존_신호보다_짧게_쉬어도_같다() {
+        let d = deltas(pause: keepaliveInterval / 2)
+        #expect((d.max() ?? 0) < 3)
+    }
+}

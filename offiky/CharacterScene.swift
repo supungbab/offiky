@@ -71,6 +71,8 @@ final class CharacterNode: SKNode {
     private var gaps: [TimeInterval] = []
     /// 직전에 같은 자리를 다시 받았다. 그 간격은 망이 느린 것이 아니다
     private var wasStill = false
+    /// 이보다 벌어지면 보내는 쪽이 서 있었던 것으로 본다
+    static let stillGap: TimeInterval = 0.3
     static let delayRange: ClosedRange<TimeInterval> = 0.15...0.5
     /// 지연을 갑자기 바꾸면 위치가 튄다. 초당 이만큼만 옮긴다
     static let delaySlew: TimeInterval = 0.1
@@ -208,6 +210,11 @@ final class CharacterNode: SKNode {
         if let last = samples.last, !wasStill {
             gaps.append(now - last.t)
             if gaps.count > 30 { gaps.removeFirst() }
+        }
+        // 보내는 쪽이 서 있느라 건너뛴 구간이다. 한 구간으로 이으면 재생 시각이
+        // 그 안에 갇혀, 걷기 시작할 때 튀었다가 멈춘 것처럼 보인다
+        if let last = samples.last, now - last.t > CharacterNode.stillGap {
+            samples[samples.count - 1].t = now - positionInterval
         }
         wasStill = false
         // 걷거나 뛰어서는 한 주기에 나올 수 없는 간격이면 순간이동이다.
