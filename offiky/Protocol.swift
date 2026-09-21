@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
 
-let protocolVersion = 2
+let protocolVersion = 3
 let spriteDisplaySize: CGFloat = 40
 /// 바닥을 화면 맨 아래에서 띄우는 높이. Dock 이나 화면 끝에 붙어 보이지 않게 한다
 let floorOffset: CGFloat = 8
@@ -143,16 +143,32 @@ func idIsTaken(_ id: String, by key: String, in table: [String: String]) -> Bool
     table.contains { $0.key != key && $0.value == id }
 }
 
-/// Bonjour 광고에서 프로토콜이 같은 피어만 고른다.
+/// 참여하기 목록에 쓰는 한 줄
+struct RoomListing: Identifiable, Equatable {
+    var id: String { name }
+    let name: String
+    let count: Int
+}
+
+/// Bonjour 광고에서 프로토콜이 같고 같은 방에 있는 피어만 고른다.
+/// 방에 없으면 아무와도 연결하지 않는다 — 혼자다.
 /// 버전이 다른 피어와는 연결해도 서로 무시하므로 후보에 넣지 않는다.
-func compatiblePeers(_ entries: [(id: String, pv: String?)]) -> (ids: Set<String>, mismatched: Int) {
+func compatiblePeers(_ entries: [(id: String, pv: String?, room: String?)], myRoom: String?)
+    -> (ids: Set<String>, mismatched: Int, rooms: [RoomListing]) {
     var ids: Set<String> = []
     var others: Set<String> = []
+    var byRoom: [String: Set<String>] = [:]
     for entry in entries {
-        if Int(entry.pv ?? "") == protocolVersion { ids.insert(entry.id) } else { others.insert(entry.id) }
+        guard Int(entry.pv ?? "") == protocolVersion else { others.insert(entry.id); continue }
+        guard let room = entry.room, !room.isEmpty else { continue }
+        byRoom[room, default: []].insert(entry.id)
+        if room == myRoom { ids.insert(entry.id) }
     }
     // 같은 사람이 인터페이스마다 따로 보고된다. 줄 수가 아니라 사람 수를 센다
-    return (ids, others.subtracting(ids).count)
+    let rooms = byRoom
+        .map { RoomListing(name: $0.key, count: $0.value.count) }
+        .sorted { $0.count != $1.count ? $0.count > $1.count : $0.name < $1.name }
+    return (ids, others.subtracting(ids).count, rooms)
 }
 
 private func stripControls(_ s: String) -> String {

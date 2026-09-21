@@ -23,6 +23,23 @@ struct offikyApp: App {
             if !Control.shared.hotKeyWorks {
                 Text("⌥D 를 다른 앱이 쓰고 있습니다")
             }
+            Divider()
+            if let room = Presence.shared.room {
+                Text("방 · \(room)")
+                Button("방 나가기") { World.myRoom = nil }
+            } else {
+                Text("방에 없습니다 — 나만 보입니다")
+            }
+            Button("방 만들기…") { createRoom() }
+            Menu("방 참여하기") {
+                if Presence.shared.rooms.isEmpty {
+                    Text("보이는 방이 없습니다")
+                }
+                ForEach(Presence.shared.rooms) { room in
+                    Button("\(room.name)  \(room.count)명") { World.myRoom = room.name }
+                }
+            }
+            Divider()
             Button("참가자 \(Presence.shared.count)명…") { openRoster() }
             Button("내 캐릭터…") { openCharacterPicker() }
             Button("내 이름 변경…") { changeName() }
@@ -41,6 +58,23 @@ struct offikyApp: App {
             Image("MenuBarIcon")
             #endif
         }
+    }
+
+    /// 같은 이름을 적은 사람끼리 한 방이다. 만드는 것과 참여하는 것이 같은 동작이다
+    private func createRoom() {
+        let alert = NSAlert()
+        alert.messageText = "방 만들기"
+        alert.informativeText = "같은 이름을 적은 동료끼리 서로 보입니다."
+        alert.addButton(withTitle: "만들기")
+        alert.addButton(withTitle: "취소")
+        let field = NSTextField(frame: CGRect(x: 0, y: 0, width: 220, height: 24))
+        field.stringValue = Presence.shared.room ?? ""
+        alert.accessoryView = field
+        NSApp.activate(ignoringOtherApps: true)
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let name = sanitizeName(field.stringValue)
+        guard !field.stringValue.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        World.myRoom = name
     }
 
     private func changeName() {

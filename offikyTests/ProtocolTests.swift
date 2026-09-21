@@ -314,15 +314,37 @@ struct ImpersonationTests {
 
 @Suite("버전 거르기")
 struct CompatiblePeerTests {
-    @Test func 같은_버전만_후보가_된다() {
-        let seen = compatiblePeers([("철수", "\(protocolVersion)"),
-                                    ("영희", "\(protocolVersion + 1)")])
+    private let here = "디자인팀"
+
+    @Test func 같은_방의_같은_버전만_후보가_된다() {
+        let seen = compatiblePeers([("철수", "\(protocolVersion)", here),
+                                    ("영희", "\(protocolVersion)", "2팀"),
+                                    ("민수", "\(protocolVersion + 1)", here)],
+                                   myRoom: here)
         #expect(seen.ids == ["철수"])
         #expect(seen.mismatched == 1)
     }
 
+    /// 방에 없으면 아무와도 연결하지 않는다. 그래도 방 목록은 보여야 한다
+    @Test func 방에_없으면_혼자다() {
+        let seen = compatiblePeers([("철수", "\(protocolVersion)", here),
+                                    ("영희", "\(protocolVersion)", "2팀")],
+                                   myRoom: nil)
+        #expect(seen.ids.isEmpty)
+        #expect(seen.rooms.count == 2)
+    }
+
+    /// 옛 버전은 방을 모른다. 같이 놀 수 없으니 메뉴가 알려 줘야 한다
+    @Test func 방을_안_싣는_옛_버전은_다른_버전으로_센다() {
+        let seen = compatiblePeers([("철수", "2", nil)], myRoom: here)
+        #expect(seen.ids.isEmpty)
+        #expect(seen.mismatched == 1)
+        #expect(seen.rooms.isEmpty)
+    }
+
     @Test func pv_가_없거나_숫자가_아니면_다른_버전으로_본다() {
-        let seen = compatiblePeers([("철수", nil), ("영희", "둘"), ("민수", "")])
+        let seen = compatiblePeers([("철수", nil, here), ("영희", "둘", here), ("민수", "", here)],
+                                   myRoom: here)
         #expect(seen.ids.isEmpty)
         #expect(seen.mismatched == 3)
     }
@@ -330,13 +352,28 @@ struct CompatiblePeerTests {
     /// 같은 사람이 인터페이스마다 따로 보고된다. Wi-Fi 와 이더넷이 함께 켜져 있으면 두 번이다
     @Test func 같은_사람이_두_번_보고돼도_한_명이다() {
         let old = "\(protocolVersion + 1)"
-        let seen = compatiblePeers([("철수", old), ("철수", old), ("영희", old)])
+        let seen = compatiblePeers([("철수", old, here), ("철수", old, here), ("영희", old, here)],
+                                   myRoom: here)
         #expect(seen.mismatched == 2)
+
+        let now = "\(protocolVersion)"
+        let rooms = compatiblePeers([("철수", now, "2팀"), ("철수", now, "2팀")], myRoom: nil).rooms
+        #expect(rooms == [RoomListing(name: "2팀", count: 1)])
+    }
+
+    @Test func 방_목록은_사람_많은_순이다() {
+        let now = "\(protocolVersion)"
+        let seen = compatiblePeers([("철수", now, "2팀"), ("영희", now, "디자인팀"),
+                                    ("민수", now, "디자인팀"), ("수지", now, "1팀")],
+                                   myRoom: nil)
+        #expect(seen.rooms.map(\.name) == ["디자인팀", "1팀", "2팀"])
+        #expect(seen.rooms.first?.count == 2)
     }
 
     @Test func 아무도_없으면_비어_있다() {
-        let seen = compatiblePeers([])
+        let seen = compatiblePeers([], myRoom: here)
         #expect(seen.ids.isEmpty)
         #expect(seen.mismatched == 0)
+        #expect(seen.rooms.isEmpty)
     }
 }

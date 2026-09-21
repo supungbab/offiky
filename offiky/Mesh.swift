@@ -93,6 +93,16 @@ final class Mesh {
         }
     }
 
+    /// 방이 바뀌면 붙어 있던 사람들과 헤어지고 새 이름으로 다시 광고한다
+    func roomChanged() {
+        queue.async {
+            guard self.running else { return }
+            self.teardown()
+            self.startListener()
+            self.startBrowser()
+        }
+    }
+
     /// 전환 중에는 알림이 여러 번 오므로 잦아들기를 기다린다
     private func restart() {
         restartWork?.cancel()
@@ -123,13 +133,16 @@ final class Mesh {
         self.monitor = monitor
     }
 
+    /// 방에 없으면 광고하지 않는다. 망에 흔적이 남지 않고 아무도 나를 못 찾는다
     private func startListener() {
+        guard let room = World.myRoom else { return }
         guard let listener = try? NWListener(using: Mesh.tcp) else { return }
         listener.service = NWListener.Service(
             name: World.shared.myID, type: serviceType,
             txtRecord: NWTXTRecord([
                 "id": World.shared.myID,
                 "pv": String(protocolVersion),
+                "room": room,
             ]).data)
         listener.newConnectionHandler = { [weak self] connection in
             self?.accept(connection)
@@ -146,17 +159,21 @@ final class Mesh {
         let browser = NWBrowser(for: descriptor, using: .tcp)
         browser.browseResultsChangedHandler = { [weak self] results, _ in
             guard let self else { return }
-            var entries: [(id: String, pv: String?)] = []
+            var entries: [(id: String, pv: String?, room: String?)] = []
             for result in results {
                 if case let .bonjour(txt) = result.metadata, let id = txt["id"] {
-                    entries.append((id, txt["pv"]))
+                    entries.append((id, txt["pv"], txt["room"]))
                 }
             }
-            let peers = compatiblePeers(entries)
+            // 방에 없어도 듣기는 한다. 참여할 방 목록을 보여줘야 하기 때문이다
+            let peers = compatiblePeers(entries, myRoom: World.myRoom)
             self.visible = peers.ids
             // 메뉴가 관찰하는 값으로 밀어 넣는다. 여기서 읽어 가게 두면
             // 값이 바뀌어도 메뉴를 다시 그릴 이유가 없어 경고가 뜨지 않는다
-            DispatchQueue.main.async { Presence.shared.otherVersions = peers.mismatched }
+            DispatchQueue.main.async {
+                Presence.shared.otherVersions = peers.mismatched
+                if Presence.shared.rooms != peers.rooms { Presence.shared.rooms = peers.rooms }
+            }
             self.dial()
         }
         browser.stateUpdateHandler = { [weak self] state in
