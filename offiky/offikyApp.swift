@@ -62,15 +62,20 @@ struct offikyApp: App {
         }
     }
 
-    /// 방은 만들 때마다 새로 생긴다. 이름이 같아도 다른 방이다
+    /// 방은 만들 때마다 새로 생긴다. 이름이 같아도 다른 방이다.
+    /// 들어가 있던 방에서는 나오게 되므로 그렇게 적어 준다
     private func createRoom() {
+        let inRoom = Presence.shared.room != nil
         let alert = NSAlert()
         alert.messageText = "방 만들기"
-        alert.informativeText = "동료는 메뉴의 방 참여하기에서 이 방을 고르면 됩니다."
+        alert.informativeText = inRoom
+            ? "지금 방에서 나와 새 방을 만듭니다. 동료는 방 참여하기에서 고르면 됩니다."
+            : "동료는 메뉴의 방 참여하기에서 이 방을 고르면 됩니다."
         alert.addButton(withTitle: "만들기")
         alert.addButton(withTitle: "취소")
         let field = NSTextField(frame: CGRect(x: 0, y: 0, width: 220, height: 24))
-        field.stringValue = Presence.shared.room ?? ""
+        // 지금 방 이름을 채워 두면 이름만 고치는 창으로 보인다. 실제로는 새 방이다
+        field.placeholderString = "방 이름"
         alert.accessoryView = field
         NSApp.activate(ignoringOtherApps: true)
         guard alert.runModal() == .alertFirstButtonReturn else { return }
