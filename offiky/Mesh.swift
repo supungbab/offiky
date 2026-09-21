@@ -24,9 +24,11 @@ final class Mesh {
     private final class Link {
         let connection: NWConnection
         var peerID: String?
+        var traffic = LinkTrafficPolicy(startedAt: ProcessInfo.processInfo.systemUptime)
         var buffer = Data()
         var windowStart: TimeInterval = 0
         var lines = 0
+        var handshakeWork: DispatchWorkItem?
         init(_ connection: NWConnection, peerID: String?) {
             self.connection = connection
             self.peerID = peerID
@@ -42,8 +44,11 @@ final class Mesh {
     private var restartWork: DispatchWorkItem?
     private var lastPath = ""
     private var running = false
+    private var trafficWindowStart: TimeInterval = 0
+    private var totalLines = 0
 
     static let retryDelay: TimeInterval = 5
+    static let handshakeTimeout: TimeInterval = 5
 
     var onLine: ((Data, String) -> Void)?
     var onReady: ((String) -> Void)?
@@ -81,12 +86,15 @@ final class Mesh {
         browser?.stateUpdateHandler = nil
         browser?.cancel(); browser = nil
         for link in links.values {
+            link.handshakeWork?.cancel()
             link.connection.stateUpdateHandler = nil
             link.connection.cancel()
         }
         links.removeAll()
         visible.removeAll()
         retryAfter.removeAll()
+        trafficWindowStart = 0
+        totalLines = 0
         DispatchQueue.main.async {
             Presence.shared.otherVersions = 0
             Session.shared.reset()
@@ -191,6 +199,7 @@ final class Mesh {
         let now = Date()
         var wakeAt: Date?
         for id in visible where id > World.shared.myID {
+            guard links.count < Limits.maxLinks else { break }
             if links.values.contains(where: { $0.peerID == id }) { continue }
             if let at = retryAfter[id], at > now {
                 wakeAt = min(wakeAt ?? at, at)
@@ -217,9 +226,22 @@ final class Mesh {
     }
 
     private func add(_ connection: NWConnection, peerID: String?) {
+        // 받은 연결뿐 아니라 내가 거는 연결까지 합쳐 제한한다. Bonjour 결과를 위조해
+        // 서로 다른 id를 대량 광고해도 연결 수가 끝없이 늘어나면 안 된다.
+        guard links.count < Limits.maxLinks else { connection.cancel(); return }
         let key = UUID().uuidString
         let link = Link(connection, peerID: peerID)
         links[key] = link
+        let handshakeWork = DispatchWorkItem { [weak self, weak link] in
+            guard let self, let link, self.links[key] === link,
+                  link.traffic.handshakeExpired(
+                    at: ProcessInfo.processInfo.systemUptime,
+                    timeout: Mesh.handshakeTimeout)
+            else { return }
+            self.drop(key)
+        }
+        link.handshakeWork = handshakeWork
+        queue.asyncAfter(deadline: .now() + Mesh.handshakeTimeout, execute: handshakeWork)
         connection.stateUpdateHandler = { [weak self] state in
             guard let self, self.links[key] === link else { return }
             switch state {
@@ -239,12 +261,14 @@ final class Mesh {
 
     private func drop(_ key: String) {
         guard let link = links.removeValue(forKey: key) else { return }
+        link.handshakeWork?.cancel()
         link.connection.stateUpdateHandler = nil
         link.connection.cancel()
         if let id = link.peerID {
             retryAfter[id] = Date().addingTimeInterval(Mesh.retryDelay)
-            dial()
         }
+        // 식별 전 연결이 자리를 차지했다가 빠진 경우에도 대기 중인 정상 피어를 건다.
+        dial()
         DispatchQueue.main.async { self.onGone?(key) }
     }
 
@@ -260,6 +284,9 @@ final class Mesh {
                 return
             }
             link.peerID = id
+            link.traffic.identify()
+            link.handshakeWork?.cancel()
+            link.handshakeWork = nil
         }
     }
 
@@ -289,13 +316,26 @@ final class Mesh {
                 link.buffer.append(data)
                 let now = ProcessInfo.processInfo.systemUptime
                 if now - link.windowStart >= 1 { link.windowStart = now; link.lines = 0 }
+                if now - self.trafficWindowStart >= 1 {
+                    self.trafficWindowStart = now
+                    self.totalLines = 0
+                }
                 while let newline = link.buffer.firstIndex(of: 0x0A) {
                     let line = Data(link.buffer[link.buffer.startIndex..<newline])
                     link.buffer.removeSubrange(link.buffer.startIndex...newline)
                     if line.count > Limits.maxMessageBytes { self.drop(key); return }
                     link.lines += 1
-                    // 쏟아부어 메인 큐를 메우지 못하게 한다
-                    if link.lines > Limits.maxLinesPerSecond { self.drop(key); return }
+                    self.totalLines += 1
+                    switch link.traffic.decision(linkLines: link.lines,
+                                                 totalLines: self.totalLines) {
+                    case .disconnect:
+                        self.drop(key)
+                        return
+                    case .discard:
+                        continue
+                    case .forward:
+                        break
+                    }
                     if !line.isEmpty { self.onLine?(line, key) }
                 }
                 // 개행이 없으면 위 검사에 닿지 않는다. 한 줄이 될 수 없는 조각이면 끊는다
@@ -309,15 +349,19 @@ final class Mesh {
 
     /// 연결 목록은 이 큐에서만 바뀐다. 메인에서 바로 읽으면 바뀌는 중에 읽을 수 있다
     func broadcast(_ data: Data) {
+        guard data.count <= Limits.maxMessageBytes else { return }
         var line = data; line.append(0x0A)
         queue.async {
-            for link in self.links.values {
+            // hello를 끝내지 않은 연결은 방과 버전을 증명하지 않았다. 이쪽 좌표와
+            // 채팅을 받아 가게 두지 않고, 느린 연결에 송신 버퍼가 쌓이는 것도 막는다.
+            for link in self.links.values where link.traffic.canReceiveBroadcast {
                 link.connection.send(content: line, completion: .idempotent)
             }
         }
     }
 
     func send(_ data: Data, to key: String) {
+        guard data.count <= Limits.maxMessageBytes else { return }
         var line = data; line.append(0x0A)
         queue.async { self.links[key]?.connection.send(content: line, completion: .idempotent) }
     }

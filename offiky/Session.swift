@@ -10,6 +10,8 @@ final class Session {
     private var posTimer: Timer?
     private var lastSent: PosMsg?
     private var lastSentAt: TimeInterval = 0
+    private let decoder = JSONDecoder()
+    private let encoder = JSONEncoder()
 
     private init() {}
 
@@ -33,17 +35,23 @@ final class Session {
         posTimer = timer
     }
 
-    private func encode<T: Encodable>(_ value: T) -> Data {
-        (try? JSONEncoder().encode(value)) ?? Data()
+    private func encode<T: Encodable>(_ value: T) -> Data? {
+        guard let data = try? encoder.encode(value), data.count <= Limits.maxMessageBytes
+        else { return nil }
+        return data
     }
 
     /// 양쪽 다 연결되자마자 보낸다. 받은 쪽이 따로 답할 필요가 없다
     private func sendHello(to key: String) {
+        guard let room = World.myRoom else { Mesh.shared.dropLink(key); return }
         let me = World.shared.me
-        Mesh.shared.send(encode(HelloMsg(id: World.shared.myID,
-                                         name: me.displayName, look: World.myLook)), to: key)
+        guard let hello = encode(HelloMsg(id: World.shared.myID, name: me.displayName,
+                                          look: World.myLook, room: room)),
+              let position = encode(stamped(currentPosition()))
+        else { Mesh.shared.dropLink(key); return }
+        Mesh.shared.send(hello, to: key)
         // 서 있으면 다음 좌표가 몇 초 뒤다. 그때까지 내가 띠 왼쪽 끝에 서 있는 것으로 보인다
-        Mesh.shared.send(encode(stamped(currentPosition())), to: key)
+        Mesh.shared.send(position, to: key)
     }
 
     private func currentPosition() -> PosMsg {
@@ -68,18 +76,26 @@ final class Session {
         guard shouldSend(msg, last: lastSent, since: now - lastSentAt) else { return }
         lastSent = msg
         lastSentAt = now
-        Mesh.shared.broadcast(encode(stamped(msg)))
+        if let data = encode(stamped(msg)) { Mesh.shared.broadcast(data) }
     }
 
     func sendSay(_ text: String) {
         guard let body = validChat(text) else { return }
-        Mesh.shared.broadcast(encode(SayMsg(msg: body)))
+        guard let data = encode(SayMsg(msg: body)) else { return }
+        Mesh.shared.broadcast(data)
         World.shared.showBubble(id: World.shared.myID, text: body)
     }
 
     func sendProfile() {
         let me = World.shared.me
-        Mesh.shared.broadcast(encode(ProfileMsg(name: me.displayName, look: World.myLook)))
+        if let data = encode(ProfileMsg(name: me.displayName, look: World.myLook)) {
+            Mesh.shared.broadcast(data)
+        }
+    }
+
+    /// 낙하는 소유자가 자기 캐릭터에 대해 판정한다. 결과만 다른 화면에 알린다.
+    func sendHit() {
+        if let data = encode(HitMsg()) { Mesh.shared.broadcast(data) }
     }
 
     /// 메시를 다시 시작할 때 이전 연결의 흔적을 전부 지운다.
@@ -105,19 +121,20 @@ final class Session {
     }
 
     private func handle(_ data: Data, from key: String) {
-        guard let envelope = try? JSONDecoder().decode(Envelope.self, from: data) else { return }
-        switch envelope.t {
-        case "hello":   handleHello(data, key: key)
-        case "pos":     handlePos(data, key: key)
-        case "say":     handleSay(data, key: key)
-        case "profile": handleProfile(data, key: key)
-        default: break
+        guard let message = try? decoder.decode(IncomingMessage.self, from: data) else { return }
+        switch message {
+        case let .hello(msg):    handleHello(msg, key: key)
+        case let .position(msg): handlePos(msg, key: key)
+        case let .say(msg):      handleSay(msg, key: key)
+        case let .profile(msg):  handleProfile(msg, key: key)
+        case .hit:               handleHit(key: key)
         }
     }
 
-    private func handleHello(_ data: Data, key: String) {
-        guard let msg = try? JSONDecoder().decode(HelloMsg.self, from: data),
-              msg.pv == protocolVersion,
+    private func handleHello(_ msg: HelloMsg, key: String) {
+        guard msg.pv == protocolVersion,
+              let room = World.myRoom,
+              msg.room == room,
               msg.id != World.shared.myID,
               !idIsTaken(msg.id, by: key, in: peerByKey)
         else {
@@ -129,9 +146,8 @@ final class Session {
         World.shared.addPeer(id: msg.id, name: sanitizeName(msg.name), look: msg.look.sanitized)
     }
 
-    private func handlePos(_ data: Data, key: String) {
+    private func handlePos(_ msg: PosMsg, key: String) {
         guard let id = peerByKey[key],
-              let msg = try? JSONDecoder().decode(PosMsg.self, from: data),
               abs(msg.x) <= Limits.maxX,
               msg.y == nil || (msg.y! >= 0 && msg.y! <= Limits.maxY)
         else { return }
@@ -140,18 +156,20 @@ final class Session {
                                    facing: msg.f, sent: msg.m.map { Double($0) / 1000 })
     }
 
-    private func handleSay(_ data: Data, key: String) {
+    private func handleSay(_ msg: SayMsg, key: String) {
         guard let id = peerByKey[key],
-              let msg = try? JSONDecoder().decode(SayMsg.self, from: data),
               let body = validChat(msg.msg)
         else { return }
         World.shared.showBubble(id: id, text: body)
     }
 
-    private func handleProfile(_ data: Data, key: String) {
-        guard let id = peerByKey[key],
-              let msg = try? JSONDecoder().decode(ProfileMsg.self, from: data)
-        else { return }
+    private func handleProfile(_ msg: ProfileMsg, key: String) {
+        guard let id = peerByKey[key] else { return }
         World.shared.addPeer(id: id, name: sanitizeName(msg.name), look: msg.look.sanitized)
+    }
+
+    private func handleHit(key: String) {
+        guard let id = peerByKey[key] else { return }
+        World.shared.peerWasHit(id: id)
     }
 }

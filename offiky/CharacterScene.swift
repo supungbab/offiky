@@ -5,6 +5,7 @@ final class CharacterNode: SKNode {
     let id: String
     let isLocal: Bool
     var displayName: String
+    private let depthBias: CGFloat
 
     var x: CGFloat = 0
     var y: CGFloat = 0
@@ -15,6 +16,7 @@ final class CharacterNode: SKNode {
     private let shadow = SKSpriteNode()
     private let label = SKLabelNode(fontNamed: "Helvetica")
     private var nameBackground: SKShapeNode?
+    private var bubbleNode: SKShapeNode?
     private var renderedName: String?
 
     private var verticalSpeed: CGFloat = 0
@@ -32,8 +34,8 @@ final class CharacterNode: SKNode {
     /// 기어갈 때는 달리기 그림을 쓰되 천천히 넘긴다.
     /// 걷기가 한 장에 5.8pt 가므로 같은 비율이 되는 값이다
     static let crawlFPS: Double = 7
-    /// 이 속도를 넘으면 대시 동작을 그리고 부딪힐 때 아파한다
-    static let chargeSpeed: CGFloat = 110
+    /// 원격 캐릭터의 보간 속도가 이 값을 넘으면 대시 동작을 그린다
+    static let dashAnimationThreshold: CGFloat = 110
     /// 이동 방향. +1 오른쪽, -1 왼쪽
     private var facing: CGFloat = -1
     var facingSign: CGFloat { facing }
@@ -53,9 +55,9 @@ final class CharacterNode: SKNode {
     }
 
     private var walkPhase: TimeInterval = 0
+    private var renderedAnimation: Animation?
+    private var renderedFrame = -1
     private var previousX: CGFloat = 0
-    /// 부딪히면 다칠 만큼 앞으로 나아가는 중인지. 표시용 동작이 아니라 실제 속도로 판정한다.
-    private(set) var isCharging = false
     var hurtUntil: TimeInterval = 0
     private var bubbleUntil: TimeInterval = 0
     private var wasAirborne = false
@@ -102,6 +104,7 @@ final class CharacterNode: SKNode {
         self.id = id
         self.displayName = name
         self.isLocal = isLocal
+        self.depthBias = CGFloat(stableHash(id) % 997) / 1000
         super.init()
 
         shadowStep = -1
@@ -135,6 +138,8 @@ final class CharacterNode: SKNode {
         // 칸 아래 빈 줄만큼 내려야 발이 바닥선에 닿는다
         image.position = CGPoint(x: 0, y: -spriteDisplaySize / 2 - sheet.footPadding * 2)
         image.texture = sheet.frames[.idle]?.first
+        renderedAnimation = nil
+        renderedFrame = -1
     }
 
     /// 방향키를 누르고 있는 정도에 따라 제자리·걷기·대시 순으로 높이 뛴다.
@@ -205,10 +210,11 @@ final class CharacterNode: SKNode {
         verticalSpeed = min(verticalSpeed, 0)
     }
 
+    @discardableResult
     func setRemoteTarget(x newX: CGFloat, y newY: CGFloat,
-                         sent: TimeInterval? = nil, at now: TimeInterval) {
+                         sent: TimeInterval? = nil, at now: TimeInterval) -> Bool {
         // 순서가 뒤바뀌어 옛 좌표가 늦게 왔다. 최신만 쓴다
-        if let sent, let previous = lastSentTime, sent <= previous { return }
+        if let sent, let previous = lastSentTime, sent <= previous { return false }
         lastSeen = now
         if let sent { lastSentTime = sent }
 
@@ -216,7 +222,7 @@ final class CharacterNode: SKNode {
         if let last = samples.last, last.x == newX, last.y == newY {
             wasStill = true
             lastArrival = now
-            return
+            return true
         }
         // 서 있던 구간의 간격을 지연에 반영하면 움직이기 시작할 때 반 초 늦게 보인다
         if lastArrival > 0, !wasStill {
@@ -256,6 +262,20 @@ final class CharacterNode: SKNode {
         if let last = samples.last { stamp = max(stamp, last.t + 0.001) }
         samples.append((stamp, newX, newY))
         if samples.count > 8 { samples.removeFirst(samples.count - 8) }
+        return true
+    }
+
+    /// 한 위치 메시지에 실린 값은 한 스냅샷이다. 송신 시각이 오래됐으면 자세까지
+    /// 전부 버려 위치와 행동이 서로 다른 패킷에서 섞이지 않게 한다.
+    @discardableResult
+    func applyRemoteSnapshot(x: CGFloat, y: CGFloat, bowing: Bool, dragging: Bool,
+                             facing direction: Int?, sent: TimeInterval?, at now: TimeInterval) -> Bool {
+        guard setRemoteTarget(x: x, y: y, sent: sent, at: now) else { return false }
+        isBowing = bowing
+        if let direction { faceAsTold(CGFloat(direction)) }
+        if dragging { isDragging = true }
+        else if isDragging { endDrag() }
+        return true
     }
 
     func update(dt: TimeInterval, now: TimeInterval, strip: FloorStrip) {
@@ -264,8 +284,12 @@ final class CharacterNode: SKNode {
         } else {
             interpolate(now: now, dt: dt)
         }
-        peakY = max(peakY, y)
-        detectLanding(now: now)
+        // 낙하 피격은 소유자만 판정해 hit 메시지로 알린다. 원격 노드의 높이는
+        // 보간 결과라 실제 궤적과 다르고, 여기서 다시 판정하면 화면마다 결과가 갈린다.
+        if isLocal {
+            peakY = max(peakY, y)
+            detectLanding(now: now)
+        }
         expireBubble(now: now)
 
         let moved = x - previousX
@@ -275,7 +299,7 @@ final class CharacterNode: SKNode {
         let speed = abs(moved) / CGFloat(max(dt, 0.001))
 
         let running = !isDragging && now >= hurtUntil && y <= 0
-            && speed > CharacterNode.chargeSpeed
+            && speed > CharacterNode.dashAnimationThreshold
 
         let animation: Animation
         if isDragging { animation = .idle }          // 들려 있는 동안은 가만히 서 있는다
@@ -291,11 +315,12 @@ final class CharacterNode: SKNode {
             // 기어갈 때는 달리기 그림을 천천히 넘긴다
             let fps = isBowing && animation == .dash ? CharacterNode.crawlFPS : animation.fps
             let index = isDragging ? 0 : Int(walkPhase * fps) % textures.count
-            image.texture = textures[index]
+            if animation != renderedAnimation || index != renderedFrame {
+                image.texture = textures[index]
+                renderedAnimation = animation
+                renderedFrame = index
+            }
         }
-        // 공중에서는 앞으로 나아가는 점프만, 바닥에서는 대시만 해당한다
-        isCharging = !isDragging && now >= hurtUntil
-            && (y > 0 ? speed > 35 : speed > CharacterNode.chargeSpeed)
     }
 
     private func simulate(dt: TimeInterval, now: TimeInterval, strip: FloorStrip) {
@@ -350,7 +375,7 @@ final class CharacterNode: SKNode {
     /// 낙하 속도는 프레임 간 높이 변화로 구한다. verticalSpeed 는 착지 직전에
     /// 0으로 초기화되고, 원격 캐릭터에는 아예 없다.
     /// 착지 속도는 최고 높이에서 구한다. 자유낙하는 v = sqrt(2gh) 이므로
-    /// 프레임 타이밍과 무관하고 원격 캐릭터에도 그대로 적용된다.
+    /// 프레임 타이밍과 무관하게 로컬 캐릭터에서 안정적으로 판정된다.
     /// 마지막 프레임의 높이로 계산하면 착지 직전 프레임이 어디에 걸리느냐에 따라
     /// 같은 높이에서 떨어져도 결과가 널뛴다.
     private func detectLanding(now: TimeInterval) {
@@ -380,7 +405,7 @@ final class CharacterNode: SKNode {
         applyShadow(step: min(CharacterNode.shadowSteps.count - 1,
                               Int(lift * CGFloat(CharacterNode.shadowSteps.count))))
         shadow.alpha = 0.3 * (1 - 0.75 * lift)
-        zPosition = x + CGFloat(stableHash(id) % 997) / 1000
+        zPosition = x + depthBias
         // 스프라이트는 오른쪽을 보고 그려져 있다
         image.xScale = facing
         updateNameLabel()
@@ -407,7 +432,7 @@ final class CharacterNode: SKNode {
 
 extension CharacterNode {
     func showBubble(text: String, now: TimeInterval) {
-        childNode(withName: "bubble")?.removeFromParent()
+        bubbleNode?.removeFromParent()
 
         let label = SKLabelNode(fontNamed: "Helvetica")
         label.text = text
@@ -430,18 +455,20 @@ extension CharacterNode {
         bubble.position = CGPoint(x: 0, y: spriteDisplaySize / 2 + 16 + size.height / 2)
         bubble.addChild(label)
         addChild(bubble)
+        bubbleNode = bubble
         bubbleUntil = now + 5
     }
 
     /// SKAction 으로 지우면 노드가 씬에서 빠져 있는 동안 시간이 흐르지 않아 말풍선이 남는다
     func expireBubble(now: TimeInterval) {
         guard bubbleUntil != 0, now >= bubbleUntil else { return }
-        childNode(withName: "bubble")?.removeFromParent()
+        bubbleNode?.removeFromParent()
+        bubbleNode = nil
         bubbleUntil = 0
     }
 
     func clampBubble(sceneWidth: CGFloat) {
-        guard let bubble = childNode(withName: "bubble") as? SKShapeNode else { return }
+        guard let bubble = bubbleNode else { return }
         let half = bubble.frame.width / 2
         if position.x - half < 0 {
             bubble.position.x = half - position.x
@@ -482,6 +509,8 @@ final class World {
 
     private var scenes: [CharacterScene] = []
     private var lastTick: TimeInterval = 0
+    private var lastPeerSweep: TimeInterval = 0
+    private var reportedHurtUntil: TimeInterval = 0
     private var placed = false
     /// 마지막으로 보이던 화면 위 자리. 전환 중에는 화면이 0개로 보고되는 순간이 있어,
     /// 그때 띠에서 다시 계산하면 기억이 사라진다
@@ -582,26 +611,6 @@ final class World {
         me.y = spot.y
     }
 
-    /// 앞으로 빠르게 나아가는 캐릭터끼리 정면으로 부딪히면 둘 다 피격한다.
-    /// 지상 대시, 걷기 점프, 대시 점프가 모두 해당한다.
-    /// 좌표는 모두가 공유하므로 각자 같은 판정을 내린다. 평소에는 서로 통과한다.
-    private func resolveCollisions(now: TimeInterval) {
-        let charging = ([me] + Array(peers.values)).filter(\.isCharging)
-        guard charging.count > 1 else { return }
-        for (i, a) in charging.enumerated() {
-            for b in charging.dropFirst(i + 1) {
-                guard now >= a.hurtUntil, now >= b.hurtUntil,
-                      abs(a.x - b.x) < 22,
-                      abs(a.y - b.y) < 24,      // 뛰어넘는 것은 부딪힌 것이 아니다
-                      a.facingSign != b.facingSign,
-                      (b.x - a.x) * a.facingSign > 0
-                else { continue }
-                a.takeHit(now: now)
-                b.takeHit(now: now)
-            }
-        }
-    }
-
     func tick(now: TimeInterval) {
         guard !scenes.isEmpty else { return }
         // 화면마다 씬이 따로 부르므로 한 프레임에 여러 번 들어온다
@@ -610,22 +619,26 @@ final class World {
         let dt = lastTick == 0 ? 1.0 / 60 : min(0.25, elapsed)
         lastTick = now
 
-        for (id, node) in peers where !node.isLocal && now - node.lastSeen > World.peerTimeout {
-            node.removeFromParent()
-            peers[id] = nil
-            Session.shared.peerGone(id)
+        // 끊긴 피어를 찾는 일은 프레임마다 할 필요가 없다. 먼저 id를 모은 뒤 지워
+        // Dictionary를 순회하는 도중 변경하지도 않는다.
+        if now - lastPeerSweep >= 1 {
+            lastPeerSweep = now
+            let expired = peers.compactMap { id, node in
+                now - node.lastSeen > World.peerTimeout ? id : nil
+            }
+            for id in expired { Session.shared.peerGone(id) }
         }
 
         let count = 1 + peers.count
         if Presence.shared.count != count { Presence.shared.count = count }
 
         var visible: [(node: CharacterNode, placement: Placement)] = []
-        for node in [me] + Array(peers.values) {
+        func update(_ node: CharacterNode) {
             node.update(dt: dt, now: now, strip: strip)
 
             guard let placement = strip.place(x: node.x, y: node.y) else {
                 node.removeFromParent()
-                continue
+                return
             }
             let scene = scenes[placement.screenIndex]
             if node.parent !== scene {
@@ -634,8 +647,13 @@ final class World {
             }
             visible.append((node, placement))
         }
+        update(me)
+        for node in peers.values { update(node) }
 
-        resolveCollisions(now: now)
+        if me.hurtUntil > reportedHurtUntil {
+            reportedHurtUntil = me.hurtUntil
+            Session.shared.sendHit()
+        }
 
         for (node, placement) in visible {
             node.render(placement: placement)
@@ -685,12 +703,13 @@ extension World {
     func setPeerTarget(id: String, x: CGFloat, y: CGFloat,
                        bowing: Bool, dragging: Bool, facing: Int?, sent: TimeInterval?) {
         guard let node = peers[id] else { return }
-        node.isBowing = bowing
-        if let facing { node.faceAsTold(CGFloat(facing)) }
-        // 들고 다닌 높이는 낙하가 아니다. 내 캐릭터와 같은 판정이 나오게 맞춘다
-        if dragging { node.isDragging = true }
-        else if node.isDragging { node.endDrag() }
-        node.setRemoteTarget(x: x, y: y, sent: sent, at: ProcessInfo.processInfo.systemUptime)
+        node.applyRemoteSnapshot(x: x, y: y, bowing: bowing, dragging: dragging,
+                                 facing: facing, sent: sent,
+                                 at: ProcessInfo.processInfo.systemUptime)
+    }
+
+    func peerWasHit(id: String) {
+        peers[id]?.takeHit(now: ProcessInfo.processInfo.systemUptime)
     }
 
     func showBubble(id: String, text: String) {
@@ -707,10 +726,8 @@ extension World {
     /// 프로토콜이 달라 연결하지 않은 피어 수
     var otherVersions = 0
     /// 지금 들어가 있는 방 이름. nil 이면 혼자다
-    var room = World.myRoomName
+    var room = roomDisplayName(id: World.myRoom, name: World.myRoomName)
     /// 망에 보이는 방들. 참여하기 목록에 쓴다
     var rooms: [RoomListing] = []
     private init() {}
 }
-
-

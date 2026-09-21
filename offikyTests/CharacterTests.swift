@@ -172,8 +172,8 @@ struct ControlTests {
     }
 
     @MainActor @Test func 대시가_걷기보다_빠르다() {
-        #expect(CharacterNode.dashSpeed > CharacterNode.chargeSpeed)
-        #expect(CharacterNode.chargeSpeed > CharacterNode.walkSpeed)
+        #expect(CharacterNode.dashSpeed > CharacterNode.dashAnimationThreshold)
+        #expect(CharacterNode.dashAnimationThreshold > CharacterNode.walkSpeed)
     }
 
     /// 화면을 꽂았다 빼면 자리를 다시 잡는데, 그때 누르고 있던 방향이 사라지면
@@ -430,8 +430,8 @@ struct RemoteDragTests {
     private let strip = FloorStrip(visibleFrames: [CGRect(x: 0, y: 0, width: 1800, height: 1000)],
                                    main: CGRect(x: 0, y: 0, width: 1800, height: 1000))
 
-    /// 상대가 캐릭터를 높이 들었다 바닥에 내려놓는 동안 내가 받는 좌표를 그대로 재생한다.
-    /// 들려 있다는 것을 같이 보내지 않으면 살살 내려놓아도 피격 동작이 나온다
+    /// 상대가 캐릭터를 높이 들었다 바닥에 내려놓는 동안 받은 좌표를 그대로 재생해도,
+    /// 원격 좌표 자체로는 피격을 판정하지 않는다.
     @MainActor @Test func 상대가_들고_내려놓으면_아프지_않다() {
         let node = CharacterNode(id: "peer", name: "peer", isLocal: false)
         var now: TimeInterval = 0
@@ -447,7 +447,7 @@ struct RemoteDragTests {
         #expect(node.hurtUntil == 0)
     }
 
-    @MainActor @Test func 상대가_높은_곳에서_놓으면_아파한다() {
+    @MainActor @Test func 상대의_낙하는_보간_좌표로_판정하지_않는다() {
         let node = CharacterNode(id: "peer", name: "peer", isLocal: false)
         var now: TimeInterval = 0
         func feed(_ y: CGFloat) {
@@ -459,7 +459,18 @@ struct RemoteDragTests {
         node.endDrag()
         for y in stride(from: CGFloat(300), through: 0, by: -100) { feed(y) }
         for _ in 0..<10 { feed(0) }
-        #expect(node.hurtUntil > 0)
+        #expect(node.hurtUntil == 0)
+    }
+
+    @MainActor @Test func 받은_피격은_원격_캐릭터에_적용한다() {
+        let id = "hit-test-\(UUID().uuidString)"
+        let world = World.shared
+        world.addPeer(id: id, name: "peer", look: .neutral)
+        defer { world.removePeer(id: id) }
+
+        let before = world.peers[id]?.hurtUntil ?? 0
+        world.peerWasHit(id: id)
+        #expect((world.peers[id]?.hurtUntil ?? 0) > before)
     }
 }
 
@@ -781,6 +792,19 @@ struct SendTimeTests {
         let seen = node.lastSeen
         node.setRemoteTarget(x: 150, y: 0, sent: 50.1, at: 0.3)   // 늦게 온 옛것
         #expect(node.lastSeen == seen)                            // 아예 없던 일로 친다
+    }
+
+    @MainActor @Test func 옛_좌표에_실린_자세도_함께_버린다() {
+        let node = CharacterNode(id: "p", name: "p", isLocal: false)
+        node.applyRemoteSnapshot(x: 200, y: 0, bowing: false, dragging: false,
+                                 facing: 1, sent: 50.2, at: 0.2)
+        node.applyRemoteSnapshot(x: 150, y: 0, bowing: true, dragging: true,
+                                 facing: -1, sent: 50.1, at: 0.3)
+
+        #expect(!node.isBowing)
+        #expect(!node.isDragging)
+        #expect(node.facingSign == 1)
+        #expect(node.lastSeen == 0.2)
     }
 
     @Test func 보낸_시각은_견주지_않는다() {

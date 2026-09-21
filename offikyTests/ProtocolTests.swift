@@ -209,6 +209,12 @@ struct SanitizeTests {
         #expect(sanitizeName(String(repeating: "가", count: 30)).count == 20)
     }
 
+    @Test func 한_글자가_커도_이름_바이트_제한을_넘지_않는다() {
+        let oneHugeCharacter = "a" + String(repeating: "\u{0301}", count: 20_000)
+        #expect(oneHugeCharacter.count == 1)
+        #expect(sanitizeName(oneHugeCharacter).utf8.count <= Limits.maxNameBytes)
+    }
+
     @Test func 이름의_제어문자를_제거한다() {
         #expect(sanitizeName("Ky\nle\t") == "Kyle")
     }
@@ -222,6 +228,12 @@ struct SanitizeTests {
         #expect(validChat("") == nil)
         #expect(validChat(String(repeating: "가", count: 201)) == nil)
         #expect(validChat("점심") == "점심")
+    }
+
+    @Test func 글자_수는_작아도_바이트가_큰_채팅은_거부한다() {
+        let oneHugeCharacter = "a" + String(repeating: "\u{0301}", count: 20_000)
+        #expect(oneHugeCharacter.count == 1)
+        #expect(validChat(oneHugeCharacter) == nil)
     }
 
     @Test func 채팅의_제어문자를_제거한다() {
@@ -260,10 +272,14 @@ struct MessageTests {
         #expect(held.contains("\"d\":true"))
     }
 
-    @Test func 종류를_먼저_읽을_수_있다() throws {
+    @Test func 종류와_내용을_한_번에_읽는다() throws {
         let json = #"{"t":"say","msg":"안녕"}"#
-        let env = try JSONDecoder().decode(Envelope.self, from: Data(json.utf8))
-        #expect(env.t == "say")
+        let message = try JSONDecoder().decode(IncomingMessage.self, from: Data(json.utf8))
+        guard case let .say(msg) = message else {
+            Issue.record("say 메시지로 디코딩되지 않았다")
+            return
+        }
+        #expect(msg.msg == "안녕")
     }
 
     /// 보내는 사람은 연결이 정한다. id 를 실으면 남을 사칭할 수 있다
@@ -285,10 +301,75 @@ struct MessageTests {
 
     @Test func hello_는_프로토콜_번호를_싣는다() throws {
         let data = try JSONEncoder().encode(
-            HelloMsg(id: "abc", name: "나", look: .neutral))
+            HelloMsg(id: "abc", name: "나", look: .neutral, room: "room-a"))
         let back = try JSONDecoder().decode(HelloMsg.self, from: data)
         #expect(back.pv == protocolVersion)
         #expect(back.id == "abc")
+        #expect(back.room == "room-a")
+    }
+
+    @Test func 피격_메시지를_구분한다() throws {
+        let data = try JSONEncoder().encode(HitMsg())
+        let message = try JSONDecoder().decode(IncomingMessage.self, from: data)
+        guard case .hit = message else {
+            Issue.record("hit 메시지로 디코딩되지 않았다")
+            return
+        }
+    }
+}
+
+@Suite("링크 트래픽 정책")
+struct LinkTrafficPolicyTests {
+
+    @MainActor @Test func 악수_전에는_방송을_받지_않고_기한이_지나면_만료된다() {
+        var policy = LinkTrafficPolicy(startedAt: 10)
+        #expect(!policy.canReceiveBroadcast)
+        #expect(!policy.handshakeExpired(at: 14.99, timeout: 5))
+        #expect(policy.handshakeExpired(at: 15, timeout: 5))
+
+        policy.identify()
+        #expect(policy.canReceiveBroadcast)
+        #expect(!policy.handshakeExpired(at: 100, timeout: 5))
+    }
+
+    @MainActor @Test func 악수_전_메시지가_지나치면_연결을_끊는다() {
+        var policy = LinkTrafficPolicy(startedAt: 0)
+        for line in 1...Limits.maxPendingLines {
+            #expect(policy.decision(linkLines: line, totalLines: line) == .forward)
+        }
+        #expect(policy.decision(linkLines: Limits.maxPendingLines + 1,
+                                totalLines: Limits.maxPendingLines + 1) == .disconnect)
+    }
+
+    @MainActor @Test func 링크별_상한을_넘긴_연결만_끊는다() {
+        var policy = LinkTrafficPolicy(startedAt: 0)
+        policy.identify()
+        #expect(policy.decision(linkLines: Limits.maxLinesPerSecond + 1,
+                                totalLines: 1) == .disconnect)
+    }
+
+    @MainActor @Test func 전역_상한은_연결을_끊지_않고_초과_메시지만_버린다() {
+        var policy = LinkTrafficPolicy(startedAt: 0)
+        policy.identify()
+        #expect(policy.decision(linkLines: 10,
+                                totalLines: Limits.maxTotalLinesPerSecond + 1) == .discard)
+        #expect(policy.canReceiveBroadcast)
+    }
+}
+
+@Suite("현재 방 표시")
+struct CurrentRoomTests {
+
+    @Test func 방_id가_없으면_이름만_남아도_참여_중이_아니다() {
+        #expect(roomDisplayName(id: nil, name: "옛 이름") == nil)
+    }
+
+    @Test func 방_이름이_없으면_id를_대신_보여준다() {
+        #expect(roomDisplayName(id: "abcd1234", name: nil) == "abcd1234")
+    }
+
+    @Test func 방_id와_이름이_있으면_이름을_보여준다() {
+        #expect(roomDisplayName(id: "abcd1234", name: "디자인팀") == "디자인팀")
     }
 }
 

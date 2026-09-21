@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
 
-let protocolVersion = 3
+let protocolVersion = 4
 let spriteDisplaySize: CGFloat = 40
 /// 바닥을 화면 맨 아래에서 띄우는 높이. Dock 이나 화면 끝에 붙어 보이지 않게 한다
 let floorOffset: CGFloat = 8
@@ -25,14 +25,20 @@ enum Limits {
     static let maxMessageBytes = 16 * 1024
     /// 받을 수 있는 연결 수. 실제 인원의 몇 배다
     static let maxLinks = 128
-    /// 한 연결에서 초당 받을 수 있는 줄 수. 좌표가 10줄이라 스무 배다
-    static let maxLinesPerSecond = 200
+    /// 한 연결에서 초당 받을 수 있는 줄 수. 정상 좌표 10줄에 채팅 여유를 넉넉히 둔다.
+    static let maxLinesPerSecond = 60
+    /// 여러 연결이 동시에 쏟아부어도 메인 큐가 무너지지 않게 한다.
+    /// 128명이 모두 움직여도 정상 좌표는 초당 약 1,270줄이다.
+    static let maxTotalLinesPerSecond = 5_000
+    static let maxPendingLines = 16
     static let maxName = 20
+    static let maxNameBytes = 256
     /// 방 이름 길이. 글자 수와 바이트 수 둘 다 막는다
     static let maxRoom = 20
     /// Bonjour TXT 는 한 쌍이 255바이트를 넘을 수 없다. 넘으면 광고가 통째로 실패한다
     static let maxRoomBytes = 60
     static let maxChat = 200
+    static let maxChatBytes = 2 * 1024
     static let maxX: Double = 10_000
     static let maxY: Double = 4_000
 }
@@ -153,6 +159,11 @@ func newRoomID() -> String {
     String(UUID().uuidString.prefix(8))
 }
 
+/// 실제 참여 여부는 room id로 정하고, 이름이 없을 때만 id를 표시용으로 쓴다.
+func roomDisplayName(id: String?, name: String?) -> String? {
+    id.map { name ?? $0 }
+}
+
 /// 참여하기 목록에 쓰는 한 줄
 struct RoomListing: Identifiable, Equatable {
     let id: String
@@ -199,8 +210,14 @@ private func stripControls(_ s: String) -> String {
 
 func sanitizeName(_ raw: String) -> String {
     let cleaned = stripControls(raw).trimmingCharacters(in: .whitespaces)
-    if cleaned.isEmpty { return "?" }
-    return String(cleaned.prefix(Limits.maxName))
+    var out = ""
+    for character in cleaned {
+        guard out.count < Limits.maxName,
+              out.utf8.count + String(character).utf8.count <= Limits.maxNameBytes
+        else { break }
+        out.append(character)
+    }
+    return out.isEmpty ? "?" : out
 }
 
 /// 이 값은 Bonjour TXT 에 실린다. 이모지는 한 글자가 스물다섯 바이트까지 가므로
@@ -219,11 +236,12 @@ func sanitizeRoom(_ raw: String) -> String {
 
 func validChat(_ raw: String) -> String? {
     let cleaned = stripControls(raw)
-    guard !cleaned.isEmpty, cleaned.count <= Limits.maxChat else { return nil }
+    guard !cleaned.isEmpty,
+          cleaned.count <= Limits.maxChat,
+          cleaned.utf8.count <= Limits.maxChatBytes
+    else { return nil }
     return cleaned
 }
-
-struct Envelope: Decodable { let t: String }
 
 struct HelloMsg: Codable {
     var t = "hello"
@@ -231,6 +249,7 @@ struct HelloMsg: Codable {
     let id: String
     let name: String
     let look: Look
+    let room: String
 }
 
 struct PosMsg: Codable, Equatable {
@@ -256,6 +275,70 @@ struct ProfileMsg: Codable {
     var t = "profile"
     let name: String
     let look: Look
+}
+
+/// 높은 곳에서 떨어진 피격은 소유자만 판정하고 다른 화면에 한 번 알린다.
+struct HitMsg: Codable {
+    var t = "hit"
+}
+
+enum IncomingLineDecision: Equatable {
+    case forward, discard, disconnect
+}
+
+/// 소켓과 분리한 링크 정책. 악수와 트래픽 제한을 실제 연결 없이도 검증한다.
+struct LinkTrafficPolicy {
+    let startedAt: TimeInterval
+    private(set) var isIdentified = false
+    private(set) var pendingLines = 0
+
+    var canReceiveBroadcast: Bool { isIdentified }
+
+    mutating func identify() { isIdentified = true }
+
+    func handshakeExpired(at now: TimeInterval, timeout: TimeInterval) -> Bool {
+        !isIdentified && now - startedAt >= timeout
+    }
+
+    mutating func decision(linkLines: Int, totalLines: Int) -> IncomingLineDecision {
+        if linkLines > Limits.maxLinesPerSecond { return .disconnect }
+        if !isIdentified {
+            pendingLines += 1
+            if pendingLines > Limits.maxPendingLines { return .disconnect }
+        }
+        // 전역 상한은 시스템 보호용이다. 임계점을 우연히 넘긴 정상 연결을 범인처럼
+        // 끊지 않고, 이 윈도우의 초과 메시지만 버린다.
+        if totalLines > Limits.maxTotalLinesPerSecond { return .discard }
+        return .forward
+    }
+}
+
+/// 종류를 먼저 따로 디코딩하면 좌표 하나마다 JSON 전체를 두 번 읽게 된다.
+/// 같은 Decoder에서 종류를 보고 구체 메시지를 만들어 한 번만 순회한다.
+enum IncomingMessage: Decodable {
+    case hello(HelloMsg)
+    case position(PosMsg)
+    case say(SayMsg)
+    case profile(ProfileMsg)
+    case hit(HitMsg)
+
+    private enum CodingKeys: String, CodingKey { case t }
+
+    init(from decoder: Decoder) throws {
+        let type = try decoder.container(keyedBy: CodingKeys.self).decode(String.self, forKey: .t)
+        switch type {
+        case "hello":   self = .hello(try HelloMsg(from: decoder))
+        case "pos":     self = .position(try PosMsg(from: decoder))
+        case "say":     self = .say(try SayMsg(from: decoder))
+        case "profile": self = .profile(try ProfileMsg(from: decoder))
+        case "hit":     self = .hit(try HitMsg(from: decoder))
+        default:
+            throw DecodingError.dataCorruptedError(
+                forKey: .t,
+                in: try decoder.container(keyedBy: CodingKeys.self),
+                debugDescription: "unknown message type")
+        }
+    }
 }
 
 /// 캐릭터 외형. 내장 40종 중 하나를 가리키는 번호다
