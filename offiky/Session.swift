@@ -26,7 +26,7 @@ final class Session {
 
         // 기본 모드 타이머는 대화상자나 메뉴를 열어 두면 멈춘다.
         // 그동안 좌표가 끊겨 동료 쪽 15초 판정에 해당해 내 캐릭터가 사라진다
-        let timer = Timer(timeInterval: snapshotInterval, repeats: true) {
+        let timer = Timer(timeInterval: positionInterval, repeats: true) {
             [weak self] _ in self?.sendPosition()
         }
         RunLoop.main.add(timer, forMode: .common)

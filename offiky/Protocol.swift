@@ -5,8 +5,9 @@ let protocolVersion = 2
 let spriteDisplaySize: CGFloat = 40
 /// 바닥을 화면 맨 아래에서 띄우는 높이. Dock 이나 화면 끝에 붙어 보이지 않게 한다
 let floorOffset: CGFloat = 8
-/// 좌표 전송·중계 주기. 점프가 0.6초라 0.5초로는 표본이 한두 개뿐이다
-let snapshotInterval: TimeInterval = 0.1
+/// 움직이는 동안 좌표를 보내는 주기. 점프가 0.6초라 0.5초로는 표본이 한두 개뿐이다.
+/// 서 있으면 이 주기로 보내지 않는다 — keepaliveInterval 을 본다
+let positionInterval: TimeInterval = 0.1
 
 /// 서 있으면 좌표가 그대로라 보내지 않는다. 그래도 이만큼마다 한 번은 보내야
 /// 받는 쪽 15초 판정에서 없는 사람이 되지 않는다

@@ -80,10 +80,6 @@ struct PeerTimeoutTests {
         node.setRemoteTarget(x: 20, y: 0, at: 500.1)
         #expect(node.lastSeen == 500.1)
     }
-
-    @MainActor @Test func 제한시간은_전송주기보다_넉넉하다() {
-        #expect(World.peerTimeout > snapshotInterval * 100)
-    }
 }
 
 struct RemoteTests {
@@ -543,7 +539,7 @@ struct FacingTests {
         var sent: TimeInterval = -1
 
         func relay() {
-            guard now - sent >= snapshotInterval else { return }
+            guard now - sent >= positionInterval else { return }
             sent = now
             if mine.isDragging { theirs.isDragging = true }
             else if theirs.isDragging { theirs.endDrag() }
