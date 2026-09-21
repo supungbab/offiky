@@ -56,6 +56,7 @@ final class Session {
     /// 호스트가 바뀌었다. 이전 구성에서 알던 사람은 전부 다시 받아야 한다
     func roleChanged(amHost: Bool) {
         self.amHost = amHost
+        Presence.shared.amHost = amHost && World.myRoom != nil
         reset()
     }
 

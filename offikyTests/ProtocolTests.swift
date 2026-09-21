@@ -448,6 +448,27 @@ struct HostElectionTests {
     }
 }
 
+@Suite("호스트 표시")
+struct HostBadgeTests {
+
+    /// 참가자 목록이 중계를 맡은 사람을 짚어 주는지. 혼자면 내가 호스트다
+    @MainActor @Test func 방에_있으면_호스트가_표시된다() {
+        UserDefaults.standard.set("testroom", forKey: "roomID")
+        defer { UserDefaults.standard.removeObject(forKey: "roomID") }
+        let rows = World.shared.roster()
+        #expect(rows.first?.isMe == true)
+        #expect(rows.first?.isHost == true)
+        #expect(Session.shared.hostPeer == World.shared.myID)
+    }
+
+    /// 방에 없으면 호스트라는 것이 없다
+    @MainActor @Test func 방에_없으면_아무도_호스트가_아니다() {
+        UserDefaults.standard.removeObject(forKey: "roomID")
+        #expect(Session.shared.hostPeer == nil)
+        #expect(World.shared.roster().allSatisfy { !$0.isHost })
+    }
+}
+
 @Suite("방 정원")
 struct RoomCapacityTests {
 

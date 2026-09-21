@@ -729,6 +729,8 @@ extension World {
     var otherVersions = 0
     /// 지금 들어가 있는 방 이름. nil 이면 혼자다
     var room = roomDisplayName(id: World.myRoom, name: World.myRoomName)
+    /// 내가 중계를 맡았는지. 메뉴가 관찰해야 해서 Session 것을 여기에 복사해 둔다
+    var amHost = false
     /// 망에 보이는 방들. 참여하기 목록에 쓴다
     var rooms: [RoomListing] = []
     private init() {}

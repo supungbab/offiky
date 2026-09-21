@@ -27,7 +27,10 @@ struct offikyApp: App {
             // 들어가 있으면 나가는 것만, 없으면 들어가는 것만 보여 준다.
             // 둘을 같이 내밀면 방 만들기가 이름 고치기로 읽힌다
             if let room = Presence.shared.room {
-                Text("방 · \(room)")
+                // 내가 나가면 남은 사람들이 잠깐 끊기므로 맡고 있다는 것이 보여야 한다
+                Text(Presence.shared.amHost ? "방 · 호스트 · \(room)" : "방 · \(room)")
+                // 누가 있는지는 방 이야기다. 방에 없으면 나뿐이라 내밀 것이 없다
+                Button("참가자 \(Presence.shared.count)명…") { openRoster() }
                 Button("방 나가기") { World.leaveRoom() }
             } else {
                 Text("방에 없습니다 — 나만 보입니다")
@@ -46,7 +49,6 @@ struct offikyApp: App {
                 }
             }
             Divider()
-            Button("참가자 \(Presence.shared.count)명…") { openRoster() }
             Button("내 캐릭터…") { openCharacterPicker() }
             Button("내 이름 변경…") { changeName() }
             if Presence.shared.otherVersions > 0 {
