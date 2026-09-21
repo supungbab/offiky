@@ -3,7 +3,7 @@ import Combine
 import SpriteKit
 import SwiftUI
 
-/// 누가 접속해 있는지만 보여준다. 위치는 화면에서 직접 보면 된다.
+/// 누가 접속해 있는지와 누가 중계를 맡았는지 보여준다. 위치는 화면에서 직접 보면 된다.
 struct RosterView: View {
     @State private var rows: [Row] = []
 
@@ -14,6 +14,7 @@ struct RosterView: View {
         let name: String
         let look: Look
         let isMe: Bool
+        let isHost: Bool
     }
 
     var body: some View {
@@ -30,6 +31,15 @@ struct RosterView: View {
                                 Text("나").font(.caption2).foregroundStyle(.secondary)
                             }
                             Spacer()
+                            // 이 사람이 나가면 다른 사람이 이어받으며 잠깐 끊긴다
+                            if row.isHost {
+                                Text("호스트")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(.quaternary, in: Capsule())
+                            }
                         }
                         .padding(.vertical, 5)
                         if row.id != rows.last?.id { Divider() }
@@ -57,7 +67,7 @@ struct RosterView: View {
 
     private func refresh() {
         rows = World.shared.roster().map {
-            Row(id: $0.id, name: $0.name, look: $0.look, isMe: $0.isMe)
+            Row(id: $0.id, name: $0.name, look: $0.look, isMe: $0.isMe, isHost: $0.isHost)
         }
     }
 }

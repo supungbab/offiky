@@ -491,8 +491,9 @@ final class CharacterScene: SKScene {
 final class World {
     static let shared = World()
 
-    /// 이 실행에서만 유효하다. 누가 먼저 거는지를 이 값으로 정한다.
-    let myID = UUID().uuidString
+    /// 이 실행에서만 유효하다. 호스트를 이 값으로 정하고, 호스트가 중계하는 좌표마다
+    /// 실려 나가므로 UUID 를 통째로 쓰지 않는다 — 50명이면 충돌 확률이 3e-7 이다
+    let myID = String(UUID().uuidString.prefix(8))
 
     /// 외형과 첫 위치를 정한다. myID 에 묶으면 실행할 때마다 색이 바뀐다.
     static let installID: String = {
@@ -546,14 +547,14 @@ final class World {
         UserDefaults.standard.set(id, forKey: "roomID")
         UserDefaults.standard.set(name, forKey: "roomName")
         Presence.shared.room = name
-        Mesh.shared.roomChanged()
+        Net.shared.roomChanged()
     }
 
     static func leaveRoom() {
         UserDefaults.standard.removeObject(forKey: "roomID")
         UserDefaults.standard.removeObject(forKey: "roomName")
         Presence.shared.room = nil
-        Mesh.shared.roomChanged()
+        Net.shared.roomChanged()
     }
 
     static var myLook: Look {
@@ -687,11 +688,12 @@ extension World {
 
     /// 메뉴는 SwiftUI 가 관찰하는 값이 바뀔 때만 다시 그린다.
     /// 함수를 직접 부르면 앱을 켠 순간의 값이 그대로 굳는다.
-    func roster() -> [(id: String, name: String, look: Look, isMe: Bool)] {
-        let mine = (me.id, me.displayName, me.look, true)
+    func roster() -> [(id: String, name: String, look: Look, isMe: Bool, isHost: Bool)] {
+        let host = Session.shared.hostPeer
+        let mine = (me.id, me.displayName, me.look, true, me.id == host)
         let others = peers.values
             .sorted { $0.displayName < $1.displayName }
-            .map { ($0.id, $0.displayName, $0.look, false) }
+            .map { ($0.id, $0.displayName, $0.look, false, $0.id == host) }
         return [mine] + others
     }
 

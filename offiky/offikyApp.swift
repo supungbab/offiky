@@ -37,9 +37,11 @@ struct offikyApp: App {
                         Text("보이는 방이 없습니다")
                     }
                     ForEach(Presence.shared.rooms) { room in
-                        Button("\(room.label)  \(room.count)명") {
+                        let full = room.count >= Limits.maxRoomMembers
+                        Button("\(room.label)  \(room.count)명\(full ? " · 정원" : "")") {
                             World.join(room: room.id, name: room.name)
                         }
+                        .disabled(full)
                     }
                 }
             }
@@ -100,11 +102,21 @@ struct offikyApp: App {
     }
 }
 
+/// 방에 다 찼다고 호스트가 알려 왔다. 이미 방에서 나온 뒤다
+func tellRoomIsFull() {
+    let alert = NSAlert()
+    alert.messageText = "방이 가득 찼습니다"
+    alert.informativeText = "한 방에는 \(Limits.maxRoomMembers)명까지 들어갈 수 있습니다."
+    alert.addButton(withTitle: "확인")
+    NSApp.activate(ignoringOtherApps: true)
+    alert.runModal()
+}
+
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         OverlayController.shared.start()
         Session.shared.start()
-        Mesh.shared.start()
+        Net.shared.start()
         ChatPanel.shared.install()
         Control.shared.install()
         Task { await UpdateChecker.shared.check() }
@@ -114,8 +126,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let center = NSWorkspace.shared.notificationCenter
         center.addObserver(forName: NSWorkspace.willSleepNotification,
-                           object: nil, queue: .main) { _ in Mesh.shared.stop() }
+                           object: nil, queue: .main) { _ in Net.shared.stop() }
         center.addObserver(forName: NSWorkspace.didWakeNotification,
-                           object: nil, queue: .main) { _ in Mesh.shared.start() }
+                           object: nil, queue: .main) { _ in Net.shared.start() }
     }
 }

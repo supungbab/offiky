@@ -34,7 +34,7 @@ struct AboutView: View {
                 }
             }
 
-            Text("같은 방에 있는 동료들의 캐릭터가 화면 바닥을 돌아다닌다.\n서버도 중계자도 없이 서로 직접 연결한다.")
+            Text("같은 방에 있는 동료들의 캐릭터가 화면 바닥을 돌아다닌다.\n바깥 서버 없이 방 안의 한 대가 호스트가 되어 주고받는다.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

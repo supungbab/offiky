@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
 
-let protocolVersion = 4
+let protocolVersion = 5
 let spriteDisplaySize: CGFloat = 40
 /// 바닥을 화면 맨 아래에서 띄우는 높이. Dock 이나 화면 끝에 붙어 보이지 않게 한다
 let floorOffset: CGFloat = 8
@@ -23,14 +23,22 @@ func shouldSend(_ msg: PosMsg, last: PosMsg?, since: TimeInterval) -> Bool {
 
 enum Limits {
     static let maxMessageBytes = 16 * 1024
-    /// 받을 수 있는 연결 수. 실제 인원의 몇 배다
+    /// 한 방에 들어갈 수 있는 사람 수. 호스트 하나가 전원 몫을 중계하므로 상한이 필요하다
+    static let maxRoomMembers = 50
+    /// 호스트가 동시에 유지할 수 있는 소켓 수. 정원의 두 배 남짓이다
     static let maxLinks = 128
-    /// 한 연결에서 초당 받을 수 있는 줄 수. 정상 좌표 10줄에 채팅 여유를 넉넉히 둔다.
+    /// 클라이언트 하나에게서 초당 받을 수 있는 줄 수. 정상 좌표 10줄에 채팅 여유를 넉넉히 둔다.
     static let maxLinesPerSecond = 60
+    /// 호스트 연결 하나에서 받을 수 있는 줄 수. 전원이 움직이면 그만큼 곱해져 온다
+    static let maxRelayedLinesPerSecond = maxRoomMembers * maxLinesPerSecond
     /// 여러 연결이 동시에 쏟아부어도 메인 큐가 무너지지 않게 한다.
-    /// 128명이 모두 움직여도 정상 좌표는 초당 약 1,270줄이다.
+    /// 50명이 모두 움직여도 호스트가 받는 정상 좌표는 초당 약 500줄이다.
     static let maxTotalLinesPerSecond = 5_000
+    /// 악수를 끝내기 전에 받아 줄 줄 수. 클라이언트는 hello 와 좌표 두 줄만 보낸다
     static let maxPendingLines = 16
+    /// 호스트는 확정 직후 명단을 한 번에 보낸다 — 사람마다 hello 와 좌표 두 줄이다.
+    /// 그 첫 줄로 연결을 확정하지만 판정이 메인 큐를 거쳐 돌아오는 사이 나머지가 다 도착한다
+    static let maxRosterLines = 2 * maxRoomMembers + maxPendingLines
     static let maxName = 20
     static let maxNameBytes = 256
     /// 방 이름 길이. 글자 수와 바이트 수 둘 다 막는다
@@ -153,6 +161,12 @@ func idIsTaken(_ id: String, by key: String, in table: [String: String]) -> Bool
     table.contains { $0.key != key && $0.value == id }
 }
 
+/// 방에서 id 가 가장 작은 사람이 호스트다. 뽑는 절차가 없어 모두 같은 사람을 판정하고,
+/// 호스트가 나가면 남은 사람 중 가장 작은 id 가 호스트가 된다
+func electHost(among peers: Set<String>, me: String) -> String {
+    min(peers.min() ?? me, me)
+}
+
 /// 방을 구분하는 값. 만들 때 새로 뽑는다 — 이름이 같아도 다른 방이고,
 /// 이름을 바꿔도 같은 방이다
 func newRoomID() -> String {
@@ -254,6 +268,8 @@ struct HelloMsg: Codable {
 
 struct PosMsg: Codable, Equatable {
     var t = "pos"
+    /// 호스트가 중계할 때만 채운다. 클라이언트는 비워 보내고 보낸 사람은 연결이 정한다
+    var id: String?
     let x: Double
     let y: Double?
     /// 인사 중일 때만 싣는다. 옛 버전은 이 값을 무시하고 서 있는 것으로 본다
@@ -268,11 +284,13 @@ struct PosMsg: Codable, Equatable {
 
 struct SayMsg: Codable {
     var t = "say"
+    var id: String?
     let msg: String
 }
 
 struct ProfileMsg: Codable {
     var t = "profile"
+    var id: String?
     let name: String
     let look: Look
 }
@@ -280,6 +298,18 @@ struct ProfileMsg: Codable {
 /// 높은 곳에서 떨어진 피격은 소유자만 판정하고 다른 화면에 한 번 알린다.
 struct HitMsg: Codable {
     var t = "hit"
+    var id: String?
+}
+
+/// 클라이언트가 빠졌다고 호스트가 알린다. 없으면 남은 사람들이 15초 판정까지 기다린다
+struct ByeMsg: Codable {
+    var t = "bye"
+    let id: String
+}
+
+/// 정원이 찼다. 받은 쪽은 방에서 나간다
+struct FullMsg: Codable {
+    var t = "full"
 }
 
 enum IncomingLineDecision: Equatable {
@@ -289,6 +319,10 @@ enum IncomingLineDecision: Equatable {
 /// 소켓과 분리한 링크 정책. 악수와 트래픽 제한을 실제 연결 없이도 검증한다.
 struct LinkTrafficPolicy {
     let startedAt: TimeInterval
+    /// 이 연결에서 초당 받을 수 있는 줄 수. 호스트 연결은 전원 몫이 중계되어 훨씬 많다
+    var maxLines = Limits.maxLinesPerSecond
+    /// 악수를 끝내기 전에 받아 줄 줄 수. 호스트 연결은 명단이 먼저 쏟아진다
+    var maxPending = Limits.maxPendingLines
     private(set) var isIdentified = false
     private(set) var pendingLines = 0
 
@@ -301,10 +335,10 @@ struct LinkTrafficPolicy {
     }
 
     mutating func decision(linkLines: Int, totalLines: Int) -> IncomingLineDecision {
-        if linkLines > Limits.maxLinesPerSecond { return .disconnect }
+        if linkLines > maxLines { return .disconnect }
         if !isIdentified {
             pendingLines += 1
-            if pendingLines > Limits.maxPendingLines { return .disconnect }
+            if pendingLines > maxPending { return .disconnect }
         }
         // 전역 상한은 시스템 보호용이다. 임계점을 우연히 넘긴 정상 연결을 범인처럼
         // 끊지 않고, 이 윈도우의 초과 메시지만 버린다.
@@ -321,6 +355,21 @@ enum IncomingMessage: Decodable {
     case say(SayMsg)
     case profile(ProfileMsg)
     case hit(HitMsg)
+    case bye(ByeMsg)
+    case full(FullMsg)
+
+    /// 호스트가 중계한 것에만 있다. 클라이언트끼리는 서로 직접 보지 못한다
+    var senderID: String? {
+        switch self {
+        case let .hello(msg):    msg.id
+        case let .position(msg): msg.id
+        case let .say(msg):      msg.id
+        case let .profile(msg):  msg.id
+        case let .hit(msg):      msg.id
+        case let .bye(msg):      msg.id
+        case .full:              nil
+        }
+    }
 
     private enum CodingKeys: String, CodingKey { case t }
 
@@ -332,6 +381,8 @@ enum IncomingMessage: Decodable {
         case "say":     self = .say(try SayMsg(from: decoder))
         case "profile": self = .profile(try ProfileMsg(from: decoder))
         case "hit":     self = .hit(try HitMsg(from: decoder))
+        case "bye":     self = .bye(try ByeMsg(from: decoder))
+        case "full":    self = .full(try FullMsg(from: decoder))
         default:
             throw DecodingError.dataCorruptedError(
                 forKey: .t,

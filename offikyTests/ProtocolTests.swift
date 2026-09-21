@@ -282,12 +282,39 @@ struct MessageTests {
         #expect(msg.msg == "안녕")
     }
 
-    /// 보내는 사람은 연결이 정한다. id 를 실으면 남을 사칭할 수 있다
-    @Test func 좌표와_채팅에는_id_가_없다() throws {
+    /// 클라이언트가 보내는 것에는 id 가 없다. 포함하면 남을 사칭할 수 있다 —
+    /// 호스트는 연결로 보낸 사람을 정하고 중계할 때만 그 값을 채운다
+    @Test func 클라이언트가_보내는_좌표와_채팅에는_id_가_없다() throws {
         let pos = String(decoding: try JSONEncoder().encode(PosMsg(x: 1, y: nil)), as: UTF8.self)
         let say = String(decoding: try JSONEncoder().encode(SayMsg(msg: "hi")), as: UTF8.self)
         #expect(!pos.contains("id"))
         #expect(!say.contains("id"))
+    }
+
+    @Test func 호스트가_중계한_것에는_보낸_사람이_있다() throws {
+        let data = try JSONEncoder().encode(PosMsg(id: "철수", x: 1, y: nil))
+        let message = try JSONDecoder().decode(IncomingMessage.self, from: data)
+        #expect(message.senderID == "철수")
+        #expect(try JSONDecoder()
+            .decode(IncomingMessage.self, from: JSONEncoder().encode(PosMsg(x: 1, y: nil)))
+            .senderID == nil)
+    }
+
+    @Test func 클라이언트가_빠진_것과_정원이_찬_것을_구분한다() throws {
+        let bye = try JSONDecoder().decode(IncomingMessage.self,
+                                           from: JSONEncoder().encode(ByeMsg(id: "철수")))
+        guard case let .bye(msg) = bye else {
+            Issue.record("bye 메시지로 디코딩되지 않았다")
+            return
+        }
+        #expect(msg.id == "철수")
+
+        let full = try JSONDecoder().decode(IncomingMessage.self,
+                                            from: JSONEncoder().encode(FullMsg()))
+        guard case .full = full else {
+            Issue.record("full 메시지로 디코딩되지 않았다")
+            return
+        }
     }
 
     /// 걷는 동안 초당 열 번, 전원에게 나간다. 붙는 값마다 그만큼 곱해진다
@@ -297,6 +324,14 @@ struct MessageTests {
         let everything = try JSONEncoder().encode(
             PosMsg(x: 1234.5, y: 48, b: true, d: true, f: 1, m: 802489529))
         #expect(everything.count < 76)
+    }
+
+    /// 중계하면 id 가 붙는다. UUID 를 통째로 쓰면 그 자리가 한 건의 절반을 넘는다
+    @MainActor @Test func 중계한_좌표도_작다() throws {
+        #expect(World.shared.myID.count == 8)
+        let relayed = try JSONEncoder().encode(
+            PosMsg(id: World.shared.myID, x: 1234.5, y: nil, f: 1, m: 802489529))
+        #expect(relayed.count < 60)
     }
 
     @Test func hello_는_프로토콜_번호를_싣는다() throws {
@@ -341,10 +376,36 @@ struct LinkTrafficPolicyTests {
                                 totalLines: Limits.maxPendingLines + 1) == .disconnect)
     }
 
+    /// 호스트는 확정 직후 명단을 한 번에 보낸다. 그 첫 줄로 연결을 확정하지만
+    /// 판정이 메인 큐를 거쳐 돌아오는 사이 나머지가 다 도착한다 — 클라이언트 몫으로 재면 끊긴다
+    @MainActor @Test func 명단이_한_번에_와도_악수_전에_끊기지_않는다() {
+        var policy = LinkTrafficPolicy(startedAt: 0, maxLines: Limits.maxRelayedLinesPerSecond,
+                                       maxPending: Limits.maxRosterLines)
+        // 정원이 찬 방에 들어가면 사람마다 hello 와 좌표가 한 줄씩 온다
+        #expect(2 * Limits.maxRoomMembers <= Limits.maxRosterLines)
+        for line in 1...Limits.maxRosterLines {
+            #expect(policy.decision(linkLines: line, totalLines: line) == .forward)
+        }
+        #expect(policy.decision(linkLines: Limits.maxRosterLines + 1,
+                                totalLines: Limits.maxRosterLines + 1) == .disconnect)
+    }
+
     @MainActor @Test func 링크별_상한을_넘긴_연결만_끊는다() {
         var policy = LinkTrafficPolicy(startedAt: 0)
         policy.identify()
         #expect(policy.decision(linkLines: Limits.maxLinesPerSecond + 1,
+                                totalLines: 1) == .disconnect)
+    }
+
+    /// 호스트 연결 하나에 전원 몫이 중계되어 온다. 클라이언트 몫으로 재면 호스트를 끊는다
+    @MainActor @Test func 호스트_연결은_중계된_양을_견딘다() {
+        var policy = LinkTrafficPolicy(startedAt: 0, maxLines: Limits.maxRelayedLinesPerSecond)
+        policy.identify()
+        let everyoneWalking = Limits.maxRoomMembers * Int(1 / positionInterval)
+        #expect(everyoneWalking <= Limits.maxRelayedLinesPerSecond)
+        #expect(policy.decision(linkLines: everyoneWalking, totalLines: everyoneWalking)
+                == .forward)
+        #expect(policy.decision(linkLines: Limits.maxRelayedLinesPerSecond + 1,
                                 totalLines: 1) == .disconnect)
     }
 
@@ -354,6 +415,46 @@ struct LinkTrafficPolicyTests {
         #expect(policy.decision(linkLines: 10,
                                 totalLines: Limits.maxTotalLinesPerSecond + 1) == .discard)
         #expect(policy.canReceiveBroadcast)
+    }
+}
+
+@Suite("호스트 뽑기")
+struct HostElectionTests {
+
+    /// 뽑는 절차가 없다. 같은 명단을 보면 모두 같은 답을 낸다
+    @Test func 방에서_id_가_가장_작은_사람이_호스트다() {
+        #expect(electHost(among: ["나무", "가지"], me: "바람") == "가지")
+        #expect(electHost(among: ["나무", "바람"], me: "가지") == "가지")
+    }
+
+    @Test func 혼자면_내가_호스트다() {
+        #expect(electHost(among: [], me: "바람") == "바람")
+    }
+
+    /// 호스트가 나가면 남은 사람 중 가장 작은 id 가 호스트가 된다
+    @Test func 호스트가_나가면_다음_사람이_호스트가_된다() {
+        let everyone: Set = ["가지", "나무", "바람"]
+        #expect(electHost(among: everyone.subtracting(["다래"]), me: "다래") == "가지")
+        #expect(electHost(among: everyone.subtracting(["가지", "다래"]), me: "다래") == "나무")
+        #expect(electHost(among: everyone.subtracting(["가지", "나무", "다래"]), me: "다래")
+                == "다래")
+    }
+
+    /// 방에 있는 모두가 같은 사람을 가리켜야 연결이 호스트 하나로 모인다
+    @Test func 누가_보아도_같은_사람을_가리킨다() {
+        let everyone: Set = ["가지", "나무", "바람", "다래"]
+        let elected = everyone.map { electHost(among: everyone.subtracting([$0]), me: $0) }
+        #expect(Set(elected) == ["가지"])
+    }
+}
+
+@Suite("방 정원")
+struct RoomCapacityTests {
+
+    /// 호스트를 포함해 정원까지 받는다. 클라이언트는 마흔아홉이다
+    @Test func 호스트를_포함해_쉰_명이다() {
+        #expect(Limits.maxRoomMembers == 50)
+        #expect(Limits.maxRoomMembers - 1 < Limits.maxLinks)
     }
 }
 
