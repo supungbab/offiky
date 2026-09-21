@@ -544,22 +544,25 @@ final class World {
         defaults.set(try? JSONEncoder().encode(Look(design: moved)), forKey: "look")
     }
 
+    /// 방 설정을 두는 곳. 테스트가 켜 둔 앱의 방을 지우지 않도록 교체할 수 있다
+    static var store = UserDefaults.standard
+
     /// 들어가 있는 방의 id. nil 이면 혼자다 — 광고도 연결도 하지 않는다.
     /// 다음에 켤 때도 그대로 있으려고 저장한다
-    static var myRoom: String? { UserDefaults.standard.string(forKey: "roomID") }
+    static var myRoom: String? { store.string(forKey: "roomID") }
     /// 보여 주기만 하는 이름. 짝짓기는 id 로 한다
-    static var myRoomName: String? { UserDefaults.standard.string(forKey: "roomName") }
+    static var myRoomName: String? { store.string(forKey: "roomName") }
 
     static func join(room id: String, name: String) {
-        UserDefaults.standard.set(id, forKey: "roomID")
-        UserDefaults.standard.set(name, forKey: "roomName")
+        store.set(id, forKey: "roomID")
+        store.set(name, forKey: "roomName")
         Presence.shared.room = name
         Net.shared.roomChanged()
     }
 
     static func leaveRoom() {
-        UserDefaults.standard.removeObject(forKey: "roomID")
-        UserDefaults.standard.removeObject(forKey: "roomName")
+        store.removeObject(forKey: "roomID")
+        store.removeObject(forKey: "roomName")
         Presence.shared.room = nil
         Net.shared.roomChanged()
     }
