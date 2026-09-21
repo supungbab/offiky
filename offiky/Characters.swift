@@ -41,17 +41,41 @@ enum Animation: Int, CaseIterable {
 
 /// 에셋의 스프라이트 시트를 잘라 색을 입힌 텍스처로 만든다
 enum Characters {
-    /// 모양 5가지 × 프리셋 6가지. 모양이 가로 한 줄이고 앞쪽이 받은 원본이다.
-    /// 순서를 바꾸면 쓰던 사람의 캐릭터가 딴것으로 바뀐다
+    /// 번호가 그대로 오가므로 순서를 바꾸거나 중간에 끼워 넣을 수 없다.
+    /// 새 프리셋은 끝에 붙이고, groups 가 이름 앞자리로 제 모양에 묶어 준다
     static let names = [
         "goat_white", "goat_brown", "goat_black", "goat_gold", "goat_red", "goat_demon",
         "sheep_grey", "sheep_suffolk", "sheep_ink", "sheep_candy", "sheep_fleece", "sheep_night",
         "birb_blue", "birb_penguin", "birb_magpie", "birb_parrot", "birb_flamingo", "birb_kingfisher",
         "frog_green", "frog_fire", "frog_dart", "frog_tree", "frog_azure", "frog_violet",
-        "pig_red", "pig_pink", "pig_black", "pig_ivory", "pig_royal", "pig_carrot"]
+        "pig_red", "pig_pink", "pig_black", "pig_ivory", "pig_royal", "pig_carrot",
+        "birb_scarlet"]
     static var count: Int { names.count }
-    /// 한 모양이 갖는 프리셋 수. 선택 창의 한 줄 길이이기도 하다
-    static let colorCount = 6
+
+    static func shape(_ design: Int) -> String {
+        String(names[design].prefix { $0 != "_" })
+    }
+
+    static func preset(_ design: Int) -> String {
+        String(names[design].drop { $0 != "_" }.dropFirst())
+    }
+
+    /// 모양마다 프리셋 번호를 모은 것. 모양이 처음 나온 차례를 따른다
+    static let groups: [(shape: String, designs: [Int])] = {
+        var order: [String] = []
+        var designs: [String: [Int]] = [:]
+        for design in 0..<names.count {
+            let shape = shape(design)
+            if designs[shape] == nil { order.append(shape) }
+            designs[shape, default: []].append(design)
+        }
+        return order.map { ($0, designs[$0]!) }
+    }()
+
+    private static let labels = ["goat": "염소", "sheep": "양", "birb": "새",
+                                 "frog": "개구리", "pig": "돼지"]
+
+    static func label(_ shape: String) -> String { labels[shape] ?? shape }
 
     /// 시트는 24x24 칸이 6열 6행이다
     static let columns = 6

@@ -9,17 +9,24 @@ struct CharacterPickerView: View {
 
     private static let thumb: CGFloat = 44
     private static let gap: CGFloat = 6
+    /// 프리셋 한 줄 길이. 넘치면 다음 줄로 내려가므로 모양마다 개수가 달라도 된다
+    private static let perRow = 6
+
+    /// 가장 프리셋이 많은 모양에 맞춰 자리를 비워 둔다. 모양을 옮길 때 창이 뛰지 않는다
+    private static let maxRows = Characters.groups
+        .map { ($0.designs.count + perRow - 1) / perRow }.max() ?? 1
+
+    private var shape: Int {
+        Characters.groups.firstIndex { $0.designs.contains(design) } ?? 0
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // 한 줄이 한 모양이고 가로가 색이다
-            Grid(horizontalSpacing: Self.gap, verticalSpacing: Self.gap) {
-                ForEach(0..<Characters.count / Characters.colorCount, id: \.self) { shape in
-                    GridRow {
-                        ForEach(0..<Characters.colorCount, id: \.self) { color in
-                            button(shape * Characters.colorCount + color)
-                        }
-                    }
+        VStack(spacing: 12) {
+            HStack(alignment: .top, spacing: 14) {
+                shapes
+                VStack(alignment: .leading, spacing: 12) {
+                    preview
+                    presets
                 }
             }
 
@@ -38,6 +45,53 @@ struct CharacterPickerView: View {
             }
         }
         .padding(16)
+    }
+
+    private var preview: some View {
+        HStack(spacing: 10) {
+            thumbnail(Look(design: design), size: 64)
+            Text(Characters.preset(design))
+                .font(.system(.title3, design: .monospaced))
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var shapes: some View {
+        VStack(spacing: 4) {
+            ForEach(Array(Characters.groups.enumerated()), id: \.offset) { index, group in
+                Button {
+                    // 이미 그 모양이면 고른 프리셋을 지키고, 아니면 원본에서 시작한다
+                    if index != shape { design = group.designs[0] }
+                } label: {
+                    VStack(spacing: 0) {
+                        thumbnail(Look(design: group.designs[0]), size: 32)
+                        Text(Characters.label(group.shape)).font(.system(size: 10))
+                    }
+                    .frame(width: 50)
+                    .padding(.vertical, 3)
+                    .background(index == shape ? Color.accentColor.opacity(0.25) : .clear,
+                                in: RoundedRectangle(cornerRadius: 6))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private var presets: some View {
+        let designs = Characters.groups[shape].designs
+        let cell = Self.thumb + 4
+        return Grid(horizontalSpacing: Self.gap, verticalSpacing: Self.gap) {
+            ForEach(Array(stride(from: 0, to: designs.count, by: Self.perRow)), id: \.self) { start in
+                GridRow {
+                    ForEach(designs[start ..< min(start + Self.perRow, designs.count)], id: \.self) {
+                        button($0)
+                    }
+                }
+            }
+        }
+        .frame(width: cell * CGFloat(Self.perRow) + Self.gap * CGFloat(Self.perRow - 1),
+               height: cell * CGFloat(Self.maxRows) + Self.gap * CGFloat(Self.maxRows - 1),
+               alignment: .topLeading)
     }
 
     private func button(_ index: Int) -> some View {
@@ -66,26 +120,37 @@ struct CharacterPickerView: View {
 }
 
 private var pickerWindow: NSWindow?
+/// 띄우는 동안 잠깐 키를 놓치는 것을 닫으라는 뜻으로 읽지 않는다
+private var presenting = false
 
 func openCharacterPicker() {
-    if let window = pickerWindow {
-        // 적용하지 않고 닫았던 초안을 버리고 지금 모습에서 다시 시작한다
-        let view = NSHostingView(rootView: CharacterPickerView())
-        window.contentView = view
-        window.setContentSize(view.fittingSize)
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-        return
-    }
-    // 격자가 색 개수만큼 넓어지므로 크기를 내용에 맞춘다
+    let isNew = pickerWindow == nil
+    let window = pickerWindow ?? {
+        let created = NSWindow(contentRect: .zero, styleMask: [.titled, .closable],
+                               backing: .buffered, defer: false)
+        created.title = "내 캐릭터"
+        created.isReleasedWhenClosed = false
+        // 채팅창처럼 다른 곳을 클릭하면 사라진다. 열어 둔 채 잊어버릴 일이 없다
+        NotificationCenter.default.addObserver(
+            forName: NSWindow.didResignKeyNotification, object: created, queue: .main
+        ) { _ in if !presenting { created.orderOut(nil) } }
+        pickerWindow = created
+        return created
+    }()
+
+    // 적용하지 않고 닫았던 초안을 버리고 지금 모습에서 다시 시작한다
     let view = NSHostingView(rootView: CharacterPickerView())
-    let window = NSWindow(contentRect: CGRect(origin: .zero, size: view.fittingSize),
-                          styleMask: [.titled, .closable], backing: .buffered, defer: false)
-    window.title = "내 캐릭터"
     window.contentView = view
-    window.center()
-    window.isReleasedWhenClosed = false
-    window.makeKeyAndOrderFront(nil)
+    window.setContentSize(view.fittingSize)
+    // 크기를 정한 뒤에 가운데로 옮긴다. 처음 열 때만이고 그 뒤엔 놓아둔 자리를 지킨다
+    if isNew { window.center() }
+
+    presenting = true
     NSApp.activate(ignoringOtherApps: true)
-    pickerWindow = window
+    window.makeKeyAndOrderFront(nil)
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+        presenting = false
+        // 그 사이에 다른 곳을 클릭했으면 알림이 무시됐다. 여기서 확인한다
+        if !window.isKeyWindow { window.orderOut(nil) }
+    }
 }

@@ -6,18 +6,28 @@ import Testing
 
 struct CharacterTests {
 
-    @Test func 모양_5가지에_프리셋_6가지다() {
-        #expect(Characters.count == 30)
-        #expect(Characters.names.count == 30)
-        #expect(Set(Characters.names).count == 30)
-        #expect(Characters.count % Characters.colorCount == 0)
-        // 같은 모양이 가로 한 줄이다. 줄이 바뀌는 자리에서만 앞이름이 바뀐다
-        for index in 1..<Characters.count {
-            let shape = { (i: Int) in Characters.names[i].split(separator: "_")[0] }
-            let sameRow = index % Characters.colorCount != 0
-            #expect((shape(index) == shape(index - 1)) == sameRow,
-                    "\(Characters.names[index - 1]) → \(Characters.names[index])")
+    @Test func 모양_다섯에_프리셋이_모양마다_묶인다() {
+        #expect(Characters.count == 31)
+        #expect(Set(Characters.names).count == Characters.count)
+        #expect(Characters.groups.map(\.shape) == ["goat", "sheep", "birb", "frog", "pig"])
+        // 모든 번호가 제 모양에 한 번씩만 들어간다
+        #expect(Characters.groups.flatMap(\.designs).sorted() == Array(0..<Characters.count))
+        for group in Characters.groups {
+            #expect(group.designs.allSatisfy { Characters.shape($0) == group.shape },
+                    "\(group.shape) 묶음에 다른 모양이 있다")
         }
+        // 모양마다 개수가 달라도 된다 — 새만 일곱이다
+        #expect(Characters.groups.first { $0.shape == "birb" }?.designs.count == 7)
+    }
+
+    /// 번호는 그대로 오간다. 중간에 끼워 넣으면 쓰던 사람의 캐릭터가 딴것으로 바뀐다
+    @Test func 쓰던_번호는_자리를_지키고_새것은_끝에_붙는다() {
+        #expect(Characters.names[0] == "goat_white")
+        #expect(Characters.names[12] == "birb_blue")
+        #expect(Characters.names[29] == "pig_carrot")
+        #expect(Characters.names[30] == "birb_scarlet")
+        #expect(Characters.shape(30) == "birb")
+        #expect(Characters.preset(30) == "scarlet")
     }
 
     @Test func 애니메이션_프레임_수() {
