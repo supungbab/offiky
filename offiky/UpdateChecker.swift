@@ -24,7 +24,23 @@ final class UpdateChecker {
 
     /// 조회에 실패하면 조용히 넘기지 않는다. 사내망에서 GitHub 이 막혀 있어도
     /// 사용자는 최신인 줄 알게 되기 때문이다.
-    enum Result { case upToDate, found(String), failed }
+    enum Result: Equatable { case upToDate, found(String), failed(Failure) }
+
+    /// 실패를 뭉뚱그리면 한도에 걸린 것을 네트워크 탓으로 잘못 알린다
+    enum Failure {
+        case offline, busy, unexpected
+
+        var reason: String {
+            switch self {
+            case .offline:
+                "네트워크 상태를 확인해 주세요."
+            case .busy:
+                "GitHub 이 잠시 요청을 받지 않습니다. 조금 뒤 다시 시도해 주세요."
+            case .unexpected:
+                "GitHub 응답을 읽지 못했습니다. 릴리스 페이지에서 직접 확인해 주세요."
+            }
+        }
+    }
 
     /// 메뉴는 누르는 순간 닫히므로 결과를 대화상자로 알린다
     func checkAndTell() {
@@ -42,10 +58,10 @@ final class UpdateChecker {
                 alert.addButton(withTitle: "업데이트 명령 복사")
                 alert.addButton(withTitle: "릴리스 페이지")
                 alert.addButton(withTitle: "나중에")
-            case .failed:
+            case .failed(let why):
                 alert.alertStyle = .warning
                 alert.messageText = "확인하지 못했습니다"
-                alert.informativeText = "네트워크 상태를 확인해 주세요."
+                alert.informativeText = why.reason
                 alert.addButton(withTitle: "확인")
             }
             NSApp.activate(ignoringOtherApps: true)
@@ -57,7 +73,10 @@ final class UpdateChecker {
         }
     }
 
-    /// 인증 없이 시간당 60회가 한도라 너무 자주 묻지 않는다
+    /// api.github.com 은 인증 없이 IP 당 시간당 60회다. 사무실은 NAT 뒤라 전원이
+    /// 그 60회를 나눠 쓰고, 다 쓰면 아무 잘못 없이 모두가 403 을 받는다.
+    /// 이 피드는 일반 github.com 이라 그 한도를 받지 않는다 —
+    /// 대신 사전 배포판도 목록에 들어오므로, 올리면 그것도 새 버전으로 알린다
     @discardableResult
     func check(force: Bool = false) async -> Result {
         if !force, let last = lastCheck, Date().timeIntervalSince(last) < 1800 {
@@ -65,22 +84,35 @@ final class UpdateChecker {
         }
         lastCheck = Date()
 
-        var request = URLRequest(url: URL(string: "https://api.github.com/repos/\(repo)/releases/latest")!,
+        var request = URLRequest(url: URL(string: "https://github.com/\(repo)/releases.atom")!,
                                  timeoutInterval: 15)
-        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-        guard let (data, response) = try? await URLSession.shared.data(for: request),
-              (response as? HTTPURLResponse)?.statusCode == 200,
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let tag = json["tag_name"] as? String,
-              let page = json["html_url"] as? String,
-              // 이 주소를 그대로 브라우저에 넘기므로 출처를 확인한다
-              let url = URL(string: page), url.scheme == "https", url.host == "github.com"
-        else { return .failed }
+        request.setValue("application/atom+xml", forHTTPHeaderField: "Accept")
+        guard let (data, response) = try? await URLSession.shared.data(for: request)
+        else { return .failed(.offline) }
+
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard status == 200 else {
+            return .failed(status == 403 || status == 429 || status >= 500 ? .busy : .unexpected)
+        }
+        guard let tag = UpdateChecker.latestTag(inFeed: String(decoding: data, as: UTF8.self))
+        else { return .failed(.unexpected) }
 
         let latest = tag.hasPrefix("v") ? String(tag.dropFirst()) : tag
-        releaseURL = url
+        // 받아 온 값을 주소에 넣지 않고 내가 아는 저장소로 조립한다
+        releaseURL = URL(string: "https://github.com/\(repo)/releases/tag/\(tag)")
         newVersion = UpdateChecker.isNewer(latest, than: current) ? latest : nil
         return newVersion.map { Result.found($0) } ?? .upToDate
+    }
+
+    /// 피드는 새것부터 나열되므로 첫 항목이 최신이다.
+    /// 태그는 주소에도 쓰므로 쓸 수 있는 글자만 받는다 — 그 밖이면 못 읽은 것으로 본다
+    nonisolated static func latestTag(inFeed xml: String) -> String? {
+        let pattern = "<id>tag:github\\.com,[0-9]+:Repository/[0-9]+/([A-Za-z0-9._-]+)</id>"
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: xml, range: NSRange(xml.startIndex..., in: xml)),
+              let range = Range(match.range(at: 1), in: xml)
+        else { return nil }
+        return String(xml[range])
     }
 
     /// 터미널에 붙여넣기만 하면 되도록 클립보드에 넣는다

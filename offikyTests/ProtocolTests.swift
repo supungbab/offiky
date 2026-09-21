@@ -203,6 +203,57 @@ struct VersionCompareTests {
     }
 }
 
+@Suite("릴리스 피드 읽기")
+struct ReleaseFeedTests {
+
+    /// 실제 피드 모양. 맨 위 feed 차원의 id 가 먼저 나오는 것이 함정이다
+    private let feed = """
+    <?xml version="1.0" encoding="UTF-8"?>
+    <feed xmlns="http://www.w3.org/2005/Atom">
+      <id>tag:github.com,2008:https://github.com/supungbab/offiky/releases</id>
+      <entry>
+        <id>tag:github.com,2008:Repository/1372443808/v2.0.0</id>
+        <title>Offiky 2.0.0</title>
+      </entry>
+      <entry>
+        <id>tag:github.com,2008:Repository/1372443808/v1.4.2</id>
+        <title>Offiky 1.4.2</title>
+      </entry>
+    </feed>
+    """
+
+    /// 피드는 새것부터 나열된다. feed 차원의 id 를 태그로 잘못 읽으면 안 된다
+    @Test func 첫_항목의_태그를_읽는다() {
+        #expect(UpdateChecker.latestTag(inFeed: feed) == "v2.0.0")
+    }
+
+    @Test func 릴리스가_없으면_못_읽는다() {
+        let empty = """
+        <feed xmlns="http://www.w3.org/2005/Atom">
+          <id>tag:github.com,2008:https://github.com/supungbab/offiky/releases</id>
+        </feed>
+        """
+        #expect(UpdateChecker.latestTag(inFeed: empty) == nil)
+        #expect(UpdateChecker.latestTag(inFeed: "") == nil)
+        #expect(UpdateChecker.latestTag(inFeed: "<html>429</html>") == nil)
+    }
+
+    /// 태그는 릴리스 페이지 주소에 들어간다. 쓸 수 없는 글자가 있으면 그 항목을
+    /// 건너뛰고 다음 항목을 읽는다 — 잘린 조각을 태그로 쓰지 않는다
+    @Test func 주소에_못_쓸_태그는_건너뛴다() {
+        let bad = feed.replacingOccurrences(of: "/v2.0.0<", with: "/v2 0.0<")
+        #expect(UpdateChecker.latestTag(inFeed: bad) == "v1.4.2")
+    }
+
+    /// 피드에서 읽은 뒤에도 버전 비교는 그대로다
+    @Test func 읽은_태그로_새_버전을_판정한다() throws {
+        let tag = try #require(UpdateChecker.latestTag(inFeed: feed))
+        let latest = tag.hasPrefix("v") ? String(tag.dropFirst()) : tag
+        #expect(UpdateChecker.isNewer(latest, than: "1.4.2"))
+        #expect(!UpdateChecker.isNewer(latest, than: "2.0.0"))
+    }
+}
+
 struct SanitizeTests {
 
     @Test func 이름을_20자로_자른다() {
