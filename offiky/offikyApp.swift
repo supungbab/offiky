@@ -140,6 +140,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         center.addObserver(forName: NSWorkspace.willSleepNotification,
                            object: nil, queue: .main) { _ in Net.shared.stop() }
         center.addObserver(forName: NSWorkspace.didWakeNotification,
-                           object: nil, queue: .main) { _ in Net.shared.start() }
+                           object: nil, queue: .main) { _ in
+            Net.shared.start()
+            OverlayController.shared.rebuild()
+        }
     }
 }

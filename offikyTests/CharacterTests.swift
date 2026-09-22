@@ -846,3 +846,16 @@ struct SendTimeTests {
         #expect(shouldSend(PosMsg(x: 101, y: nil, m: 2000), last: b, since: 0.1))
     }
 }
+
+struct OverlayWindowTests {
+
+    /// 창이 사라지면 그릴 것도 World.tick 도 같이 멈춘다
+    @MainActor @Test func 화면이_0개로_보고돼도_창을_지우지_않는다() {
+        let overlay = OverlayController.shared
+        overlay.rebuild(frames: [CGRect(x: 0, y: 0, width: 1800, height: 1000)])
+        #expect(overlay.windows.count == 1)
+        overlay.rebuild(frames: [])
+        #expect(overlay.windows.count == 1)
+        #expect(overlay.scenes.count == 1)
+    }
+}

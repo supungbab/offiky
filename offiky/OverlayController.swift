@@ -48,17 +48,16 @@ final class OverlayController {
 
     @objc private func screensChanged() { rebuild() }
 
-    func rebuild() {
+    /// 절전 전환 중 0개로 보고되는 목록으로 창을 지우면 되살릴 계기가 남지 않는다
+    func rebuild(frames: [CGRect] = NSScreen.screens.map(\.visibleFrame)) {
+        guard !frames.isEmpty else { return }
         windows.forEach { $0.orderOut(nil) }
         windows.removeAll()
         scenes.removeAll()
 
-        let screens = NSScreen.screens
-        let built = FloorStrip(visibleFrames: screens.map(\.visibleFrame),
-                               main: screens.first?.visibleFrame)
-        let frames = built.frames
+        let built = FloorStrip(visibleFrames: frames, main: frames.first)
 
-        for frame in frames {
+        for frame in built.frames {
             let window = NSWindow(contentRect: frame, styleMask: .borderless,
                                   backing: .buffered, defer: false)
             window.isOpaque = false
