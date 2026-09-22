@@ -40,7 +40,21 @@ final class HotKey {
 }
 
 /// 채팅과 조작 안내는 같은 자리에 번갈아 뜬다. 크기가 다르면 바뀔 때 눈에 띈다
-let panelSize = CGSize(width: 620, height: 52)
+let panelSize = CGSize(width: 620, height: 48)
+
+/// 시스템 HUD 와 같은 모서리. 두 창이 같은 값을 쓴다
+let panelRadius: CGFloat = 16
+
+private let panelShape = RoundedRectangle(cornerRadius: panelRadius, style: .continuous)
+
+/// 재질·테두리·모서리를 한 군데서 정한다. 두 창이 같은 것을 쓴다
+extension View {
+    func panelSurface() -> some View {
+        background(.regularMaterial)
+            .clipShape(panelShape)
+            .overlay(panelShape.strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5))
+    }
+}
 
 /// borderless 윈도우는 기본적으로 키 윈도우가 되지 않아 입력을 받지 못한다.
 final class KeyPanel: NSPanel {
@@ -107,8 +121,8 @@ final class KeyPanel: NSPanel {
     }
 }
 
-/// 기록 칸 높이. 한 줄짜리 셋쯤 보인다
-private let historyHeight: CGFloat = 90
+/// 기록 칸 높이. 한 줄짜리 넷이 들어간다
+private let historyHeight: CGFloat = 100
 
 private struct ChatHistoryView: View {
     /// 한 줄로 이어 붙여야 긴 글이 시간·이름 아래로 자연스럽게 흐른다
@@ -122,7 +136,7 @@ private struct ChatHistoryView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 6) {
                 // 입력란이 아래라 최신이 아래여야 한다. 저장은 최신이 앞이다
                 ForEach(ChatLog.shared.entries.reversed()) { entry in
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -135,8 +149,8 @@ private struct ChatHistoryView: View {
                     }
                 }
             }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 10)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 11)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .defaultScrollAnchor(.bottom)
@@ -146,9 +160,6 @@ private struct ChatHistoryView: View {
                 Text("지난 대화가 없습니다").font(.system(size: 12)).foregroundStyle(.tertiary)
             }
         }
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12)
-            .strokeBorder(.white.opacity(0.15), lineWidth: 1))
     }
 }
 
@@ -157,17 +168,19 @@ private struct ChatInputView: View {
     @FocusState private var focused: Bool
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 0) {
             ChatHistoryView()
+            Divider()
             inputBar.frame(height: panelSize.height)
         }
+        .panelSurface()
     }
 
     private var inputBar: some View {
         HStack(spacing: 10) {
-            TextField("", text: $draft, prompt: Text("엔터로 보내기").foregroundStyle(.secondary))
+            TextField("", text: $draft, prompt: Text("엔터로 보내기").foregroundStyle(.tertiary))
                 .textFieldStyle(.plain)
-                .font(.system(size: 17))
+                .font(.system(size: 15))
                 .focused($focused)
                 // 넘겨 적으면 전송할 때 조용히 사라진다. 여기서 막고 남은 길이를 보여 준다
                 .onChange(of: draft) {
@@ -188,11 +201,8 @@ private struct ChatInputView: View {
                 .font(.system(size: 12).monospacedDigit())
                 .foregroundStyle(.secondary)
         }
-        .padding(.horizontal, 18)
+        .padding(.horizontal, 16)
         .frame(maxHeight: .infinity)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12)
-            .strokeBorder(.white.opacity(0.15), lineWidth: 1))
     }
 }
 
@@ -232,7 +242,7 @@ private struct ChatInputView: View {
         // 입력란은 있던 자리에 두고 기록 칸이 그 위로 쌓인다
         let bar = screen.visibleFrame.minY + screen.visibleFrame.height * 0.22
         let room = screen.visibleFrame.maxY - bar - panelSize.height - 24
-        let above = min(historyHeight + 8, max(0, room))
+        let above = min(historyHeight + 1, max(0, room))
         let size = CGSize(width: panelSize.width, height: panelSize.height + above)
         let origin = CGPoint(x: screen.visibleFrame.midX - size.width / 2, y: bar)
 
