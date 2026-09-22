@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
 
-let protocolVersion = 5
+let protocolVersion = 6
 let spriteDisplaySize: CGFloat = 40
 /// 바닥을 화면 맨 아래에서 띄우는 높이. Dock 이나 화면 끝에 붙어 보이지 않게 한다
 let floorOffset: CGFloat = 8
@@ -164,10 +164,15 @@ func idIsTaken(_ id: String, by key: String, in table: [String: String]) -> Bool
     table.contains { $0.key != key && $0.value == id }
 }
 
-/// 방에서 id 가 가장 작은 사람이 호스트다. 뽑는 절차가 없어 모두 같은 사람을 판정하고,
-/// 호스트가 나가면 남은 사람 중 가장 작은 id 가 호스트가 된다
-func electHost(among peers: Set<String>, me: String) -> String {
-    min(peers.min() ?? me, me)
+/// 호스트라고 광고하는 사람이 하나면 그 사람을 그대로 둔다. 새로 들어온 사람이
+/// 자리를 뺏지 않는다 — 교체는 모두의 연결을 끊고 다시 붙이는 일이라 드물어야 한다.
+/// 아무도 없거나(처음) 둘 이상이면(끊겼다 붙어 겹침) 가장 작은 id 로 가른다.
+/// 뽑는 절차는 없다. 모두 같은 광고를 보고 같은 답을 낸다
+func electHost(among peers: Set<String>, claiming: Set<String>, me: String) -> String {
+    let everyone = peers.union([me])
+    let claims = claiming.intersection(everyone)
+    if claims.count == 1, let incumbent = claims.first { return incumbent }
+    return everyone.min() ?? me
 }
 
 /// 방을 구분하는 값. 만들 때 새로 뽑는다 — 이름이 같아도 다른 방이고,

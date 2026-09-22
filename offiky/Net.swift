@@ -41,6 +41,8 @@ final class Net {
     private var visible: Set<String> = []
     /// 지금 호스트로 판정한 사람. 방에 없으면 nil
     private var host: String?
+    /// 호스트라고 광고하는 사람들. 현직이 보이면 그대로 둔다
+    private var claims: Set<String> = []
     /// 호스트 연결이 실패하면 쉬었다 다시 연결한다. 바로 다시 하면 실패가 반복되며 회전한다
     private var hostRetryAt: Date?
     private var dialWork: DispatchWorkItem?
@@ -95,6 +97,7 @@ final class Net {
         browser?.stateUpdateHandler = nil
         browser?.cancel(); browser = nil
         visible.removeAll()
+        claims.removeAll()
         host = nil
         dropAllLinks()
         flushWork?.cancel(); flushWork = nil
@@ -145,18 +148,29 @@ final class Net {
     }
 
     /// 클라이언트도 리스너를 연다 — 이게 광고 수단이고, 언제든 호스트가 될 수 있기 때문이다
-    private func startListener() {
+    /// 실행 중인 리스너의 service 를 다시 넣으면 광고가 갱신된다. 역할이 바뀔 때마다 부른다
+    private func advertise() {
         guard let room = World.myRoom else { return }
-        let roomName = World.myRoomName ?? room
-        guard let listener = try? NWListener(using: Net.tcp) else { return }
-        listener.service = NWListener.Service(
+        listener?.service = advertisement(room: room)
+    }
+
+    private func advertisement(room: String) -> NWListener.Service {
+        NWListener.Service(
             name: World.shared.myID, type: serviceType,
             txtRecord: NWTXTRecord([
                 "id": World.shared.myID,
                 "pv": String(protocolVersion),
                 "room": room,
-                "rname": roomName,
+                "rname": World.myRoomName ?? room,
+                // 지금 중계를 맡고 있다는 표시. 새로 들어온 사람이 이걸 보고 현직에 붙는다
+                "h": amHost ? "1" : "0",
             ]).data)
+    }
+
+    private func startListener() {
+        guard let room = World.myRoom else { return }
+        guard let listener = try? NWListener(using: Net.tcp) else { return }
+        listener.service = advertisement(room: room)
         listener.newConnectionHandler = { [weak self] connection in
             self?.accept(connection)
         }
@@ -173,11 +187,14 @@ final class Net {
         browser.browseResultsChangedHandler = { [weak self] results, _ in
             guard let self else { return }
             var entries: [(id: String, pv: String?, room: String?, roomName: String?)] = []
+            var claiming: Set<String> = []
             for result in results {
                 if case let .bonjour(txt) = result.metadata, let id = txt["id"] {
                     entries.append((id, txt["pv"], txt["room"], txt["rname"]))
+                    if txt["h"] == "1" { claiming.insert(id) }
                 }
             }
+            self.claims = claiming
             // 방에 없어도 듣기는 한다. 참여할 방 목록을 보여줘야 하기 때문이다
             let peers = compatiblePeers(entries, myRoom: World.myRoom)
             self.visible = peers.ids
@@ -200,11 +217,12 @@ final class Net {
     private func elect() {
         let elected = World.myRoom == nil
             ? nil
-            : electHost(among: visible, me: World.shared.myID)
+            : electHost(among: visible, claiming: claims, me: World.shared.myID)
         if elected != host {
             host = elected
             hostRetryAt = nil
             dropAllLinks()
+            advertise()
         }
         dial()
     }

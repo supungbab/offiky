@@ -146,7 +146,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { _ in
             let overlay = OverlayController.shared
             let age = ProcessInfo.processInfo.systemUptime - World.shared.lastTick
-            watch.info("screens=\(NSScreen.screens.count) windows=\(overlay.windows.count) visible=\(overlay.windows.filter(\.isVisible).count) scenes=\(overlay.scenes.count) tickAge=\(age, format: .fixed(precision: 1)) peers=\(World.shared.peers.count) count=\(Presence.shared.count)")
+            watch.info("me=\(World.shared.myID, privacy: .public) host=\(Session.shared.hostPeer ?? "-", privacy: .public) amHost=\(Presence.shared.amHost) screens=\(NSScreen.screens.count) windows=\(overlay.windows.count) visible=\(overlay.windows.filter(\.isVisible).count) scenes=\(overlay.scenes.count) tickAge=\(age, format: .fixed(precision: 1)) peers=\(World.shared.peers.count) count=\(Presence.shared.count)")
         }
         #endif
 
