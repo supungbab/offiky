@@ -16,7 +16,7 @@ COUNT = {"idle": 4, "walk": 6, "hurt": 4, "jump": 3, "bow": 1, "dash": 6}
 FPS = {"idle": 5, "walk": 12, "hurt": 14, "jump": 11, "bow": 1, "dash": 18}
 # CharacterScene.swift 와 같은 값
 WALK, DASH, GRAVITY = 60.0, 180.0, 1100.0
-APEX = {"stand": 48.0, "walk": 52.0, "dash": 72.0, "air": 40.0}
+APEX = {"stand": 72.0, "walk": 78.0, "dash": 108.0, "air": 60.0}
 
 SKY = (0x2b, 0x30, 0x42, 255)
 GROUND = (0x8a, 0x5a, 0x38, 255)
@@ -110,7 +110,7 @@ def scene(scale=3, width=342, height=186):
     """걷다 달리다 뛰고, 달려온 동료와 부딪쳐 인사하고 각자 간다.
 
     스프라이트 한 칸(24)이 화면에서 48pt 이므로 1pt 는 scale/2 픽셀이다.
-    점프 정점 72pt 가 키의 1.5배라 도화지가 그만큼 높다."""
+    점프 정점 108pt 가 키의 2.25배라 도화지가 그만큼 높다."""
     ppt = scale / 2
     ground_h = 12
     floor_y = height - ground_h

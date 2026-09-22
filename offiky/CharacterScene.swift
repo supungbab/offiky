@@ -91,12 +91,12 @@ final class CharacterNode: SKNode {
     static let delaySlew: TimeInterval = 0.1
     static let gravity: CGFloat = 1100
     /// 누르고 있는 정도에 따라 제자리·걷기·대시 순으로 높이 뛴다
-    static let jumpApex: CGFloat = 48
-    static let walkJumpApex: CGFloat = 52
-    static let dashJumpApex: CGFloat = 72
+    static let jumpApex: CGFloat = 72
+    static let walkJumpApex: CGFloat = 78
+    static let dashJumpApex: CGFloat = 108
     /// 공중에서 한 번 더 뛴다. 착지해야 다시 찬다
     static let maxJumps = 2
-    static let airJumpApex: CGFloat = 40
+    static let airJumpApex: CGFloat = 60
     private var jumpsUsed = 0
 
     /// 뛰어서 닿는 최고점. 대시 점프 정점에서 한 번 더 차는 경우다
