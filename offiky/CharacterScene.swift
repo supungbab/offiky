@@ -437,6 +437,9 @@ final class CharacterNode: SKNode {
     }
 }
 
+/// 말풍선 최대 폭. 캐릭터가 40pt 라 이보다 넓으면 누가 말하는지 흐려진다
+private let bubbleMaxWidth: CGFloat = 100
+
 extension CharacterNode {
     func showBubble(text: String, now: TimeInterval) {
         bubbleNode?.removeFromParent()
@@ -445,13 +448,13 @@ extension CharacterNode {
         label.text = text
         label.fontSize = 11
         label.fontColor = .black
-        label.numberOfLines = 3
-        label.preferredMaxLayoutWidth = 200
+        label.numberOfLines = 0
+        label.preferredMaxLayoutWidth = bubbleMaxWidth
         label.verticalAlignmentMode = .center
         label.horizontalAlignmentMode = .center
 
         let padding: CGFloat = 6
-        let size = CGSize(width: min(200, label.frame.width) + padding * 2,
+        let size = CGSize(width: min(bubbleMaxWidth, label.frame.width) + padding * 2,
                           height: max(label.frame.height, 12) + padding * 2)
         let bubble = SKShapeNode(rectOf: size, cornerRadius: 4)
         bubble.name = "bubble"
