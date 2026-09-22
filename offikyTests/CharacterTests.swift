@@ -1,5 +1,6 @@
 import AppKit
 import CoreGraphics
+import SpriteKit
 import Foundation
 import Testing
 @testable import Offiky
@@ -857,5 +858,27 @@ struct OverlayWindowTests {
         overlay.rebuild(frames: [])
         #expect(overlay.windows.count == 1)
         #expect(overlay.scenes.count == 1)
+    }
+}
+
+struct SceneRebuildTests {
+
+    /// 화면이 붙거나 빠지면 씬이 새로 만들어진다. 노드를 다시 붙이는 곳은 tick 뿐이라,
+    /// tick 이 멈추면 화면이 통째로 빈다
+    @MainActor @Test func 씬이_새로_만들어지면_캐릭터가_다시_붙는다() {
+        let world = World.shared
+        let frame = CGRect(x: 0, y: 0, width: 800, height: 600)
+        let strip = FloorStrip(visibleFrames: [frame], main: frame)
+        let now = ProcessInfo.processInfo.systemUptime
+
+        let before = CharacterScene(size: frame.size)
+        world.attach(scenes: [before], strip: strip)
+        world.tick(now: now + 1)
+        #expect(world.me.parent === before)
+
+        let after = CharacterScene(size: frame.size)
+        world.attach(scenes: [after], strip: strip)
+        world.tick(now: now + 2)
+        #expect(world.me.parent === after)
     }
 }

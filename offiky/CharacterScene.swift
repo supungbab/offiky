@@ -490,8 +490,10 @@ extension CharacterNode {
 /// 갱신을 SpriteKit 의 렌더 루프에 맡긴다. 별도 타이머로 돌리면 두 시계가 어긋나
 /// 어떤 프레임은 같은 그림을 두 번 그리고 어떤 프레임은 두 칸씩 건너뛴다.
 final class CharacterScene: SKScene {
+    /// SpriteKit 시계는 잠금·절전을 거치면 systemUptime 과 몇 분씩 벌어진다. 나머지가 전부
+    /// systemUptime 이라 섞으면 tick 이 그만큼 멈추고, 그 사이 화면이 바뀌면 씬이 빈 채 남는다
     override func update(_ currentTime: TimeInterval) {
-        World.shared.tick(now: currentTime)
+        World.shared.tick(now: ProcessInfo.processInfo.systemUptime)
     }
 }
 
