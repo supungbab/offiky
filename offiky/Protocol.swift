@@ -45,7 +45,8 @@ enum Limits {
     static let maxRoom = 20
     /// Bonjour TXT 는 한 쌍이 255바이트를 넘을 수 없다. 넘으면 광고가 통째로 실패한다
     static let maxRoomBytes = 60
-    static let maxChat = 200
+    /// 말풍선이 보여 줄 만큼. 입력란과 수신 검증이 같은 값을 쓴다
+    static let maxChat = 50
     static let maxChatBytes = 2 * 1024
     static let maxX: Double = 10_000
     static let maxY: Double = 4_000
@@ -222,15 +223,21 @@ private func stripControls(_ s: String) -> String {
     s.filter { !$0.unicodeScalars.contains { CharacterSet.controlCharacters.contains($0) } }
 }
 
-func sanitizeName(_ raw: String) -> String {
-    let cleaned = stripControls(raw).trimmingCharacters(in: .whitespaces)
+/// 글자 수와 바이트 수를 함께 막는다
+func clamped(_ raw: String, maxCount: Int, maxBytes: Int) -> String {
     var out = ""
-    for character in cleaned {
-        guard out.count < Limits.maxName,
-              out.utf8.count + String(character).utf8.count <= Limits.maxNameBytes
+    for character in raw {
+        guard out.count < maxCount,
+              out.utf8.count + String(character).utf8.count <= maxBytes
         else { break }
         out.append(character)
     }
+    return out
+}
+
+func sanitizeName(_ raw: String) -> String {
+    let out = clamped(stripControls(raw).trimmingCharacters(in: .whitespaces),
+                      maxCount: Limits.maxName, maxBytes: Limits.maxNameBytes)
     return out.isEmpty ? "?" : out
 }
 
@@ -238,14 +245,8 @@ func sanitizeName(_ raw: String) -> String {
 /// 글자 수만 막으면 255바이트 제한을 넘겨 리스너가 실패하고, 아무에게도 보이지 않는다.
 /// 빈 문자열은 방을 만들지 않겠다는 뜻이다
 func sanitizeRoom(_ raw: String) -> String {
-    var out = ""
-    for character in stripControls(raw).trimmingCharacters(in: .whitespaces) {
-        guard out.count < Limits.maxRoom,
-              out.utf8.count + String(character).utf8.count <= Limits.maxRoomBytes
-        else { break }
-        out.append(character)
-    }
-    return out
+    clamped(stripControls(raw).trimmingCharacters(in: .whitespaces),
+            maxCount: Limits.maxRoom, maxBytes: Limits.maxRoomBytes)
 }
 
 func validChat(_ raw: String) -> String? {

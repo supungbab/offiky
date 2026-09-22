@@ -52,25 +52,35 @@ private struct ChatInputView: View {
     @FocusState private var focused: Bool
 
     var body: some View {
-        TextField("", text: $draft, prompt: Text("엔터로 보내기").foregroundStyle(.secondary))
-            .textFieldStyle(.plain)
-            .font(.system(size: 17))
-            .padding(.horizontal, 18)
-            .frame(maxHeight: .infinity)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
-            .overlay(RoundedRectangle(cornerRadius: 12)
-                .strokeBorder(.white.opacity(0.15), lineWidth: 1))
-            .focused($focused)
-            .onAppear { DispatchQueue.main.async { focused = true } }
-            .onSubmit {
-                Session.shared.sendSay(draft)
-                draft = ""
-                ChatPanel.shared.hide()
-            }
-            .onExitCommand {
-                draft = ""
-                ChatPanel.shared.hide()
-            }
+        HStack(spacing: 10) {
+            TextField("", text: $draft, prompt: Text("엔터로 보내기").foregroundStyle(.secondary))
+                .textFieldStyle(.plain)
+                .font(.system(size: 17))
+                .focused($focused)
+                // 넘겨 적으면 전송할 때 조용히 사라진다. 여기서 막고 남은 길이를 보여 준다
+                .onChange(of: draft) {
+                    draft = clamped(draft, maxCount: Limits.maxChat,
+                                    maxBytes: Limits.maxChatBytes)
+                }
+                .onAppear { DispatchQueue.main.async { focused = true } }
+                .onSubmit {
+                    Session.shared.sendSay(draft)
+                    draft = ""
+                    ChatPanel.shared.hide()
+                }
+                .onExitCommand {
+                    draft = ""
+                    ChatPanel.shared.hide()
+                }
+            Text("\(draft.count)/\(Limits.maxChat)")
+                .font(.system(size: 12).monospacedDigit())
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 18)
+        .frame(maxHeight: .infinity)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12)
+            .strokeBorder(.white.opacity(0.15), lineWidth: 1))
     }
 }
 

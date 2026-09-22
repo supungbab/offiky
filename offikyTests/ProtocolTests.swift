@@ -290,6 +290,20 @@ struct SanitizeTests {
     @Test func 채팅의_제어문자를_제거한다() {
         #expect(validChat("점심\n먹자") == "점심먹자")
     }
+
+    /// 입력란이 이 값으로 자른다. 제어문자 제거는 글자를 늘리지 않으므로
+    /// 원본을 자르면 전송에서 길이로 거부되지 않는다
+    @Test func 입력에서_자른_채팅은_길이로_거부되지_않는다() {
+        let long = clamped(String(repeating: "가", count: 250),
+                           maxCount: Limits.maxChat, maxBytes: Limits.maxChatBytes)
+        #expect(long.count == Limits.maxChat)
+        #expect(validChat(long) == long)
+
+        let heavy = clamped(String(repeating: "a\u{0301}", count: 3_000),
+                            maxCount: Limits.maxChat, maxBytes: Limits.maxChatBytes)
+        #expect(heavy.utf8.count <= Limits.maxChatBytes)
+        #expect(validChat(heavy) == heavy)
+    }
 }
 
 struct MessageTests {
