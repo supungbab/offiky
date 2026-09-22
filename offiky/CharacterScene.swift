@@ -719,13 +719,6 @@ extension World {
         return [mine] + others
     }
 
-    /// 호스트가 바뀌거나 다시 연결하면 명단을 통째로 다시 받는다. 아무도 나간 것이 아니다
-    func removeAllPeers() {
-        ChatLog.shared.regrouping()
-        peers.values.forEach { $0.removeFromParent() }
-        peers.removeAll()
-    }
-
     func setPeerTarget(id: String, x: CGFloat, y: CGFloat,
                        bowing: Bool, dragging: Bool, facing: Int?, sent: TimeInterval?) {
         guard let node = peers[id] else { return }

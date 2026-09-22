@@ -65,7 +65,10 @@ final class Session {
         hostKey = nil
         hostID = nil
         lastSent = nil
-        World.shared.removeAllPeers()
+        // 명단은 새 호스트가 곧 다시 보낸다. 화면에서 지우지 않는다 —
+        // 지우면 교체할 때마다 모두의 캐릭터가 한 번씩 사라진다.
+        // 정말 나간 사람은 좌표가 끊겨 15초 판정이 정리한다
+        ChatLog.shared.regrouping()
     }
 
     private func linkReady(_ key: String, peerID: String?) {
@@ -144,7 +147,7 @@ final class Session {
         if key == hostKey {
             hostKey = nil
             hostID = nil
-            World.shared.removeAllPeers()
+            ChatLog.shared.regrouping()
             return
         }
         guard let id = clientByKey.removeValue(forKey: key) else { return }
