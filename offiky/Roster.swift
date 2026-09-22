@@ -1,11 +1,8 @@
-import Combine
 import SwiftUI
 
 /// 누가 접속해 있는지와 누가 중계를 맡았는지 보여준다. 위치는 화면에서 직접 보면 된다.
 struct RosterView: View {
     @State private var rows: [Row] = []
-
-    private let tick = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     struct Row: Identifiable {
         let id: String
@@ -44,8 +41,13 @@ struct RosterView: View {
         }
         .padding(16)
         .frame(width: 260, height: 320)
-        .onAppear(perform: refresh)
-        .onReceive(tick) { _ in refresh() }
+        // Timer 구독은 창을 숨겨도 유지된다. task 는 창이 사라질 때 취소된다
+        .task {
+            while !Task.isCancelled {
+                refresh()
+                try? await Task.sleep(for: .seconds(1))
+            }
+        }
     }
 
     private func thumbnail(_ look: Look, size: CGFloat) -> some View {

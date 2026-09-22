@@ -14,11 +14,16 @@ final class Panel {
             let created = NSWindow(contentRect: .zero, styleMask: [.titled, .closable],
                                    backing: .buffered, defer: false)
             created.isReleasedWhenClosed = false
-            NotificationCenter.default.addObserver(
+            let center = NotificationCenter.default
+            center.addObserver(
                 forName: NSWindow.didResignKeyNotification, object: created, queue: .main
             ) { [weak self] _ in
-                if self?.presenting == false { created.orderOut(nil) }
+                if self?.presenting == false { self?.hide() }
             }
+            // 닫기 단추로 닫으면 키를 놓쳤다는 알림이 오지 않는다
+            center.addObserver(
+                forName: NSWindow.willCloseNotification, object: created, queue: .main
+            ) { [weak self] _ in self?.hide() }
             self.window = created
             return created
         }()
@@ -36,7 +41,13 @@ final class Panel {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
             self?.presenting = false
             // 그 사이에 다른 곳을 클릭했으면 알림이 무시됐다. 여기서 확인한다
-            if !window.isKeyWindow { window.orderOut(nil) }
+            if !window.isKeyWindow { self?.hide() }
         }
+    }
+
+    /// 내용 뷰를 같이 제거한다. 남기면 뷰가 사라지지 않아 그 안의 task 가 취소되지 않는다
+    private func hide() {
+        window?.orderOut(nil)
+        window?.contentView = nil
     }
 }
