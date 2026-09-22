@@ -123,7 +123,8 @@ private struct ChatHistoryView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 4) {
-                ForEach(ChatLog.shared.entries) { entry in
+                // 입력란이 아래라 최신이 아래여야 한다. 저장은 최신이 앞이다
+                ForEach(ChatLog.shared.entries.reversed()) { entry in
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         line(entry)
                             .font(.system(size: 12))
@@ -138,6 +139,7 @@ private struct ChatHistoryView: View {
             .padding(.vertical, 10)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .defaultScrollAnchor(.bottom)
         .frame(height: historyHeight)
         .overlay {
             if ChatLog.shared.entries.isEmpty {
