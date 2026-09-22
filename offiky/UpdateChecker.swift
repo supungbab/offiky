@@ -3,7 +3,7 @@ import Observation
 
 /// GitHub 릴리스에서 새 버전을 확인한다.
 /// 샌드박스 안에서는 외부 프로그램을 실행할 수 없어 brew 를 직접 부르지 못한다.
-/// 명령을 클립보드에 넣어 주는 선까지 한다.
+/// 명령을 클립보드에 넣고 터미널을 열어 주는 선까지 한다 — 붙여 넣고 엔터는 본인이 한다.
 @MainActor
 @Observable
 final class UpdateChecker {
@@ -54,8 +54,9 @@ final class UpdateChecker {
                 alert.addButton(withTitle: "확인")
             case .found(let version):
                 alert.messageText = "새 버전 \(version) 이 있습니다"
-                alert.informativeText = "현재 \(current) 를 사용 중입니다."
-                alert.addButton(withTitle: "업데이트 명령 복사")
+                // 문장마다 줄을 나눈다. 한 줄로 두면 대화상자 폭에 맞춰 아무 데서나 끊긴다
+                alert.informativeText = "현재 버전은 \(current) 입니다.\n터미널에 ⌘V 로 붙여 넣으세요."
+                alert.addButton(withTitle: "복사하고 터미널 열기")
                 alert.addButton(withTitle: "릴리스 페이지")
                 alert.addButton(withTitle: "나중에")
             case .failed(let why):
@@ -67,7 +68,7 @@ final class UpdateChecker {
             NSApp.activate(ignoringOtherApps: true)
             let clicked = alert.runModal()
             if case .found = result {
-                if clicked == .alertFirstButtonReturn { copyCommand() }
+                if clicked == .alertFirstButtonReturn { copyCommand(); openTerminal() }
                 if clicked == .alertSecondButtonReturn { openReleasePage() }
             }
         }
@@ -120,6 +121,15 @@ final class UpdateChecker {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString("brew update && brew upgrade --cask \(cask)",
                                      forType: .string)
+    }
+
+    /// Homebrew 로 받지 않았으면 이 명령이 듣지 않는다. 그때는 릴리스 페이지로 간다
+    private func openTerminal() {
+        guard let terminal = NSWorkspace.shared
+            .urlForApplication(withBundleIdentifier: "com.apple.Terminal")
+        else { return }
+        NSWorkspace.shared.openApplication(at: terminal,
+                                           configuration: NSWorkspace.OpenConfiguration())
     }
 
     private func openReleasePage() {
