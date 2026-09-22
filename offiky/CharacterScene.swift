@@ -607,9 +607,11 @@ final class World {
         guard !strip.frames.isEmpty else { return }
 
         if !placed {
-            // 시작 위치는 바닥 아무 데나. 띠를 알아야 정할 수 있어 여기서 한 번만 한다
+            // 주 화면 가운데서 시작한다. 어디서 시작하는지 알 수 있어야 하고,
+            // 조금 흩어 놓아야 여럿이 같이 켤 때 겹쳐 서지 않는다
             placed = true
-            me.teleport(to: strip.clamp(CGFloat.random(in: strip.minX...strip.maxX)))
+            let main = strip.frames[strip.mainIndex]
+            me.teleport(to: strip.onMain(offset: main.width / 2 + .random(in: -120...120)))
         } else if let seen = lastSeen, let back = strip.locate(global: seen.global) {
             // 있던 화면이 남아 있으면 그 자리를 지킨다
             me.teleport(to: strip.clamp(back.x))
