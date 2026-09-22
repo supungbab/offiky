@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """README 에 넣을 움직이는 그림을 스프라이트에서 만든다.
 
-앱이 실제로 쓰는 값을 그대로 쓴다 — 걷기 70pt/s, 대시 180pt/s, 중력 1100,
+앱이 실제로 쓰는 값을 그대로 쓴다 — 걷기 60pt/s, 대시 180pt/s, 중력 1100,
 동작마다 다른 재생 속도. 따로 흉내 내면 앱과 다른 것을 보여 주게 된다.
 """
 import pathlib
@@ -15,7 +15,7 @@ ROW = {"idle": 0, "walk": 1, "hurt": 2, "jump": 3, "bow": 4, "dash": 5}
 COUNT = {"idle": 4, "walk": 6, "hurt": 4, "jump": 3, "bow": 1, "dash": 6}
 FPS = {"idle": 5, "walk": 12, "hurt": 14, "jump": 11, "bow": 1, "dash": 18}
 # CharacterScene.swift 와 같은 값
-WALK, DASH, GRAVITY = 70.0, 180.0, 1100.0
+WALK, DASH, GRAVITY = 60.0, 180.0, 1100.0
 APEX = {"stand": 48.0, "walk": 52.0, "dash": 72.0, "air": 40.0}
 
 SKY = (0x2b, 0x30, 0x42, 255)

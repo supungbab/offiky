@@ -27,13 +27,15 @@ final class CharacterNode: SKNode {
     /// 고개를 숙이고 있는지. 웅크림 자세를 그대로 쓴다
     var isBowing = false
     private(set) var isDashing = false
-    static let walkSpeed: CGFloat = 70
+    /// 세 속도 모두 30fps 에서 한 프레임에 정수 픽셀만큼 간다. 표시 위치가 2pt
+    /// 격자에 맞춰지므로, 나누어떨어지지 않으면 한 칸씩 더 갔다 덜 갔다 한다
+    static let walkSpeed: CGFloat = 60
     static let dashSpeed: CGFloat = 180
     /// 웅크린 채로 기어갈 때. 걷기보다 느리다
-    static let crawlSpeed: CGFloat = 40
+    static let crawlSpeed: CGFloat = 30
     /// 기어갈 때는 달리기 그림을 쓰되 천천히 넘긴다.
-    /// 걷기가 한 장에 5.8pt 가므로 같은 비율이 되는 값이다
-    static let crawlFPS: Double = 7
+    /// 걷기가 한 장에 5pt 가므로 같은 비율이 되는 값이다
+    static let crawlFPS: Double = 6
     /// 원격 캐릭터의 보간 속도가 이 값을 넘으면 대시 동작을 그린다
     static let dashAnimationThreshold: CGFloat = 110
     /// 이동 방향. +1 오른쪽, -1 왼쪽
