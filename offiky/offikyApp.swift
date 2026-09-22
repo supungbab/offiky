@@ -50,12 +50,12 @@ struct offikyApp: App {
             Divider()
             Button("종료") { NSApplication.shared.terminate(nil) }
         } label: {
-            // 배포본과 함께 떠 있을 때 열어 보지 않고 구분되어야 한다
-            #if DEBUG
-            Image(systemName: "hammer.fill")
-            #else
-            Image("MenuBarIcon")
-            #endif
+            // 새 버전이 있으면 아이콘에 빨간 점이 붙는다. 메뉴를 열지 않아도 보인다
+            if let icon = Characters.menuBarIcon(hasUpdate: UpdateChecker.shared.newVersion != nil) {
+                Image(nsImage: icon)
+            } else {
+                Image("MenuBarIcon")
+            }
         }
     }
 

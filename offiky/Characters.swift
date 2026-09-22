@@ -152,6 +152,37 @@ enum Characters {
 
     /// 목록에 쓰는 대기 첫 장. SKTexture.cgImage() 는 부를 때마다 GPU 에서 읽어 오므로
     /// 캐시가 없으면 화면을 다시 그릴 때마다 40장을 새로 만든다 — 실측 192ms
+    /// 메뉴바 아이콘. 개구리 머리를 스프라이트에서 잘라 쓴다 — 그림을 고치면 같이 바뀐다.
+    /// 색을 살려야 하므로 template 가 아니다. 밝기 반전은 포기한다
+    static func menuBarIcon(hasUpdate: Bool) -> NSImage? {
+        guard let frame = thumbnail(Look(design: 18))?
+            .cgImage(forProposedRect: nil, context: nil, hints: nil),
+              let head = frame.cropping(to: CGRect(x: 7, y: 4, width: 10, height: 9))
+        else { return nil }
+        let height: CGFloat = 16
+        let width = (height * CGFloat(head.width) / CGFloat(head.height)).rounded()
+        let dot: CGFloat = 8
+        /// 점이 개구리 밖으로 나가는 정도. 모서리에 걸치되 멀리 떨어지지 않게 한다
+        let overhang: CGFloat = 2
+        // 칸은 점이 있든 없든 같은 크기라 새 버전이 생겨도 아이콘이 옆으로 밀리지 않는다
+        let size = NSSize(width: width + overhang, height: height + overhang)
+        return NSImage(size: size, flipped: false) { _ in
+            NSGraphicsContext.current?.imageInterpolation = .none
+            NSGraphicsContext.current?.cgContext.draw(
+                head, in: CGRect(x: 0, y: overhang, width: width, height: height))
+            if hasUpdate {
+                let spot = CGRect(x: width - dot + overhang, y: 0, width: dot, height: dot)
+                // 점 둘레를 파내 개구리와 떨어뜨린다. 겹쳐 놓기만 하면 한 덩어리로 보인다
+                NSGraphicsContext.current?.cgContext.setBlendMode(.clear)
+                NSBezierPath(ovalIn: spot.insetBy(dx: -1.5, dy: -1.5)).fill()
+                NSGraphicsContext.current?.cgContext.setBlendMode(.normal)
+                NSColor.systemRed.setFill()
+                NSBezierPath(ovalIn: spot).fill()
+            }
+            return true
+        }
+    }
+
     static func thumbnail(_ look: Look) -> NSImage? {
         let design = look.sanitized.design
         if let hit = thumbCache[design] { return hit }
