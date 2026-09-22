@@ -219,8 +219,12 @@ func compatiblePeers(_ entries: [(id: String, pv: String?, room: String?, roomNa
     return (ids, others.subtracting(ids).count, rooms)
 }
 
+/// ZWJ 는 남긴다 — 이모지를 잇는 글자라 제거하면 🧑‍💻 가 통째로 사라진다
+private let strippable = CharacterSet.controlCharacters
+    .subtracting(CharacterSet(charactersIn: "\u{200D}"))
+
 private func stripControls(_ s: String) -> String {
-    s.filter { !$0.unicodeScalars.contains { CharacterSet.controlCharacters.contains($0) } }
+    s.filter { !$0.unicodeScalars.contains { strippable.contains($0) } }
 }
 
 /// 글자 수와 바이트 수를 함께 막는다

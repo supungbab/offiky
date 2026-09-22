@@ -287,6 +287,18 @@ struct SanitizeTests {
         #expect(validChat(oneHugeCharacter) == nil)
     }
 
+    @Test func ZWJ_로_이은_이모지는_남는다() {
+        #expect(validChat("🧑‍💻") == "🧑‍💻")
+        #expect(validChat("🧑‍💻 회의") == "🧑‍💻 회의")
+        #expect(sanitizeName("👨‍👩‍👧") == "👨‍👩‍👧")
+    }
+
+    /// 글자 순서를 뒤집어 이름을 위장할 수 있다. ZWJ 를 남겨도 이건 계속 막는다
+    @Test func 방향을_뒤집는_문자는_제거한다() {
+        #expect(validChat("점심\u{202E}먹자") == "점심먹자")
+        #expect(sanitizeName("Kyle\u{200F}") == "Kyle")
+    }
+
     @Test func 채팅의_제어문자를_제거한다() {
         #expect(validChat("점심\n먹자") == "점심먹자")
     }
@@ -710,10 +722,10 @@ struct RoomNameTests {
         #expect(!name.isEmpty)
     }
 
-    /// ZWJ 로 이어 붙인 이모지는 서식 문자라 통째로 걸러진다.
-    /// 같은 규칙이 글자 순서를 뒤집어 이름을 위장하는 U+202E 도 막는다
-    @Test func 서식_문자는_걸러진다() {
-        #expect(sanitizeRoom("👨‍👩‍👧‍👦").isEmpty)
+    /// ZWJ 로 이어 붙인 이모지는 남긴다. 바이트 상한이 따로 있어 TXT 는 넘지 않는다.
+    /// 글자 순서를 뒤집어 이름을 위장하는 U+202E 는 계속 막는다
+    @Test func 이모지는_남기고_방향_문자는_막는다() {
+        #expect(sanitizeRoom("👨‍👩‍👧‍👦") == "👨‍👩‍👧‍👦")
         #expect(sanitizeRoom("가\u{202E}나") == "가나")
     }
 
