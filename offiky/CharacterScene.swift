@@ -521,7 +521,7 @@ final class World {
     private(set) var strip = FloorStrip(visibleFrames: [], main: nil)
 
     private var scenes: [CharacterScene] = []
-    private var lastTick: TimeInterval = 0
+    private(set) var lastTick: TimeInterval = 0
     private var lastPeerSweep: TimeInterval = 0
     private var reportedHurtUntil: TimeInterval = 0
     private var placed = false

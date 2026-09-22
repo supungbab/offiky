@@ -1,3 +1,4 @@
+import OSLog
 import SwiftUI
 
 @main
@@ -123,6 +124,11 @@ func tellRoomIsFull() {
     alert.runModal()
 }
 
+#if DEBUG
+/// 잠금·절전 뒤 어느 층이 멈추는지 보려고 둔다. 배포본에는 들어가지 않는다
+private let watch = Logger(subsystem: "offiky", category: "watch")
+#endif
+
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         OverlayController.shared.start()
@@ -135,6 +141,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Timer.scheduledTimer(withTimeInterval: 6 * 3600, repeats: true) { _ in
             Task { await UpdateChecker.shared.check() }
         }
+
+        #if DEBUG
+        Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { _ in
+            let overlay = OverlayController.shared
+            let age = ProcessInfo.processInfo.systemUptime - World.shared.lastTick
+            watch.info("screens=\(NSScreen.screens.count) windows=\(overlay.windows.count) visible=\(overlay.windows.filter(\.isVisible).count) scenes=\(overlay.scenes.count) tickAge=\(age, format: .fixed(precision: 1)) peers=\(World.shared.peers.count) count=\(Presence.shared.count)")
+        }
+        #endif
 
         let center = NSWorkspace.shared.notificationCenter
         center.addObserver(forName: NSWorkspace.willSleepNotification,
