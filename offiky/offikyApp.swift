@@ -127,7 +127,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         OverlayController.shared.start()
         Session.shared.start()
-        Net.shared.start()
+        // 테스트 호스트로 켜지면 망에 나가지 않는다. 실제 방에 참가자로 뜨고 호스트 판정까지 바뀐다
+        if NSClassFromString("XCTestCase") == nil { Net.shared.start() }
         ChatPanel.shared.install()
         Control.shared.install()
         Task { await UpdateChecker.shared.check() }
