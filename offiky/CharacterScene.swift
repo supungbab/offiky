@@ -559,6 +559,8 @@ final class World {
     static var myRoomName: String? { store.string(forKey: "roomName") }
 
     static func join(room id: String, name: String) {
+        ChatLog.shared.clear()
+        ChatLog.shared.note("\(name) 방에 들어왔습니다")
         store.set(id, forKey: "roomID")
         store.set(name, forKey: "roomName")
         Presence.shared.room = name
@@ -566,6 +568,7 @@ final class World {
     }
 
     static func leaveRoom() {
+        ChatLog.shared.clear()
         store.removeObject(forKey: "roomID")
         store.removeObject(forKey: "roomName")
         Presence.shared.room = nil
@@ -689,6 +692,7 @@ extension World {
     static let peerTimeout: TimeInterval = 15
 
     func addPeer(id: String, name: String, look: Look) {
+        if peers[id] == nil { ChatLog.shared.joined(name) }
         let node = peers[id] ?? CharacterNode(id: id, name: name, isLocal: false)
         node.lastSeen = ProcessInfo.processInfo.systemUptime
         node.displayName = name
@@ -697,6 +701,7 @@ extension World {
     }
 
     func removePeer(id: String) {
+        if let node = peers[id] { ChatLog.shared.gone(node.displayName) }
         peers[id]?.removeFromParent()
         peers[id] = nil
     }
@@ -712,7 +717,9 @@ extension World {
         return [mine] + others
     }
 
+    /// 호스트가 바뀌거나 다시 연결하면 명단을 통째로 다시 받는다. 아무도 나간 것이 아니다
     func removeAllPeers() {
+        ChatLog.shared.regrouping()
         peers.values.forEach { $0.removeFromParent() }
         peers.removeAll()
     }
@@ -730,8 +737,9 @@ extension World {
     }
 
     func showBubble(id: String, text: String) {
-        let node = id == myID ? me : peers[id]
-        node?.showBubble(text: text, now: ProcessInfo.processInfo.systemUptime)
+        guard let node = id == myID ? me : peers[id] else { return }
+        node.showBubble(text: text, now: ProcessInfo.processInfo.systemUptime)
+        ChatLog.shared.add(name: node.displayName, text: text, isMe: id == myID)
     }
 }
 

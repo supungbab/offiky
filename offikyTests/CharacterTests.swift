@@ -861,6 +861,37 @@ struct OverlayWindowTests {
     }
 }
 
+/// 다른 테스트가 같은 기록을 쓰므로 이름으로 가려 확인한다
+struct ChatLogTests {
+
+    @MainActor @Test func 잠깐_끊겼다_돌아오면_나갔다는_줄이_사라진다() {
+        let log = ChatLog.shared
+        log.clear()
+        log.gone("누구씨")
+        #expect(log.entries.contains { $0.text.contains("누구씨") })
+        log.joined("누구씨")
+        #expect(!log.entries.contains { $0.text.contains("누구씨") })
+    }
+
+    @MainActor @Test func 명단을_다시_받는_동안은_들어왔다고_적지_않는다() {
+        let log = ChatLog.shared
+        log.clear()
+        log.regrouping()
+        log.joined("딴사람")
+        #expect(!log.entries.contains { $0.text.contains("딴사람") })
+    }
+
+    @MainActor @Test func 기록은_상한을_넘지_않고_최신이_앞이다() {
+        let log = ChatLog.shared
+        log.clear()
+        for index in 0..<(Limits.maxChatLog + 50) {
+            log.add(name: "나", text: "말 \(index)", isMe: true)
+        }
+        #expect(log.entries.count == Limits.maxChatLog)
+        #expect(log.entries.first?.text == "말 \(Limits.maxChatLog + 49)")
+    }
+}
+
 struct SceneRebuildTests {
 
     /// 화면이 붙거나 빠지면 씬이 새로 만들어진다. 노드를 다시 붙이는 곳은 tick 뿐이라,

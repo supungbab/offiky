@@ -47,11 +47,121 @@ final class KeyPanel: NSPanel {
     override var canBecomeKey: Bool { true }
 }
 
+/// 방에 있는 동안만 들고 있는 채팅 기록. 디스크에 쓰지 않는다
+@Observable final class ChatLog {
+    static let shared = ChatLog()
+
+    struct Entry: Identifiable {
+        let id = UUID()
+        /// 말한 시점의 이름. 뒤에 이름을 바꿔도 그때 부르던 이름으로 남는다
+        let name: String
+        let text: String
+        let at: Date
+        let isMe: Bool
+        /// 방·동료 소식. 이름 없이 회색 한 줄로 남는다
+        var isSystem = false
+    }
+
+    /// 최신이 앞이다. 입력란 바로 아래가 방금 한 말이 된다
+    private(set) var entries: [Entry] = []
+
+    private init() {}
+
+    /// 명단을 통째로 다시 받는 동안(호스트 교체·재연결)은 들어왔다고 적지 않는다
+    private var regroupingUntil = Date.distantPast
+
+    func add(name: String, text: String, isMe: Bool) {
+        insert(Entry(name: name, text: text, at: Date(), isMe: isMe))
+    }
+
+    func note(_ text: String) {
+        insert(Entry(name: "", text: text, at: Date(), isMe: false, isSystem: true))
+    }
+
+    func joined(_ name: String) {
+        guard Date() >= regroupingUntil else { return }
+        // 잠깐 끊겼다 돌아온 것이면 나갔다는 줄을 지우고 끝낸다
+        if let index = entries.firstIndex(where: {
+            $0.isSystem && $0.text == ChatLog.goneText(name)
+        }), Date().timeIntervalSince(entries[index].at) < 60 {
+            entries.remove(at: index)
+            return
+        }
+        note("\(name) 님이 들어왔습니다")
+    }
+
+    func gone(_ name: String) { note(ChatLog.goneText(name)) }
+
+    func regrouping() { regroupingUntil = Date().addingTimeInterval(10) }
+
+    func clear() {
+        entries.removeAll()
+        regroupingUntil = .distantPast
+    }
+
+    private static func goneText(_ name: String) -> String { "\(name) 님이 나갔습니다" }
+
+    private func insert(_ entry: Entry) {
+        entries.insert(entry, at: 0)
+        if entries.count > Limits.maxChatLog { entries.removeLast() }
+    }
+}
+
+/// 기록 칸 높이. 한 줄짜리 셋쯤 보인다
+private let historyHeight: CGFloat = 90
+
+private struct ChatHistoryView: View {
+    /// 한 줄로 이어 붙여야 긴 글이 시간·이름 아래로 자연스럽게 흐른다
+    private func line(_ entry: ChatLog.Entry) -> Text {
+        guard !entry.isSystem else { return Text(entry.text).foregroundStyle(.tertiary) }
+        return Text(entry.name).fontWeight(.semibold)
+        + Text(entry.isMe ? " (나)" : "").foregroundStyle(.tertiary)
+        + Text(" : ").foregroundStyle(.tertiary)
+        + Text(entry.text)
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(ChatLog.shared.entries) { entry in
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        line(entry)
+                            .font(.system(size: 12))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Text(entry.at.formatted(date: .omitted, time: .shortened))
+                            .font(.system(size: 11).monospacedDigit())
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+            }
+            .padding(.horizontal, 18)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(height: historyHeight)
+        .overlay {
+            if ChatLog.shared.entries.isEmpty {
+                Text("지난 대화가 없습니다").font(.system(size: 12)).foregroundStyle(.tertiary)
+            }
+        }
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12)
+            .strokeBorder(.white.opacity(0.15), lineWidth: 1))
+    }
+}
+
 private struct ChatInputView: View {
     @State private var draft = ""
     @FocusState private var focused: Bool
 
     var body: some View {
+        VStack(spacing: 8) {
+            ChatHistoryView()
+            inputBar.frame(height: panelSize.height)
+        }
+    }
+
+    private var inputBar: some View {
         HStack(spacing: 10) {
             TextField("", text: $draft, prompt: Text("엔터로 보내기").foregroundStyle(.secondary))
                 .textFieldStyle(.plain)
@@ -63,10 +173,10 @@ private struct ChatInputView: View {
                                     maxBytes: Limits.maxChatBytes)
                 }
                 .onAppear { DispatchQueue.main.async { focused = true } }
+                // 보내고도 열어 둔다. 대화가 이어질 때 ⌥F 를 다시 누르지 않아도 된다
                 .onSubmit {
                     Session.shared.sendSay(draft)
                     draft = ""
-                    ChatPanel.shared.hide()
                 }
                 .onExitCommand {
                     draft = ""
@@ -117,10 +227,12 @@ private struct ChatInputView: View {
         guard let screen = NSScreen.screens
             .first(where: { $0.frame.contains(NSEvent.mouseLocation) }) ?? NSScreen.main
         else { return }
-        let size = panelSize
-        // 화면 가운데 아래
-        let origin = CGPoint(x: screen.visibleFrame.midX - size.width / 2,
-                             y: screen.visibleFrame.minY + screen.visibleFrame.height * 0.22)
+        // 입력란은 있던 자리에 두고 기록 칸이 그 위로 쌓인다
+        let bar = screen.visibleFrame.minY + screen.visibleFrame.height * 0.22
+        let room = screen.visibleFrame.maxY - bar - panelSize.height - 24
+        let above = min(historyHeight + 8, max(0, room))
+        let size = CGSize(width: panelSize.width, height: panelSize.height + above)
+        let origin = CGPoint(x: screen.visibleFrame.midX - size.width / 2, y: bar)
 
         let panel = self.panel ?? {
             let created = KeyPanel(contentRect: CGRect(origin: origin, size: size),

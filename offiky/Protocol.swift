@@ -48,6 +48,8 @@ enum Limits {
     /// 말풍선이 보여 줄 만큼. 입력란과 수신 검증이 같은 값을 쓴다
     static let maxChat = 50
     static let maxChatBytes = 2 * 1024
+    /// 방에 있는 동안 들고 있는 채팅 기록 수
+    static let maxChatLog = 100
     static let maxX: Double = 10_000
     static let maxY: Double = 4_000
 }
