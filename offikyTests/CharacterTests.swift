@@ -945,7 +945,8 @@ struct SceneRebuildTests {
         let world = World.shared
         let frame = CGRect(x: 0, y: 0, width: 800, height: 600)
         let strip = FloorStrip(visibleFrames: [frame], main: frame)
-        let now = ProcessInfo.processInfo.systemUptime
+        // 테스트를 띄운 앱의 씬도 World.tick 을 부른다. 그 시각보다 뒤에서 시작해야 무시되지 않는다
+        let now = max(ProcessInfo.processInfo.systemUptime, world.lastTick) + 1
 
         let before = CharacterScene(size: frame.size)
         world.attach(scenes: [before], strip: strip)
@@ -956,5 +957,21 @@ struct SceneRebuildTests {
         world.attach(scenes: [after], strip: strip)
         world.tick(now: now + 2)
         #expect(world.me.parent === after)
+    }
+
+    /// 화면을 껐다 켜면 SpriteKit 이 씬 갱신을 몇 분씩 건너뛴다. 그동안 예비 타이머가 tick 을 대신 부른다
+    @MainActor @Test func 씬_갱신이_멈추면_예비_타이머가_tick_을_부른다() {
+        let world = World.shared
+        let frame = CGRect(x: 0, y: 0, width: 800, height: 600)
+        world.attach(scenes: [CharacterScene(size: frame.size)],
+                     strip: FloorStrip(visibleFrames: [frame], main: frame))
+        // 테스트를 띄운 앱의 씬도 World.tick 을 부른다. 그 시각보다 뒤에서 시작해야 무시되지 않는다
+        let now = max(ProcessInfo.processInfo.systemUptime, world.lastTick) + 1
+
+        world.tick(now: now)
+        world.tickIfStalled(now: now + 0.05)
+        #expect(world.lastTick == now)          // 씬 갱신이 돌고 있으면 끼어들지 않는다
+        world.tickIfStalled(now: now + 0.5)
+        #expect(world.lastTick == now + 0.5)
     }
 }

@@ -17,6 +17,10 @@ final class OverlayController {
         NotificationCenter.default.addObserver(
             self, selector: #selector(screensChanged),
             name: NSApplication.didChangeScreenParametersNotification, object: nil)
+        let fallback = Timer(timeInterval: 1.0 / 30, repeats: true) { _ in
+            World.shared.tickIfStalled(now: ProcessInfo.processInfo.systemUptime)
+        }
+        RunLoop.main.add(fallback, forMode: .common)
     }
 
     /// 오버레이가 표시 전용이라 내 캐릭터 위에 겹쳐 두고 드래그를 받는다.

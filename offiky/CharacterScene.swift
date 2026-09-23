@@ -644,6 +644,11 @@ final class World {
         me.y = spot.y
     }
 
+    /// 화면을 껐다 켜면 SpriteKit 이 씬 update 를 몇 분씩 건너뛴다. 그리기는 계속되므로 그동안 대신 부른다
+    func tickIfStalled(now: TimeInterval) {
+        if now - lastTick > 0.1 { tick(now: now) }
+    }
+
     func tick(now: TimeInterval) {
         guard !scenes.isEmpty else { return }
         // 화면마다 씬이 따로 부르므로 한 프레임에 여러 번 들어온다
