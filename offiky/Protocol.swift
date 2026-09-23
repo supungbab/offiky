@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
 
-let protocolVersion = 7
+let protocolVersion = 8
 let spriteDisplaySize: CGFloat = 40
 /// 바닥을 화면 맨 아래에서 띄우는 높이. Dock 이나 화면 끝에 붙어 보이지 않게 한다
 let floorOffset: CGFloat = 8
@@ -164,15 +164,16 @@ func idIsTaken(_ id: String, by key: String, in table: [String: String]) -> Bool
     table.contains { $0.key != key && $0.value == id }
 }
 
-/// 호스트라고 광고하는 사람이 하나면 그 사람을 그대로 둔다. 새로 들어온 사람이
-/// 자리를 뺏지 않는다 — 교체는 모두의 연결을 끊고 다시 붙이는 일이라 드물어야 한다.
-/// 아무도 없거나(처음) 둘 이상이면(끊겼다 붙어 겹침) 가장 작은 id 로 가른다.
-/// 뽑는 절차는 없다. 모두 같은 광고를 보고 같은 답을 낸다
-func electHost(among peers: Set<String>, claiming: Set<String>, me: String) -> String {
-    let everyone = peers.union([me])
+/// 방에 먼저 들어온 사람이 호스트다. 맡은 사람이 있으면 그대로 두고, 나가면 남은 사람 중 먼저 들어온 사람이 이어받는다.
+/// 둘이 맡고 있으면 따르는 사람이 많은 쪽, 같으면 먼저 들어온 쪽이다. 모두 같은 광고를 보고 같은 답을 낸다.
+/// `excluding` 은 광고는 남았는데 응답하지 않는 사람이다
+func electHost(among peers: Set<String>, claiming: Set<String>, joined: [String: Int],
+               followers: [String: Int] = [:], me: String, excluding: Set<String> = []) -> String {
+    let everyone = peers.subtracting(excluding).union([me])
     let claims = claiming.intersection(everyone)
     if claims.count == 1, let incumbent = claims.first { return incumbent }
-    return everyone.min() ?? me
+    func rank(_ id: String) -> (Int, Int, String) { (-(followers[id] ?? 0), joined[id] ?? .max, id) }
+    return (claims.isEmpty ? everyone : claims).min { rank($0) < rank($1) } ?? me
 }
 
 /// 방을 구분하는 값. 만들 때 새로 뽑는다 — 이름이 같아도 다른 방이고,

@@ -508,6 +508,7 @@ struct StillTests {
 
     @Test func 생존_주기가_제한시간보다_넉넉하다() {
         #expect(keepaliveInterval * 3 < World.peerTimeout)
+        #expect(keepaliveInterval * 3 < World.hostTimeout)
     }
 
     /// 서 있던 몇 초가 도착 간격으로 들어가면 움직이기 시작할 때 반 초 늦게 보인다

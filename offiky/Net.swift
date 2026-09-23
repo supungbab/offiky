@@ -54,8 +54,16 @@ final class Net {
     private var host: String?
     /// 호스트라고 광고하는 사람들. 현직이 보이면 그대로 둔다
     private var claims: Set<String> = []
+    /// 광고에 적힌 입장 시각과 따르는 사람 수. 호스트를 고르는 기준이다
+    private var joined: [String: Int] = [:]
+    private var followers: [String: Int] = [:]
+    /// 이 방에 들어온 시각(ms). 망이 바뀌어 다시 연결해도 그대로 두고, 방을 옮기거나 깨어나면 새로 찍는다
+    private var joinedAt = 0
     /// 호스트 연결이 실패하면 쉬었다 다시 연결한다. 바로 다시 하면 실패가 반복되며 회전한다
     private var hostRetryAt: Date?
+    /// 응답하지 않은 호스트 → 후보에서 제외하는 기한. Wi-Fi 가 끊기면 광고가 만료될 때까지 남는다
+    private var unresponsive: [String: Date] = [:]
+    static let unresponsiveFor: TimeInterval = 60
     private var dialWork: DispatchWorkItem?
     private var monitor: NWPathMonitor?
     private var restartWork: DispatchWorkItem?
@@ -86,6 +94,7 @@ final class Net {
         queue.async {
             guard !self.running else { return }
             self.running = true
+            self.joinedAt = Int(Date().timeIntervalSince1970 * 1000)
             self.startListener()
             self.startBrowser()
             self.startPathMonitor()
@@ -114,6 +123,7 @@ final class Net {
         browser?.cancel(); browser = nil
         visible.removeAll()
         claims.removeAll()
+        unresponsive.removeAll()
         host = nil
         dropAllLinks()
         flushWork?.cancel(); flushWork = nil
@@ -132,6 +142,7 @@ final class Net {
         queue.async {
             guard self.running else { return }
             self.teardown()
+            self.joinedAt = Int(Date().timeIntervalSince1970 * 1000)
             self.startListener()
             self.startBrowser()
         }
@@ -184,6 +195,8 @@ final class Net {
                 "rname": World.myRoomName ?? room,
                 // 지금 중계를 맡고 있다는 표시. 새로 들어온 사람이 이걸 보고 현직에 붙는다
                 "h": amHost ? "1" : "0",
+                "j": String(joinedAt),
+                "n": String(amHost ? links.values.filter(\.traffic.canReceiveBroadcast).count : 0),
             ]).data)
     }
 
@@ -289,13 +302,18 @@ final class Net {
             guard let self else { return }
             var entries: [(id: String, pv: String?, room: String?, roomName: String?)] = []
             var claiming: Set<String> = []
+            var joined: [String: Int] = [:], followers: [String: Int] = [:]
             for result in results {
                 if case let .bonjour(txt) = result.metadata, let id = txt["id"] {
                     entries.append((id, txt["pv"], txt["room"], txt["rname"]))
                     if txt["h"] == "1" { claiming.insert(id) }
+                    joined[id] = txt["j"].flatMap { Int($0) }
+                    followers[id] = txt["n"].flatMap { Int($0) }
                 }
             }
             self.claims = claiming
+            self.joined = joined
+            self.followers = followers
             // 방에 없어도 듣기는 한다. 참여할 방 목록을 보여줘야 하기 때문이다
             let peers = compatiblePeers(entries, myRoom: World.myRoom)
             self.visible = peers.ids
@@ -316,9 +334,14 @@ final class Net {
 
     /// 광고를 볼 때마다 다시 판정한다. 호스트가 사라지면 남은 사람 중 가장 작은 id 가 호스트가 된다
     private func elect() {
+        let now = Date()
+        unresponsive = unresponsive.filter { $0.value > now }
         let elected = World.myRoom == nil
             ? nil
-            : electHost(among: visible, claiming: claims, me: World.shared.myID)
+            : electHost(among: visible, claiming: claims,
+                        joined: joined.merging([World.shared.myID: joinedAt]) { $1 },
+                        followers: followers, me: World.shared.myID,
+                        excluding: Set(unresponsive.keys))
         if elected != host {
             host = elected
             hostRetryAt = nil
@@ -398,10 +421,12 @@ final class Net {
         link.handshakeWork?.cancel()
         link.connection.stateUpdateHandler = nil
         link.connection.cancel()
+        if amHost, link.traffic.isIdentified { advertise() }
         // 내가 시작한 연결만 다시 연결한다. 받은 연결은 저쪽에서 다시 온다
-        if link.peerID != nil {
+        if let peer = link.peerID {
             hostRetryAt = Date().addingTimeInterval(Net.retryDelay)
-            dial()
+            // 호스트라고 광고하면서 인사하지 않았다. 광고하기 전이면 아직 호스트가 되는 중이라 다시 연결한다
+            if !link.traffic.isIdentified, claims.contains(peer) { markUnresponsive(peer) } else { dial() }
         }
         DispatchQueue.main.async { self.onGone?(key) }
     }
@@ -438,6 +463,7 @@ final class Net {
             link.traffic.identify()
             link.handshakeWork?.cancel()
             link.handshakeWork = nil
+            if self.amHost { self.advertise() }
         }
     }
 
@@ -449,8 +475,17 @@ final class Net {
     /// 좌표가 끊겨 없는 것으로 판정했다. 연결이 살아 있어도 쓸모없으므로 끊는다
     func dropLinks(to id: String) {
         queue.async {
+            if id == self.host { self.markUnresponsive(id); return }
             for (key, link) in self.links where link.peerID == id { self.drop(key) }
         }
+    }
+
+    /// 광고만 남은 호스트에 계속 다시 연결하지 않고 다음 사람을 호스트로 고른다
+    // ponytail: 광고가 60초보다 오래 남으면 기한마다 한 번 다시 시도한다. 반복되면 기한을 늘린다
+    private func markUnresponsive(_ id: String) {
+        unresponsive[id] = Date().addingTimeInterval(Net.unresponsiveFor)
+        queue.asyncAfter(deadline: .now() + Net.unresponsiveFor + 0.1) { [weak self] in self?.elect() }
+        elect()
     }
 
     private func receiveLines(key: String) {

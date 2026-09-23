@@ -498,50 +498,77 @@ struct LinkTrafficPolicyTests {
 @Suite("호스트 뽑기")
 struct HostElectionTests {
 
-    /// 아무도 맡고 있지 않으면 가장 작은 id 로 시작한다
-    @Test func 아무도_맡지_않았으면_id_가_가장_작은_사람이_호스트다() {
-        #expect(electHost(among: ["나무", "가지"], claiming: [], me: "바람") == "가지")
-        #expect(electHost(among: ["나무", "바람"], claiming: [], me: "가지") == "가지")
+    /// 들어온 순서. 방을 만든 가지가 가장 먼저다
+    private let joined = ["가지": 1, "나무": 2, "바람": 3, "다래": 4]
+
+    /// id 가 아니라 들어온 순서로 고른다. 방을 만든 사람이 기본 호스트다
+    @Test func 아무도_맡지_않았으면_먼저_들어온_사람이_호스트다() {
+        #expect(electHost(among: ["나무", "바람"], claiming: [], joined: joined, me: "가지") == "가지")
+        #expect(electHost(among: ["가지", "바람"], claiming: [], joined: joined, me: "나무") == "가지")
     }
 
     @Test func 혼자면_내가_호스트다() {
-        #expect(electHost(among: [], claiming: [], me: "바람") == "바람")
+        #expect(electHost(among: [], claiming: [], joined: joined, me: "바람") == "바람")
     }
 
-    /// 새로 들어온 사람이 id 가 작아도 맡고 있는 사람을 밀어내지 않는다.
-    /// 교체는 모두의 연결을 끊고 다시 붙이는 일이라 드물어야 한다
+    /// 나갔다 다시 들어온 사람은 입장 시각이 새로 찍혀, 맡고 있는 사람을 밀어내지 않는다
     @Test func 맡고_있는_사람이_보이면_그대로_둔다() {
-        #expect(electHost(among: ["나무", "바람"], claiming: ["나무"], me: "가지") == "나무")
+        var rejoined = joined
+        rejoined["가지"] = 9
+        #expect(electHost(among: ["나무", "바람"], claiming: ["나무"], joined: rejoined, me: "가지")
+                == "나무")
         // 맡은 사람 자신도 같은 답을 낸다
-        #expect(electHost(among: ["가지", "바람"], claiming: ["나무"], me: "나무") == "나무")
+        #expect(electHost(among: ["가지", "바람"], claiming: ["나무"], joined: rejoined, me: "나무")
+                == "나무")
     }
 
-    /// 호스트가 나가면 남은 사람 중 가장 작은 id 가 이어받는다
-    @Test func 맡은_사람이_사라지면_다음_사람이_이어받는다() {
-        let 남은: Set = ["나무", "바람"]
-        #expect(electHost(among: 남은, claiming: ["가지"], me: "다래") == "나무")
+    /// 호스트가 나가면 남은 사람 중 먼저 들어온 사람이 이어받는다
+    @Test func 맡은_사람이_사라지면_먼저_들어온_사람이_이어받는다() {
+        #expect(electHost(among: ["다래", "바람"], claiming: ["가지"], joined: joined, me: "나무")
+                == "나무")
     }
 
-    /// 끊겼다 붙으면 둘이 동시에 맡고 있다고 광고할 수 있다. 가장 작은 id 로 가른다
-    @Test func 둘이_맡고_있다고_하면_id_로_가른다() {
-        #expect(electHost(among: ["나무", "바람"], claiming: ["나무", "바람"], me: "가지")
+    /// 광고는 남았는데 응답하지 않는 호스트는 빼고 고른다. 남은 사람 모두 같은 답을 낸다
+    @Test func 응답하지_않는_호스트는_빼고_고른다() {
+        let dead: Set = ["가지"]
+        #expect(electHost(among: ["가지", "바람"], claiming: ["가지"], joined: joined, me: "나무",
+                          excluding: dead) == "나무")
+        #expect(electHost(among: ["가지", "나무"], claiming: ["가지"], joined: joined, me: "바람",
+                          excluding: dead) == "나무")
+    }
+
+    /// 끊겼다 돌아온 옛 호스트는 따르는 사람이 없다. 그사이 이어받은 쪽을 따른다
+    @Test func 둘이_맡고_있으면_따르는_사람이_많은_쪽이다() {
+        #expect(electHost(among: ["나무", "바람"], claiming: ["가지", "나무"], joined: joined,
+                          followers: ["가지": 0, "나무": 1], me: "가지") == "나무")
+    }
+
+    /// 막 들어온 사람이 광고를 받기 전에 스스로 맡을 수 있다. 둘 다 따르는 사람이 없으면 먼저 들어온 쪽이다
+    @Test func 따르는_사람이_같으면_먼저_들어온_쪽이다() {
+        #expect(electHost(among: ["다래"], claiming: ["가지", "다래"], joined: joined, me: "가지")
                 == "가지")
     }
 
     /// 다른 방 사람이 맡고 있다고 광고해도 이 방의 판정에 끼어들지 못한다
     @Test func 방_밖의_주장은_세지_않는다() {
-        #expect(electHost(among: ["나무"], claiming: ["딴방"], me: "바람") == "나무")
+        #expect(electHost(among: ["나무"], claiming: ["딴방"], joined: joined, me: "바람") == "나무")
     }
 
     /// 방에 있는 모두가 같은 사람을 가리켜야 연결이 호스트 하나로 모인다
     @Test func 누가_보아도_같은_사람을_가리킨다() {
         let everyone: Set = ["가지", "나무", "바람", "다래"]
-        for claiming in [Set<String>(), ["바람"]] {
+        for claiming in [Set<String>(), ["바람"], ["바람", "다래"]] {
             let elected = everyone.map {
-                electHost(among: everyone.subtracting([$0]), claiming: claiming, me: $0)
+                electHost(among: everyone.subtracting([$0]), claiming: claiming, joined: joined,
+                          followers: ["바람": 2, "다래": 1], me: $0)
             }
             #expect(Set(elected).count == 1)
         }
+    }
+
+    /// 입장 시각을 적지 않은 광고는 맨 뒤로 보낸다. 앞에 두면 아무나 호스트를 가져간다
+    @Test func 입장_시각이_없으면_맨_뒤다() {
+        #expect(electHost(among: ["나무", "모름"], claiming: [], joined: joined, me: "바람") == "나무")
     }
 }
 
