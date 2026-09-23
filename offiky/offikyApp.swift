@@ -132,6 +132,38 @@ func tellRoomIsFull() {
 #if DEBUG
 /// 잠금·절전 뒤 어느 층이 멈추는지 보려고 둔다. 배포본에는 들어가지 않는다
 private let watch = Logger(subsystem: "offiky", category: "watch")
+
+/// `-bot YES` 로 활성화하면 사람처럼 걷고 서고 뛴다. 두 인스턴스로 원격 캐릭터를 눈으로 비교할 때 쓴다
+private final class Bot {
+    static let shared = Bot()
+    private var until: TimeInterval = 0
+
+    func start() {
+        let timer = Timer(timeInterval: 0.05, repeats: true) { [weak self] _ in self?.step() }
+        RunLoop.main.add(timer, forMode: .common)
+    }
+
+    private func step() {
+        let me = World.shared.me
+        let now = ProcessInfo.processInfo.systemUptime
+        let strip = World.shared.strip
+        // 끝에 닿으면 돌아선다
+        if me.x < strip.minX + 80 { me.hold(1, dash: false); until = now + .random(in: 1...3) }
+        if me.x > strip.maxX - 80 { me.hold(-1, dash: false); until = now + .random(in: 1...3) }
+        guard now >= until else { return }
+        me.isBowing = false
+        let direction: CGFloat = Bool.random() ? 1 : -1
+        switch Int.random(in: 0..<10) {
+        case 0...3: me.hold(direction, dash: false); until = now + .random(in: 0.8...3)
+        case 4...5: me.hold(0, dash: false); until = now + .random(in: 0.5...2.5)
+        case 6:     me.hold(direction, dash: true); until = now + .random(in: 0.4...1.2)
+        case 7:     me.jump(); if Bool.random() { DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { me.jump() } }
+                    until = now + .random(in: 0.6...1.2)
+        case 8:     me.hold(0, dash: false); me.isBowing = true; until = now + .random(in: 0.5...1.5)
+        default:    me.hold(-me.facingSign, dash: false); until = now + .random(in: 0.3...1)
+        }
+    }
+}
 #endif
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -148,6 +180,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         #if DEBUG
+        if UserDefaults.standard.bool(forKey: "bot") { Bot.shared.start() }
         Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { _ in
             let overlay = OverlayController.shared
             let age = ProcessInfo.processInfo.systemUptime - World.shared.lastTick

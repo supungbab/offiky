@@ -549,6 +549,18 @@ final class Net {
                 // 호스트가 받은 흐름은 이미 누구인지 안다. 클라이언트만 토큰을 적는다
                 let prefix = amHost ? Data() : link.udpToken
                 for datagram in datagrams(data, prefix: prefix) {
+                    #if DEBUG
+                    // `-netLoss 0.05 -netJitter 0.08` 로 나쁜 망을 모사한다
+                    let defaults = UserDefaults.standard
+                    if Double.random(in: 0..<1) < defaults.double(forKey: "netLoss") { continue }
+                    let jitter = defaults.double(forKey: "netJitter")
+                    if jitter > 0 {
+                        queue.asyncAfter(deadline: .now() + .random(in: 0...jitter)) {
+                            udp.send(content: datagram, completion: .idempotent)
+                        }
+                        continue
+                    }
+                    #endif
                     udp.send(content: datagram, completion: .idempotent)
                 }
             }
