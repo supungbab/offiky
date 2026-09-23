@@ -175,7 +175,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ChatPanel.shared.install()
         Control.shared.install()
         Task { await UpdateChecker.shared.check() }
-        Timer.scheduledTimer(withTimeInterval: 6 * 3600, repeats: true) { _ in
+        Timer.scheduledTimer(withTimeInterval: 3600, repeats: true) { _ in
             Task { await UpdateChecker.shared.check() }
         }
 
@@ -195,6 +195,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                            object: nil, queue: .main) { _ in
             Net.shared.start()
             OverlayController.shared.rebuild()
+            // 밤새 나온 버전을 맥을 열자마자 알린다. 깨어난 직후에는 Wi-Fi 가 아직 연결되지 않았다
+            Task {
+                try? await Task.sleep(for: .seconds(10))
+                await UpdateChecker.shared.check()
+            }
         }
     }
 }
