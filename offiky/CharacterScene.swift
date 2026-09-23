@@ -87,6 +87,8 @@ final class CharacterNode: SKNode {
     /// 흔들림을 기억하는 기간. 쉬지 않고 걸을 때의 옛 창(30건 ÷ 10Hz)과 같은 길이다
     static let gapMemory: TimeInterval = 3
     static let delayRange: ClosedRange<TimeInterval> = 0.15...0.5
+    /// 좌표가 끊겼을 때 직전 속도로 더 움직이는 한도. 손실 몇 건은 가리고, 정말 멈춘 사람은 곧 선다
+    static let extrapolationLimit: TimeInterval = 0.5
     /// 지연을 갑자기 바꾸면 위치가 튄다. 초당 이만큼만 옮긴다
     static let delaySlew: TimeInterval = 0.1
     static let gravity: CGFloat = 1100
@@ -247,8 +249,9 @@ final class CharacterNode: SKNode {
             else { offsets.removeAll() }
         }
         // 보내는 쪽이 서 있느라 건너뛴 구간이다. 한 구간으로 이으면 재생 시각이
-        // 그 안에 갇혀, 걷기 시작할 때 튀었다가 멈춘 것처럼 보인다
-        if let last = samples.last, stamp - last.t > CharacterNode.stillGap {
+        // 그 안에 갇혀, 걷기 시작할 때 튀었다가 멈춘 것처럼 보인다.
+        // 움직이던 중의 공백은 UDP 손실이다. 앞당기면 그 거리를 한 주기에 건너뛴다
+        if wasStill, let last = samples.last, stamp - last.t > CharacterNode.stillGap {
             samples[samples.count - 1].t = stamp - positionInterval
         }
         wasStill = false
@@ -378,7 +381,14 @@ final class CharacterNode: SKNode {
         let ratio = span > 0 ? CGFloat(min(1, (renderAt - a.t) / span)) : 1
         x = a.x + (b.x - a.x) * ratio
         y = a.y + (b.y - a.y) * ratio
-        isWalking = ratio < 1 && span > 0 && abs(b.x - a.x) / CGFloat(span) > 2
+        // 다음 표본이 없으면 직전 속도로 가로만 늘인다. 같은 자리를 다시 받았으면 멈춘 것이다
+        var moving = ratio < 1
+        if renderAt > b.t, span > 0, !wasStill {
+            let ahead = min(renderAt - b.t, CharacterNode.extrapolationLimit)
+            x = b.x + (b.x - a.x) / CGFloat(span) * CGFloat(ahead)
+            moving = ahead < CharacterNode.extrapolationLimit
+        }
+        isWalking = moving && span > 0 && abs(b.x - a.x) / CGFloat(span) > 2
     }
 
     /// 낙하 속도는 프레임 간 높이 변화로 구한다. verticalSpeed 는 착지 직전에

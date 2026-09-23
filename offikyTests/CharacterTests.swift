@@ -717,7 +717,13 @@ struct ResumeTests {
         }
         let resumeAt = now + pause                        // 멈춰 선다
         var keepalive = now
+        var repeats = Session.settleRepeats               // 멈춘 자리를 몇 번 더 보낸다
         while now < resumeAt {
+            if repeats > 0, now >= next {
+                repeats -= 1
+                next += positionInterval
+                node.setRemoteTarget(x: x, y: 0, at: now)
+            }
             if now - keepalive >= keepaliveInterval {
                 keepalive = now
                 node.setRemoteTarget(x: x, y: 0, at: now)
@@ -754,6 +760,44 @@ struct ResumeTests {
     @MainActor @Test func 생존_신호보다_짧게_쉬어도_같다() {
         let d = deltas(pause: keepaliveInterval / 2)
         #expect((d.max() ?? 0) < 3)
+    }
+
+    /// 멈춘 뒤 같은 자리를 다시 받으면 멈춘 자리에 선다. 직전 속도로 지나쳐 가지 않는다
+    @MainActor @Test func 멈추면_지나치지_않는다() {
+        let node = CharacterNode(id: "p", name: "p", isLocal: false)
+        var now: TimeInterval = 0, next: TimeInterval = 0, x: CGFloat = 500
+        var repeats = Session.settleRepeats, farthest: CGFloat = 0
+        while now < 3 {
+            if now >= next {
+                next += positionInterval
+                if now < 1 { x += 7; node.setRemoteTarget(x: x, y: 0, sent: now, at: now) }
+                else if repeats > 0 { repeats -= 1; node.setRemoteTarget(x: x, y: 0, sent: now, at: now) }
+            }
+            node.update(dt: 1.0 / 30, now: now, strip: strip)
+            farthest = max(farthest, node.x)
+            now += 1.0 / 30
+        }
+        #expect(farthest <= x + 0.5)
+        #expect(abs(node.x - x) < 0.5)
+    }
+
+    /// 걷는 중에 좌표 몇 건을 잃어도 남은 거리를 한 번에 건너뛰지 않는다
+    @MainActor @Test func 걷다가_좌표를_잃어도_튀지_않는다() {
+        let node = CharacterNode(id: "p", name: "p", isLocal: false)
+        var now: TimeInterval = 0, next: TimeInterval = 0, x: CGFloat = 500, tick = 0
+        var previous = node.x, worst: CGFloat = 0
+        while now < 3 {
+            if now >= next {
+                next += positionInterval; x += 7; tick += 1
+                // 1.5초 무렵 다섯 건이 사라진다
+                if !(15..<20).contains(tick) { node.setRemoteTarget(x: x, y: 0, sent: next, at: now) }
+            }
+            node.update(dt: 1.0 / 30, now: now, strip: strip)
+            if now > 0.5 { worst = max(worst, node.x - previous) }
+            previous = node.x
+            now += 1.0 / 30
+        }
+        #expect(worst < 3)
     }
 }
 

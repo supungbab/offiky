@@ -17,6 +17,11 @@ final class Net {
         return NWParameters(tls: nil, tcp: options)
     }()
     private var listener: NWListener?
+    private var udpListener: NWListener?
+    /// 호스트가 나눠 준 토큰 → 그 클라이언트의 연결
+    private var udpTokens: [String: String] = [:]
+    /// 호스트일 때 알려 줄 UDP 포트. 메인에서만 읽고 쓴다
+    var udpPort: UInt16?
     private var browser: NWBrowser?
 
     /// 연결 하나. 내가 시작한 쪽은 상대를 알고 시작하고, 받은 쪽은 hello 를 받아야 안다
@@ -28,6 +33,12 @@ final class Net {
         var windowStart: TimeInterval = 0
         var lines = 0
         var handshakeWork: DispatchWorkItem?
+        /// 좌표용 흐름. 호스트는 클라이언트가 토큰을 대고 연 흐름을, 클라이언트는 호스트로 연 흐름을 쥔다
+        var udp: NWConnection?
+        /// 클라이언트가 데이터그램 첫 줄에 적는 토큰
+        var udpToken = Data()
+        /// 상대의 데이터그램을 받아 양방향으로 통하는 것을 확인했다. 그 전에는 TCP 로도 보낸다
+        var udpConfirmed = false
         init(_ connection: NWConnection, peerID: String?, maxLines: Int, maxPending: Int) {
             self.connection = connection
             self.peerID = peerID
@@ -52,8 +63,10 @@ final class Net {
     private var running = false
     private var trafficWindowStart: TimeInterval = 0
     private var totalLines = 0
-    /// 연결마다 한 틱 분량을 모아 둔다. 건마다 보내면 호스트의 send 가 인원의 제곱으로 는다
+    /// 연결마다 flushDelay 동안 모아 둔다. 건마다 보내면 호스트의 send 가 인원의 제곱으로 는다
     private var pending: [String: Data] = [:]
+    /// 좌표. UDP 가 통하면 그쪽으로 보낸다
+    private var pendingFast: [String: Data] = [:]
     private var flushWork: DispatchWorkItem?
 
     static let retryDelay: TimeInterval = 5
@@ -94,6 +107,9 @@ final class Net {
         restartWork?.cancel()
         listener?.stateUpdateHandler = nil
         listener?.cancel(); listener = nil
+        udpListener?.stateUpdateHandler = nil
+        udpListener?.cancel(); udpListener = nil
+        udpTokens.removeAll()
         browser?.stateUpdateHandler = nil
         browser?.cancel(); browser = nil
         visible.removeAll()
@@ -102,9 +118,13 @@ final class Net {
         dropAllLinks()
         flushWork?.cancel(); flushWork = nil
         pending.removeAll()
+        pendingFast.removeAll()
         trafficWindowStart = 0
         totalLines = 0
-        DispatchQueue.main.async { Presence.shared.otherVersions = 0 }
+        DispatchQueue.main.async {
+            Presence.shared.otherVersions = 0
+            self.udpPort = nil
+        }
     }
 
     /// 방이 바뀌면 붙어 있던 사람들과 헤어지고 새 이름으로 다시 광고한다
@@ -179,6 +199,87 @@ final class Net {
         }
         listener.start(queue: queue)
         self.listener = listener
+        startUDPListener()
+    }
+
+    /// UDP 가 막혀 있어도 TCP 만으로 동작하므로 실패하면 열지 않은 채로 둔다
+    private func startUDPListener() {
+        guard let udp = try? NWListener(using: .udp) else { return }
+        udp.newConnectionHandler = { [weak self] flow in self?.acceptUDP(flow) }
+        udp.stateUpdateHandler = { [weak self, weak udp] state in
+            guard case .ready = state, let port = udp?.port?.rawValue else { return }
+            DispatchQueue.main.async { self?.udpPort = port }
+        }
+        udp.start(queue: queue)
+        udpListener = udp
+    }
+
+    /// 보낸 쪽마다 흐름이 하나씩 생긴다. 첫 데이터그램의 토큰으로 어느 클라이언트인지 판정한다
+    private func acceptUDP(_ flow: NWConnection) {
+        guard amHost else { flow.cancel(); return }
+        flow.start(queue: queue)
+        receiveDatagrams(flow, key: nil)
+    }
+
+    /// 호스트가 준 토큰을 이 연결에 묶는다. 같은 연결의 옛 토큰은 무효가 된다
+    func allowUDP(_ token: String, for key: String) {
+        queue.async {
+            self.udpTokens = self.udpTokens.filter { $0.value != key }
+            self.udpTokens[token] = key
+        }
+    }
+
+    /// 클라이언트가 호스트의 UDP 포트로 흐름을 연다. 주소는 TCP 연결의 상대 주소를 쓴다
+    func openUDP(port: Int, token: String, via key: String) {
+        queue.async {
+            guard let link = self.links[key], link.peerID != nil,
+                  case let .hostPort(host, _)? = link.connection.currentPath?.remoteEndpoint,
+                  let port = NWEndpoint.Port(rawValue: UInt16(clamping: port)), port.rawValue > 0
+            else { return }
+            link.udp?.cancel()
+            let flow = NWConnection(host: host, port: port, using: .udp)
+            link.udp = flow
+            link.udpToken = Data((token + "\n").utf8)
+            link.udpConfirmed = false
+            flow.stateUpdateHandler = { [weak link] state in
+                guard case .failed = state, let link, link.udp === flow else { return }
+                link.udp = nil
+                link.udpConfirmed = false
+            }
+            flow.start(queue: self.queue)
+            self.receiveDatagrams(flow, key: key)
+        }
+    }
+
+    /// `key` 가 nil 이면 호스트가 받은 흐름이라 첫 줄이 토큰이다
+    private func receiveDatagrams(_ flow: NWConnection, key known: String?) {
+        flow.receiveMessage { [weak self] data, _, _, error in
+            guard let self else { return }
+            var lines = data ?? Data()
+            let key: String
+            if let known {
+                key = known
+            } else {
+                guard let newline = lines.firstIndex(of: 0x0A),
+                      let token = String(data: lines[..<newline], encoding: .utf8),
+                      let bound = self.udpTokens[token]
+                else { flow.cancel(); return }
+                key = bound
+                lines = Data(lines[lines.index(after: newline)...])
+            }
+            guard let link = self.links[key] else { flow.cancel(); return }
+            if link.udp !== flow {
+                // 클라이언트가 흐름을 다시 열었다. 받는 쪽은 호스트뿐이다
+                guard known == nil else { flow.cancel(); return }
+                link.udp?.cancel()
+                link.udp = flow
+            }
+            link.udpConfirmed = true
+            for line in lines.split(separator: 0x0A) {
+                guard self.deliver(Data(line), from: link, key: key) else { return }
+            }
+            if error == nil { self.receiveDatagrams(flow, key: known) }
+        }
     }
 
     private func startBrowser() {
@@ -291,6 +392,9 @@ final class Net {
     private func drop(_ key: String) {
         guard let link = links.removeValue(forKey: key) else { return }
         pending[key] = nil
+        pendingFast[key] = nil
+        udpTokens = udpTokens.filter { $0.value != key }
+        link.udp?.cancel()
         link.handshakeWork?.cancel()
         link.connection.stateUpdateHandler = nil
         link.connection.cancel()
@@ -306,12 +410,15 @@ final class Net {
     private func dropAllLinks() {
         dialWork?.cancel()
         for link in links.values {
+            link.udp?.cancel()
             link.handshakeWork?.cancel()
             link.connection.stateUpdateHandler = nil
             link.connection.cancel()
         }
         links.removeAll()
         pending.removeAll()
+        pendingFast.removeAll()
+        udpTokens.removeAll()
         let amHost = self.amHost
         DispatchQueue.main.async { Session.shared.roleChanged(amHost: amHost) }
     }
@@ -357,29 +464,10 @@ final class Net {
 
             if let data, !data.isEmpty {
                 link.buffer.append(data)
-                let now = ProcessInfo.processInfo.systemUptime
-                if now - link.windowStart >= 1 { link.windowStart = now; link.lines = 0 }
-                if now - self.trafficWindowStart >= 1 {
-                    self.trafficWindowStart = now
-                    self.totalLines = 0
-                }
                 while let newline = link.buffer.firstIndex(of: 0x0A) {
                     let line = Data(link.buffer[link.buffer.startIndex..<newline])
                     link.buffer.removeSubrange(link.buffer.startIndex...newline)
-                    if line.count > Limits.maxMessageBytes { self.drop(key); return }
-                    link.lines += 1
-                    self.totalLines += 1
-                    switch link.traffic.decision(linkLines: link.lines,
-                                                 totalLines: self.totalLines) {
-                    case .disconnect:
-                        self.drop(key)
-                        return
-                    case .discard:
-                        continue
-                    case .forward:
-                        break
-                    }
-                    if !line.isEmpty { self.onLine?(line, key) }
+                    guard self.deliver(line, from: link, key: key) else { return }
                 }
                 // 개행이 없으면 위 검사에 닿지 않는다. 한 줄이 될 수 없는 조각이면 끊는다
                 if link.buffer.count > Limits.maxMessageBytes { self.drop(key); return }
@@ -390,8 +478,33 @@ final class Net {
         }
     }
 
-    /// 연결 목록은 이 큐에서만 바뀐다. 메인에서 바로 읽으면 바뀌는 중에 읽을 수 있다
-    func broadcast(_ data: Data, except excluded: String? = nil) {
+    /// TCP 와 UDP 가 같은 한도를 쓴다. false 면 연결을 끊었다
+    private func deliver(_ line: Data, from link: Link, key: String) -> Bool {
+        if line.count > Limits.maxMessageBytes { drop(key); return false }
+        let now = ProcessInfo.processInfo.systemUptime
+        if now - link.windowStart >= 1 { link.windowStart = now; link.lines = 0 }
+        if now - trafficWindowStart >= 1 {
+            trafficWindowStart = now
+            totalLines = 0
+        }
+        link.lines += 1
+        totalLines += 1
+        switch link.traffic.decision(linkLines: link.lines, totalLines: totalLines) {
+        case .disconnect:
+            drop(key)
+            return false
+        case .discard:
+            return true
+        case .forward:
+            break
+        }
+        if !line.isEmpty { onLine?(line, key) }
+        return true
+    }
+
+    /// 연결 목록은 이 큐에서만 바뀐다. 메인에서 바로 읽으면 바뀌는 중에 읽을 수 있다.
+    /// `fast` 는 잃어도 다음 것이 대신하는 좌표다
+    func broadcast(_ data: Data, except excluded: String? = nil, fast: Bool = false) {
         guard data.count <= Limits.maxMessageBytes else { return }
         var line = data; line.append(0x0A)
         queue.async {
@@ -399,7 +512,7 @@ final class Net {
             // 채팅을 받아 가게 두지 않고, 느린 연결에 송신 버퍼가 쌓이는 것도 막는다.
             for (key, link) in self.links
             where key != excluded && link.traffic.canReceiveBroadcast {
-                self.enqueue(line, to: key)
+                self.enqueue(line, to: key, fast: fast)
             }
         }
     }
@@ -411,13 +524,16 @@ final class Net {
     }
 
     /// 줄은 개행으로 나뉘므로 이어 붙인 것을 한 번에 보내도 받는 쪽은 그대로 읽는다.
-    /// 좌표를 보내는 주기와 같이 모으면 사람마다 한 틱에 한 건씩 정확히 담긴다
-    private func enqueue(_ line: Data, to key: String) {
-        pending[key, default: Data()].append(line)
+    /// 좌표 주기만큼 모으면 한 사람의 연속 좌표 두 건이 한 번에 나가 200ms 마다 도착한다
+    static let flushDelay: TimeInterval = 0.02
+
+    private func enqueue(_ line: Data, to key: String, fast: Bool = false) {
+        if fast { pendingFast[key, default: Data()].append(line) }
+        else { pending[key, default: Data()].append(line) }
         guard flushWork == nil else { return }
         let work = DispatchWorkItem { [weak self] in self?.flush() }
         flushWork = work
-        queue.asyncAfter(deadline: .now() + positionInterval, execute: work)
+        queue.asyncAfter(deadline: .now() + Net.flushDelay, execute: work)
     }
 
     private func flush() {
@@ -426,5 +542,20 @@ final class Net {
             links[key]?.connection.send(content: data, completion: .idempotent)
         }
         pending.removeAll(keepingCapacity: true)
+        for (key, data) in pendingFast {
+            guard let link = links[key] else { continue }
+            let viaUDP = link.udp?.state == .ready
+            if let udp = link.udp, viaUDP {
+                // 호스트가 받은 흐름은 이미 누구인지 안다. 클라이언트만 토큰을 적는다
+                let prefix = amHost ? Data() : link.udpToken
+                for datagram in datagrams(data, prefix: prefix) {
+                    udp.send(content: datagram, completion: .idempotent)
+                }
+            }
+            if !viaUDP || !link.udpConfirmed {
+                link.connection.send(content: data, completion: .idempotent)
+            }
+        }
+        pendingFast.removeAll(keepingCapacity: true)
     }
 }

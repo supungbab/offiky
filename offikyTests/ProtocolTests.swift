@@ -779,3 +779,34 @@ struct RoomNameTests {
         #expect(sanitizeRoom("a=b") == "a=b")
     }
 }
+
+struct DatagramTests {
+
+    @Test func 줄_경계에서_자르고_조각마다_토큰을_앞에_적는다() {
+        let line = Data(repeating: 0x61, count: 100) + Data([0x0A])
+        let prefix = Data("tok\n".utf8)
+        let out = datagrams(Array(repeating: line, count: 30).reduce(Data(), +),
+                            prefix: prefix, limit: 1200)
+        #expect(out.count == 3)
+        #expect(out.allSatisfy { $0.count <= 1200 && $0.starts(with: prefix) })
+        let body = out.map { $0.dropFirst(prefix.count) }.reduce(Data(), +)
+        #expect(body.split(separator: 0x0A).count == 30)
+    }
+
+    @Test func 빈_입력이면_보내지_않는다() {
+        #expect(datagrams(Data(), prefix: Data("t\n".utf8)).isEmpty)
+    }
+
+    @Test func 한도보다_긴_줄도_혼자_나간다() {
+        let out = datagrams(Data(repeating: 0x61, count: 2000) + Data([0x0A]), limit: 1200)
+        #expect(out.count == 1)
+    }
+
+    @Test func udp_안내를_읽는다() throws {
+        let message = try JSONDecoder().decode(IncomingMessage.self,
+                                               from: Data(#"{"t":"udp","port":5000,"token":"x"}"#.utf8))
+        guard case let .udp(msg) = message else { Issue.record("udp 가 아니다"); return }
+        #expect(msg.port == 5000 && msg.token == "x")
+        #expect(message.senderID == nil)
+    }
+}

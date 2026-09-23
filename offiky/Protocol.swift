@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
 
-let protocolVersion = 6
+let protocolVersion = 7
 let spriteDisplaySize: CGFloat = 40
 /// 바닥을 화면 맨 아래에서 띄우는 높이. Dock 이나 화면 끝에 붙어 보이지 않게 한다
 let floorOffset: CGFloat = 8
@@ -324,6 +324,32 @@ struct FullMsg: Codable {
     var t = "full"
 }
 
+/// 호스트가 좌표용 UDP 포트를 알린다. 클라이언트는 데이터그램 첫 줄에 토큰을 적어 자기를 밝힌다
+struct UDPMsg: Codable {
+    var t = "udp"
+    let port: Int
+    let token: String
+}
+
+/// 데이터그램 하나의 상한. 넘으면 IP 조각으로 나뉘고 조각 하나만 잃어도 전체를 잃는다
+let maxDatagramBytes = 1200
+
+/// 개행으로 나뉜 줄을 줄 경계에서 잘라 데이터그램마다 `prefix` 를 앞에 적는다
+func datagrams(_ lines: Data, prefix: Data = Data(), limit: Int = maxDatagramBytes) -> [Data] {
+    var out: [Data] = []
+    var current = prefix
+    for line in lines.split(separator: 0x0A, omittingEmptySubsequences: true) {
+        if current.count > prefix.count, current.count + line.count + 1 > limit {
+            out.append(current)
+            current = prefix
+        }
+        current.append(contentsOf: line)
+        current.append(0x0A)
+    }
+    if current.count > prefix.count { out.append(current) }
+    return out
+}
+
 enum IncomingLineDecision: Equatable {
     case forward, discard, disconnect
 }
@@ -369,6 +395,7 @@ enum IncomingMessage: Decodable {
     case hit(HitMsg)
     case bye(ByeMsg)
     case full(FullMsg)
+    case udp(UDPMsg)
 
     /// 호스트가 중계한 것에만 있다. 클라이언트끼리는 서로 직접 보지 못한다
     var senderID: String? {
@@ -379,7 +406,7 @@ enum IncomingMessage: Decodable {
         case let .profile(msg):  msg.id
         case let .hit(msg):      msg.id
         case let .bye(msg):      msg.id
-        case .full:              nil
+        case .full, .udp:        nil
         }
     }
 
@@ -395,6 +422,7 @@ enum IncomingMessage: Decodable {
         case "hit":     self = .hit(try HitMsg(from: decoder))
         case "bye":     self = .bye(try ByeMsg(from: decoder))
         case "full":    self = .full(try FullMsg(from: decoder))
+        case "udp":     self = .udp(try UDPMsg(from: decoder))
         default:
             throw DecodingError.dataCorruptedError(
                 forKey: .t,

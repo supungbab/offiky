@@ -22,6 +22,9 @@ final class Session {
     private var posTimer: Timer?
     private var lastSent: PosMsg?
     private var lastSentAt: TimeInterval = 0
+    /// 바뀐 뒤 같은 좌표를 더 보내는 횟수. UDP 로 멈춘 자리를 잃어도 상대가 멈춘 것을 안다
+    private var repeatsLeft = 0
+    static let settleRepeats = 2
     private let decoder = JSONDecoder()
     private let encoder = JSONEncoder()
 
@@ -106,10 +109,16 @@ final class Session {
     private func sendPosition() {
         let msg = snapshot(of: World.shared.me)
         let now = ProcessInfo.processInfo.systemUptime
-        guard shouldSend(msg, last: lastSent, since: now - lastSentAt) else { return }
+        if shouldSend(msg, last: lastSent, since: 0) {
+            repeatsLeft = Session.settleRepeats
+        } else if repeatsLeft > 0 {
+            repeatsLeft -= 1
+        } else if now - lastSentAt < keepaliveInterval {
+            return
+        }
         lastSent = msg
         lastSentAt = now
-        if let data = encode(stamped(msg)) { Net.shared.broadcast(data) }
+        if let data = encode(stamped(msg)) { Net.shared.broadcast(data, fast: true) }
     }
 
     func sendSay(_ text: String) {
@@ -197,9 +206,18 @@ final class Session {
         Net.shared.identify(key, as: msg.id)
         World.shared.addPeer(id: msg.id, name: name, look: look)
         introduceEveryone(to: key)
+        inviteUDP(key)
         if let data = encode(HelloMsg(id: msg.id, name: name, look: look, room: room)) {
             Net.shared.broadcast(data, except: key)
         }
+    }
+
+    /// 포트를 모르면 알리지 않는다. 그 클라이언트는 TCP 로만 주고받는다
+    private func inviteUDP(_ key: String) {
+        guard let port = Net.shared.udpPort else { return }
+        let token = UUID().uuidString
+        Net.shared.allowUDP(token, for: key)
+        if let data = encode(UDPMsg(port: Int(port), token: token)) { Net.shared.send(data, to: key) }
     }
 
     /// 방금 연결한 클라이언트에게 지금 있는 사람을 한 번에 알린다. 좌표를 같이 보내지 않으면
@@ -226,11 +244,14 @@ final class Session {
     private func relay(_ message: IncomingMessage, from id: String, except key: String) {
         let data: Data?
         switch message {
-        case .position(var msg): msg.id = id; data = encode(msg)
+        case .position(var msg):
+            msg.id = id
+            if let data = encode(msg) { Net.shared.broadcast(data, except: key, fast: true) }
+            return
         case .say(var msg):      msg.id = id; data = encode(msg)
         case .profile(var msg):  msg.id = id; data = encode(msg)
         case .hit(var msg):      msg.id = id; data = encode(msg)
-        case .hello, .bye, .full: return
+        case .hello, .bye, .full, .udp: return
         }
         if let data { Net.shared.broadcast(data, except: key) }
     }
@@ -246,6 +267,9 @@ final class Session {
         case .full:
             World.leaveRoom()
             tellRoomIsFull()
+        case let .udp(msg):
+            guard let key = hostKey, msg.token.utf8.count <= 64 else { return }
+            Net.shared.openUDP(port: msg.port, token: msg.token, via: key)
         default:
             guard let id = message.senderID, id != World.shared.myID else { return }
             apply(message, from: id)
@@ -285,7 +309,7 @@ final class Session {
             World.shared.addPeer(id: id, name: sanitizeName(msg.name), look: msg.look.sanitized)
         case .hit:
             World.shared.peerWasHit(id: id)
-        case .hello, .bye, .full:
+        case .hello, .bye, .full, .udp:
             break
         }
     }
