@@ -79,6 +79,15 @@
 
 ### Homebrew
 
+권장한다. 첫 실행 전에 필요한 격리 해제를 cask 가 대신하고, 업데이트도 한 줄이다.
+Homebrew 가 없으면 먼저 [brew.sh](https://brew.sh) 의 명령으로 설치한다.
+
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
+
+그다음 Offiky 를 설치한다.
+
 ```bash
 brew install --cask supungbab/tap/offiky
 ```
