@@ -28,7 +28,7 @@
 - **직접 움직일 수 있습니다.** `⌥D` 를 누르면 방향키로 조종합니다. 걷고, 달리고, 2단 점프까지 합니다.
   동료 캐릭터 옆으로 달려가 고개 숙여 인사해 보세요.
 - **내 캐릭터를 집어 들 수 있습니다.** 마우스로 들어 원하는 곳에 옮길 수 있습니다. 높은 곳에서 떨어뜨리면 아파합니다.
-- **나만의 캐릭터를 고를 수 있습니다.** 염소, 양, 새, 개구리, 돼지 중에서 고르고 색도 바꿀 수 있습니다.
+- **나만의 캐릭터를 고를 수 있습니다.** 염소, 양, 새, 개구리, 돼지, 고양이 중에서 고르고 색도 바꿀 수 있습니다.
 
 <div align="center">
 <img src="docs/characters.png" width="700" alt="고를 수 있는 캐릭터">
@@ -138,7 +138,7 @@ xcodebuild -project offiky.xcodeproj -scheme offiky -configuration Release build
 캐릭터 그림은 [ChaosWitchNikol](https://chaoswitchnikol.itch.io) 님의 작품입니다.
 
 - [Goat Characters](https://chaoswitchnikol.itch.io/goat-characters) — 염소
-- [Animal Characters](https://chaoswitchnikol.itch.io/animal-characters) — 새, 양, 개구리, 돼지
+- [Animal Characters](https://chaoswitchnikol.itch.io/animal-characters) — 새, 양, 개구리, 돼지 (고양이는 양을 바탕으로 새로 그렸습니다)
 
 두 팩 모두 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) 라이선스이며,
 Offiky 는 원본의 모양을 그대로 두고 색을 바꾼 프리셋을 함께 제공합니다.
