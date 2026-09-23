@@ -474,7 +474,8 @@ extension CharacterNode {
         bubble.strokeColor = .black
         bubble.lineWidth = 1
         bubble.zPosition = 1
-        bubble.position = CGPoint(x: 0, y: spriteDisplaySize / 2 + 16 + size.height / 2)
+        let nameTop = nameBackground?.frame.maxY ?? spriteDisplaySize / 2 + 16
+        bubble.position = CGPoint(x: 0, y: nameTop + 4 + size.height / 2)
         bubble.addChild(label)
         addChild(bubble)
         bubbleNode = bubble
