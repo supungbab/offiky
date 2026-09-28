@@ -141,4 +141,5 @@ xcodebuild -project offiky.xcodeproj -scheme offiky -configuration Release build
 - [Animal Characters](https://chaoswitchnikol.itch.io/animal-characters) — 새, 양, 개구리, 돼지 (고양이는 양을, 사람은 돼지를 바탕으로 새로 그렸습니다)
 
 두 팩 모두 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) 라이선스이며,
-Offiky 는 원본의 모양을 그대로 두고 색을 바꾼 프리셋을 함께 제공합니다.
+Offiky 는 원본의 색을 바꾼 프리셋과, 원본을 바탕으로 모양을 바꿔 새로 그린
+고양이·사람을 함께 제공합니다.
