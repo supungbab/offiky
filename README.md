@@ -138,8 +138,9 @@ xcodebuild -project offiky.xcodeproj -scheme offiky -configuration Release build
 캐릭터 그림은 [ChaosWitchNikol](https://chaoswitchnikol.itch.io) 님의 작품입니다.
 
 - [Goat Characters](https://chaoswitchnikol.itch.io/goat-characters) — 염소
-- [Animal Characters](https://chaoswitchnikol.itch.io/animal-characters) — 새, 양, 개구리, 돼지 (고양이는 양을, 사람은 돼지를 바탕으로 새로 그렸습니다)
+- [Animal Characters](https://chaoswitchnikol.itch.io/animal-characters) — 새, 양, 개구리, 돼지
 
-두 팩 모두 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) 라이선스이며,
-Offiky 는 원본의 색을 바꾼 프리셋과, 원본을 바탕으로 모양을 바꿔 새로 그린
-고양이·사람을 함께 제공합니다.
+두 팩 모두 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) 라이선스입니다.
+Offiky 는 원본의 색을 바꾼 프리셋과, 원본을 바탕으로 모양을 바꿔 새로 그린 캐릭터를
+함께 제공합니다. 어떤 캐릭터가 어느 원본에서 왔는지는 [characters.txt](characters.txt) 에
+적어 두었습니다.
