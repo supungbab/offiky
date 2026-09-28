@@ -7,10 +7,10 @@ import Testing
 
 struct CharacterTests {
 
-    @Test func 모양_여섯에_프리셋이_모양마다_묶인다() {
-        #expect(Characters.count == 33)
+    @Test func 모양_일곱에_프리셋이_모양마다_묶인다() {
+        #expect(Characters.count == 34)
         #expect(Set(Characters.names).count == Characters.count)
-        #expect(Characters.groups.map(\.shape) == ["goat", "sheep", "birb", "frog", "pig", "cat"])
+        #expect(Characters.groups.map(\.shape) == ["goat", "sheep", "birb", "frog", "pig", "cat", "human"])
         // 모든 번호가 제 모양에 한 번씩만 들어간다
         #expect(Characters.groups.flatMap(\.designs).sorted() == Array(0..<Characters.count))
         for group in Characters.groups {
@@ -31,6 +31,7 @@ struct CharacterTests {
         #expect(Characters.preset(30) == "scarlet")
         #expect(Characters.names[31] == "cat_cheese")
         #expect(Characters.names[32] == "cat_tuxedo")
+        #expect(Characters.names[33] == "human_skin")
     }
 
     @Test func 애니메이션_프레임_수() {
