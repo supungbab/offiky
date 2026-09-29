@@ -648,7 +648,7 @@ final class World {
 
         // 끊긴 피어를 찾는 일은 프레임마다 할 필요가 없다. 먼저 id를 모은 뒤 지워
         // Dictionary를 순회하는 도중 변경하지도 않는다.
-        if now - lastPeerSweep >= 1 {
+        if now - lastPeerSweep >= 0.25 {
             lastPeerSweep = now
             let host = Session.shared.hostPeer
             let expired = peers.compactMap { id, node in
