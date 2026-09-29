@@ -154,6 +154,8 @@ final class Session {
     private func linkGone(_ key: String) {
         // 호스트가 끊겼다. 알던 사람은 전부 그 연결로 받은 것이라 같이 제거한다
         if key == hostKey {
+            // 남겨 두면 새 호스트가 다시 켠 그 사람에게 옛 캐릭터까지 소개해 둘로 보인다
+            if let hostID { World.shared.removePeer(id: hostID) }
             hostKey = nil
             hostID = nil
             ChatLog.shared.regrouping()
