@@ -64,6 +64,9 @@ final class Net {
     /// 응답하지 않은 호스트 → 후보에서 제외하는 기한. Wi-Fi 가 끊기면 광고가 만료될 때까지 남는다
     private var unresponsive: [String: Date] = [:]
     static let unresponsiveFor: TimeInterval = 60
+    /// 인사 전에 연달아 끊긴 횟수. 한 번의 일시 실패로 호스트를 제외하면 새로 들어온 사람만 따로 떨어진다
+    private var hostFailures = 0
+    static let hostFailureLimit = 3
     private var dialWork: DispatchWorkItem?
     private var monitor: NWPathMonitor?
     private var restartWork: DispatchWorkItem?
@@ -345,6 +348,7 @@ final class Net {
         if elected != host {
             host = elected
             hostRetryAt = nil
+            hostFailures = 0
             dropAllLinks()
             advertise()
         }
@@ -426,7 +430,8 @@ final class Net {
         if let peer = link.peerID {
             hostRetryAt = Date().addingTimeInterval(Net.retryDelay)
             // 호스트라고 광고하면서 인사하지 않았다. 광고하기 전이면 아직 호스트가 되는 중이라 다시 연결한다
-            if !link.traffic.isIdentified, claims.contains(peer) { markUnresponsive(peer) } else { dial() }
+            if !link.traffic.isIdentified, claims.contains(peer) { hostFailures += 1 }
+            if hostFailures >= Net.hostFailureLimit { markUnresponsive(peer) } else { dial() }
         }
         DispatchQueue.main.async { self.onGone?(key) }
     }
@@ -461,6 +466,7 @@ final class Net {
             }
             link.peerID = id
             link.traffic.identify()
+            if id == self.host { self.hostFailures = 0 }
             link.handshakeWork?.cancel()
             link.handshakeWork = nil
             if self.amHost { self.advertise() }
