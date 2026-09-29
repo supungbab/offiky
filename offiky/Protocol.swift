@@ -178,6 +178,23 @@ func electHost(among peers: Set<String>, claiming: Set<String>, joined: [String:
     return (claims.isEmpty ? everyone : claims).min { rank($0) < rank($1) } ?? me
 }
 
+/// 마지막으로 본 광고. 다시 등록하는 동안 목록에서 잠깐 삭제되므로 사라져도 바로 지우지 않는다
+struct Advert: Equatable {
+    let txt: [String: String]
+    var goneAt: TimeInterval?
+}
+
+/// 사라진 광고는 grace 동안 남긴다. 연결이 끊긴 사람(`closed`)은 실제로 나갔으므로 남기지 않는다
+func keptAdverts(_ kept: [String: Advert], fresh: [String: [String: String]],
+                 now: TimeInterval, grace: TimeInterval, closed: Set<String> = []) -> [String: Advert] {
+    var result = fresh.mapValues { Advert(txt: $0) }
+    for (id, advert) in kept where fresh[id] == nil && !closed.contains(id) {
+        let goneAt = advert.goneAt ?? now
+        if now - goneAt < grace { result[id] = Advert(txt: advert.txt, goneAt: goneAt) }
+    }
+    return result
+}
+
 /// 방을 구분하는 값. 만들 때 새로 뽑는다 — 이름이 같아도 다른 방이고,
 /// 이름을 바꿔도 같은 방이다
 func newRoomID() -> String {

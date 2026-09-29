@@ -495,6 +495,23 @@ struct LinkTrafficPolicyTests {
     }
 }
 
+@Suite("광고 유지")
+struct AdvertGraceTests {
+    /// 호스트가 광고를 다시 등록하는 동안 목록에서 사라져도 선출에 반영하지 않는다
+    @Test func 잠깐_사라진_광고는_남기고_오래_사라지면_지운다() {
+        let host = ["h": "1"]
+        let seen = keptAdverts([:], fresh: ["가지": host], now: 0, grace: 2)
+        // 오래 조용하다가 사라져도 사라진 때부터 센다
+        let gone = keptAdverts(seen, fresh: [:], now: 100, grace: 2)
+        #expect(gone["가지"]?.txt == host)
+        #expect(keptAdverts(gone, fresh: [:], now: 101, grace: 2)["가지"]?.txt == host)
+        #expect(keptAdverts(gone, fresh: [:], now: 102, grace: 2).isEmpty)
+        #expect(keptAdverts(gone, fresh: ["가지": ["h": "0"]], now: 101, grace: 2)["가지"]?.goneAt == nil)
+        // 연결이 끊긴 사람은 기다리지 않는다
+        #expect(keptAdverts(seen, fresh: [:], now: 100, grace: 2, closed: ["가지"]).isEmpty)
+    }
+}
+
 @Suite("호스트 뽑기")
 struct HostElectionTests {
 

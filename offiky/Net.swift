@@ -50,6 +50,10 @@ final class Net {
 
     private var links: [String: Link] = [:]
     private var visible: Set<String> = []
+    private var adverts: [String: Advert] = [:]
+    /// 인사한 뒤 연결이 끊긴 호스트. 광고가 사라지면 기다리지 않고 바로 지운다
+    private var closedHosts: Set<String> = []
+    static let advertGrace: TimeInterval = 2
     /// 지금 호스트로 판정한 사람. 방에 없으면 nil
     private var host: String?
     /// 호스트라고 광고하는 사람들. 현직이 보이면 그대로 둔다
@@ -125,6 +129,8 @@ final class Net {
         browser?.stateUpdateHandler = nil
         browser?.cancel(); browser = nil
         visible.removeAll()
+        adverts.removeAll()
+        closedHosts.removeAll()
         claims.removeAll()
         unresponsive.removeAll()
         host = nil
@@ -302,41 +308,56 @@ final class Net {
         let descriptor = NWBrowser.Descriptor.bonjourWithTXTRecord(type: serviceType, domain: nil)
         let browser = NWBrowser(for: descriptor, using: .tcp)
         browser.browseResultsChangedHandler = { [weak self] results, _ in
-            guard let self else { return }
-            var entries: [(id: String, pv: String?, room: String?, roomName: String?)] = []
-            var claiming: Set<String> = []
-            var joined: [String: Int] = [:], followers: [String: Int] = [:]
-            for result in results {
-                if case let .bonjour(txt) = result.metadata, let id = txt["id"] {
-                    entries.append((id, txt["pv"], txt["room"], txt["rname"]))
-                    if txt["h"] == "1" { claiming.insert(id) }
-                    joined[id] = txt["j"].flatMap { Int($0) }
-                    followers[id] = txt["n"].flatMap { Int($0) }
-                }
-            }
-            // 거절당한 뒤 기다리던 호스트가 막 맡기 시작했다. 재시도 대기 없이 바로 연결한다
-            if let host = self.host, claiming.contains(host), !self.claims.contains(host) {
-                self.hostRetryAt = nil
-            }
-            self.claims = claiming
-            self.joined = joined
-            self.followers = followers
-            // 방에 없어도 듣기는 한다. 참여할 방 목록을 보여줘야 하기 때문이다
-            let peers = compatiblePeers(entries, myRoom: World.myRoom)
-            self.visible = peers.ids
-            // 메뉴가 관찰하는 값으로 밀어 넣는다. 여기서 읽어 가게 두면
-            // 값이 바뀌어도 메뉴를 다시 그릴 이유가 없어 경고가 뜨지 않는다
-            DispatchQueue.main.async {
-                Presence.shared.otherVersions = peers.mismatched
-                if Presence.shared.rooms != peers.rooms { Presence.shared.rooms = peers.rooms }
-            }
-            self.elect()
+            self?.browsed(results)
         }
         browser.stateUpdateHandler = { [weak self] state in
             if case .failed = state { self?.restart() }
         }
         browser.start(queue: queue)
         self.browser = browser
+    }
+
+    /// 호스트가 광고를 다시 등록하는 동안 목록에서 사라진다. 그때 선출하면 모두가 연결을 두 번 끊는다
+    private func browsed(_ results: Set<NWBrowser.Result>) {
+        var fresh: [String: [String: String]] = [:]
+        for result in results {
+            if case let .bonjour(txt) = result.metadata, let id = txt["id"] { fresh[id] = txt.dictionary }
+        }
+        adverts = keptAdverts(adverts, fresh: fresh, now: ProcessInfo.processInfo.systemUptime,
+                              grace: Net.advertGrace, closed: closedHosts)
+        if adverts.count > fresh.count {
+            queue.asyncAfter(deadline: .now() + Net.advertGrace) { [weak self] in
+                guard let self, let browser = self.browser else { return }
+                self.browsed(browser.browseResults)
+            }
+        }
+        var entries: [(id: String, pv: String?, room: String?, roomName: String?)] = []
+        var claiming: Set<String> = []
+        var joined: [String: Int] = [:], followers: [String: Int] = [:]
+        for (id, advert) in adverts {
+            let txt = advert.txt
+            entries.append((id, txt["pv"], txt["room"], txt["rname"]))
+            if txt["h"] == "1" { claiming.insert(id) }
+            joined[id] = txt["j"].flatMap { Int($0) }
+            followers[id] = txt["n"].flatMap { Int($0) }
+        }
+        // 거절당한 뒤 기다리던 호스트가 막 맡기 시작했다. 재시도 대기 없이 바로 연결한다
+        if let host = self.host, claiming.contains(host), !self.claims.contains(host) {
+            hostRetryAt = nil
+        }
+        claims = claiming
+        self.joined = joined
+        self.followers = followers
+        // 방에 없어도 듣기는 한다. 참여할 방 목록을 보여줘야 하기 때문이다
+        let peers = compatiblePeers(entries, myRoom: World.myRoom)
+        visible = peers.ids
+        // 메뉴가 관찰하는 값으로 밀어 넣는다. 여기서 읽어 가게 두면
+        // 값이 바뀌어도 메뉴를 다시 그릴 이유가 없어 경고가 뜨지 않는다
+        DispatchQueue.main.async {
+            Presence.shared.otherVersions = peers.mismatched
+            if Presence.shared.rooms != peers.rooms { Presence.shared.rooms = peers.rooms }
+        }
+        elect()
     }
 
     /// 광고를 볼 때마다 다시 판정한다. 호스트가 사라지면 남은 사람 중 가장 작은 id 가 호스트가 된다
@@ -436,6 +457,10 @@ final class Net {
             // 호스트라고 광고하면서 인사하지 않았다. 광고하기 전이면 아직 호스트가 되는 중이라 다시 연결한다
             if !link.traffic.isIdentified, claims.contains(peer) { hostFailures += 1 }
             if hostFailures >= Net.hostFailureLimit { markUnresponsive(peer) } else { dial() }
+            if link.traffic.isIdentified, let browser {
+                closedHosts.insert(peer)
+                browsed(browser.browseResults)
+            }
         }
         DispatchQueue.main.async { self.onGone?(key) }
     }
@@ -470,6 +495,7 @@ final class Net {
             }
             link.peerID = id
             link.traffic.identify()
+            self.closedHosts.remove(id)
             if id == self.host { self.hostFailures = 0 }
             link.handshakeWork?.cancel()
             link.handshakeWork = nil
