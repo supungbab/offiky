@@ -314,6 +314,10 @@ final class Net {
                     followers[id] = txt["n"].flatMap { Int($0) }
                 }
             }
+            // 거절당한 뒤 기다리던 호스트가 막 맡기 시작했다. 재시도 대기 없이 바로 연결한다
+            if let host = self.host, claiming.contains(host), !self.claims.contains(host) {
+                self.hostRetryAt = nil
+            }
             self.claims = claiming
             self.joined = joined
             self.followers = followers

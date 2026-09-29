@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
 
-let protocolVersion = 8
+let protocolVersion = 9
 let spriteDisplaySize: CGFloat = 40
 /// 바닥을 화면 맨 아래에서 띄우는 높이. Dock 이나 화면 끝에 붙어 보이지 않게 한다
 let floorOffset: CGFloat = 8
@@ -12,6 +12,8 @@ let positionInterval: TimeInterval = 0.1
 /// 서 있으면 좌표가 그대로라 보내지 않는다. 그래도 이만큼마다 한 번은 보내야
 /// 받는 쪽 15초 판정에서 없는 사람이 되지 않는다
 let keepaliveInterval: TimeInterval = 3
+/// 호스트는 더 자주 보낸다. 받는 쪽이 호스트가 사라진 것을 빨리 판정해야 멈춰 있는 시간이 짧다
+let hostKeepaliveInterval: TimeInterval = 1
 
 /// 바뀐 것이 없으면 생존 신호 주기마다 한 번만 보낸다
 func shouldSend(_ msg: PosMsg, last: PosMsg?, since: TimeInterval) -> Bool {

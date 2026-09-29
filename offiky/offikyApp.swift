@@ -167,7 +167,12 @@ private final class Bot {
 #endif
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    /// App Nap 이 타이머를 늦추면 생존 신호가 끊겨 호스트가 사라진 것으로 판정된다
+    private var activity: NSObjectProtocol?
+
     func applicationDidFinishLaunching(_ notification: Notification) {
+        activity = ProcessInfo.processInfo.beginActivity(
+            options: .userInitiatedAllowingIdleSystemSleep, reason: "좌표 생존 신호")
         OverlayController.shared.start()
         Session.shared.start()
         // 테스트 호스트로 켜지면 망에 나가지 않는다. 실제 방에 참가자로 뜨고 호스트 판정까지 바뀐다

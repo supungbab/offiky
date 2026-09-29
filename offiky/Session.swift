@@ -113,7 +113,7 @@ final class Session {
             repeatsLeft = Session.settleRepeats
         } else if repeatsLeft > 0 {
             repeatsLeft -= 1
-        } else if now - lastSentAt < keepaliveInterval {
+        } else if now - lastSentAt < (amHost ? hostKeepaliveInterval : keepaliveInterval) {
             return
         }
         lastSent = msg

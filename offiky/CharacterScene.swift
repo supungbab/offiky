@@ -711,8 +711,8 @@ final class World {
 extension World {
     /// 좌표가 이만큼 끊기면 없는 것으로 본다. 0.1초마다 오므로 넉넉한 값이다
     static let peerTimeout: TimeInterval = 15
-    /// 호스트가 멈추면 모두의 좌표가 같이 멈추므로 먼저 판정한다. 생존 신호 세 번 분량이다
-    static let hostTimeout: TimeInterval = 10
+    /// 호스트가 멈추면 모두의 좌표가 같이 멈추므로 먼저 판정한다. 호스트 생존 신호 네 번 분량이다
+    static let hostTimeout: TimeInterval = 4
 
     func addPeer(id: String, name: String, look: Look) {
         if peers[id] == nil { ChatLog.shared.joined(name) }
