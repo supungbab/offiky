@@ -2,8 +2,8 @@ import AppKit
 import Observation
 
 /// GitHub 릴리스에서 새 버전을 확인한다.
-/// 샌드박스 안에서는 외부 프로그램을 실행할 수 없어 brew 를 직접 부르지 못한다.
-/// 명령을 클립보드에 넣고 터미널을 열어 주는 선까지 한다 — 붙여 넣고 엔터는 본인이 한다.
+/// 샌드박스 안에서는 외부 프로그램을 실행할 수 없어 brew 를 직접 호출하지 못한다.
+/// 터미널에 명령을 실행시키고, 사용자가 자동화를 거부하면 클립보드에 넣고 터미널만 연다.
 @MainActor
 @Observable
 final class UpdateChecker {
@@ -55,8 +55,8 @@ final class UpdateChecker {
             case .found(let version):
                 alert.messageText = "새 버전 \(version) 이 있습니다"
                 // 문장마다 줄을 나눈다. 한 줄로 두면 대화상자 폭에 맞춰 아무 데서나 끊긴다
-                alert.informativeText = "현재 버전은 \(current) 입니다.\n터미널에 ⌘V 로 붙여 넣으세요."
-                alert.addButton(withTitle: "복사하고 터미널 열기")
+                alert.informativeText = "현재 버전은 \(current) 입니다.\n터미널에서 설치 명령을 실행합니다."
+                alert.addButton(withTitle: "터미널에서 업데이트")
                 alert.addButton(withTitle: "릴리스 페이지")
                 alert.addButton(withTitle: "나중에")
             case .failed(let why):
@@ -68,7 +68,7 @@ final class UpdateChecker {
             NSApp.activate(ignoringOtherApps: true)
             let clicked = alert.runModal()
             if case .found = result {
-                if clicked == .alertFirstButtonReturn { copyCommand(); openTerminal() }
+                if clicked == .alertFirstButtonReturn { runInTerminal() }
                 if clicked == .alertSecondButtonReturn { openReleasePage() }
             }
         }
@@ -116,11 +116,23 @@ final class UpdateChecker {
         return String(xml[range])
     }
 
-    /// 터미널에 붙여넣기만 하면 되도록 클립보드에 넣는다
-    private func copyCommand() {
+    /// Homebrew 7 부터 upgrade 가 기본으로 [y/n] 을 묻는다. 옛 brew 는 --yes 를 모르니 환경변수로 끈다
+    private var command: String { "brew update && HOMEBREW_NO_ASK=1 brew upgrade --cask \(cask)" }
+
+    /// 자동화 권한을 거부하면 붙여 넣을 수 있게 클립보드에 넣고 터미널만 연다
+    private func runInTerminal() {
+        let script = NSAppleScript(source: """
+            tell application "Terminal"
+                activate
+                do script "\(command)"
+            end tell
+            """)
+        var error: NSDictionary?
+        script?.executeAndReturnError(&error)
+        guard error != nil else { return }
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString("brew update && brew upgrade --cask \(cask)",
-                                     forType: .string)
+        NSPasteboard.general.setString(command, forType: .string)
+        openTerminal()
     }
 
     /// Homebrew 로 받지 않았으면 이 명령이 듣지 않는다. 그때는 릴리스 페이지로 간다

@@ -352,6 +352,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = offiky/Info.plist;
 				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_NSAppleEventsUsageDescription = "새 버전 설치 명령을 터미널에서 실행합니다.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "같은 네트워크의 동료를 찾아 캐릭터와 메시지를 주고받습니다.";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -390,6 +391,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = offiky/Info.plist;
 				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_NSAppleEventsUsageDescription = "새 버전 설치 명령을 터미널에서 실행합니다.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "같은 네트워크의 동료를 찾아 캐릭터와 메시지를 주고받습니다.";
 				LD_RUNPATH_SEARCH_PATHS = (
