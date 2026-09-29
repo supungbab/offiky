@@ -6,6 +6,7 @@ final class OverlayController {
 
     private(set) var windows: [NSWindow] = []
     private(set) var scenes: [CharacterScene] = []
+    private var links: [CADisplayLink] = []
     private(set) var strip = FloorStrip(visibleFrames: [], main: nil)
     private var handle: NSWindow?
     private var handleMovedAt: TimeInterval = 0
@@ -17,10 +18,11 @@ final class OverlayController {
         NotificationCenter.default.addObserver(
             self, selector: #selector(screensChanged),
             name: NSApplication.didChangeScreenParametersNotification, object: nil)
-        let fallback = Timer(timeInterval: 1.0 / 30, repeats: true) { _ in
-            World.shared.tickIfStalled(now: ProcessInfo.processInfo.systemUptime)
-        }
-        RunLoop.main.add(fallback, forMode: .common)
+    }
+
+    /// 씬 update 는 화면이 깨어난 뒤 SpriteKit 시계가 앞서 있는 동안 몇 분씩 건너뛰어진다
+    @objc private func displayFrame(_ link: CADisplayLink) {
+        World.shared.tick(now: ProcessInfo.processInfo.systemUptime)
     }
 
     /// 오버레이가 표시 전용이라 내 캐릭터 위에 겹쳐 두고 드래그를 받는다.
@@ -58,6 +60,8 @@ final class OverlayController {
         windows.forEach { $0.orderOut(nil) }
         windows.removeAll()
         scenes.removeAll()
+        links.forEach { $0.invalidate() }
+        links.removeAll()
 
         let built = FloorStrip(visibleFrames: frames, main: frames.first)
 
@@ -83,8 +87,13 @@ final class OverlayController {
             window.setFrame(frame, display: true)
             window.orderFrontRegardless()
 
+            let link = view.displayLink(target: self, selector: #selector(displayFrame))
+            link.preferredFrameRateRange = CAFrameRateRange(minimum: 30, maximum: 30, preferred: 30)
+            link.add(to: .main, forMode: .common)
+
             windows.append(window)
             scenes.append(scene)
+            links.append(link)
         }
 
         strip = built

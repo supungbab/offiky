@@ -503,15 +503,8 @@ extension CharacterNode {
     }
 }
 
-/// 갱신을 SpriteKit 의 렌더 루프에 맡긴다. 별도 타이머로 돌리면 두 시계가 어긋나
-/// 어떤 프레임은 같은 그림을 두 번 그리고 어떤 프레임은 두 칸씩 건너뛴다.
-final class CharacterScene: SKScene {
-    /// SpriteKit 시계는 잠금·절전을 거치면 systemUptime 과 몇 분씩 벌어진다. 나머지가 전부
-    /// systemUptime 이라 섞으면 tick 이 그만큼 멈추고, 그 사이 화면이 바뀌면 씬이 빈 채 남는다
-    override func update(_ currentTime: TimeInterval) {
-        World.shared.tick(now: ProcessInfo.processInfo.systemUptime)
-    }
-}
+/// World.tick 은 OverlayController 의 표시 링크가 부른다
+final class CharacterScene: SKScene {}
 
 final class World {
     static let shared = World()
@@ -645,14 +638,9 @@ final class World {
         me.y = spot.y
     }
 
-    /// 화면을 껐다 켜면 SpriteKit 이 씬 update 를 몇 분씩 건너뛴다. 그리기는 계속되므로 그동안 대신 부른다
-    func tickIfStalled(now: TimeInterval) {
-        if now - lastTick > 0.1 { tick(now: now) }
-    }
-
     func tick(now: TimeInterval) {
         guard !scenes.isEmpty else { return }
-        // 화면마다 씬이 따로 부르므로 한 프레임에 여러 번 들어온다
+        // 화면마다 표시 링크가 따로 부르므로 한 프레임에 여러 번 들어온다
         let elapsed = now - lastTick
         guard lastTick == 0 || elapsed >= 1.0 / 70 else { return }
         let dt = lastTick == 0 ? 1.0 / 60 : min(0.25, elapsed)
