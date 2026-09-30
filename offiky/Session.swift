@@ -147,8 +147,9 @@ final class Session {
         case let .hello(msg):
             greet(msg, key: key)
         case .full:
-            // 들어가려던 방이 찼다. 이미 들어와 있는 사람의 연결로는 쫓아낼 수 없다
+            // 들어가려던 방이 찼다. 이미 누군가와 인사했으면 서로 명단이 어긋난 것이라 이 연결만 끊는다
             guard peerByKey[key] == nil else { return }
+            guard peerByKey.isEmpty else { Net.shared.dropLink(key); return }
             World.leaveRoom()
             tellRoomIsFull()
         case let .udp(msg):
