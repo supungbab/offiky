@@ -132,11 +132,6 @@ final class UpdateChecker {
         guard error != nil else { return }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(command, forType: .string)
-        openTerminal()
-    }
-
-    /// Homebrew 로 받지 않았으면 이 명령이 듣지 않는다. 그때는 릴리스 페이지로 간다
-    private func openTerminal() {
         guard let terminal = NSWorkspace.shared
             .urlForApplication(withBundleIdentifier: "com.apple.Terminal")
         else { return }

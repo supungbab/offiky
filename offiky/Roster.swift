@@ -44,14 +44,10 @@ struct RosterView: View {
         // Timer 구독은 창을 숨겨도 유지된다. task 는 창이 사라질 때 취소된다
         .task {
             while !Task.isCancelled {
-                refresh()
+                rows = World.shared.roster()
                 try? await Task.sleep(for: .seconds(1))
             }
         }
-    }
-
-    private func refresh() {
-        rows = World.shared.roster()
     }
 }
 

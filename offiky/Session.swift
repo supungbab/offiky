@@ -19,7 +19,6 @@ final class Session {
         guard World.myRoom != nil else { return nil }
         return amHost ? World.shared.myID : hostID
     }
-    private var posTimer: Timer?
     private var lastSent: PosMsg?
     private var lastSentAt: TimeInterval = 0
     /// 바뀐 뒤 같은 좌표를 더 보내는 횟수. UDP 로 멈춘 자리를 잃어도 상대가 멈춘 것을 안다
@@ -47,7 +46,6 @@ final class Session {
             [weak self] _ in self?.sendPosition()
         }
         RunLoop.main.add(timer, forMode: .common)
-        posTimer = timer
     }
 
     /// 크기 상한은 Net 이 보낼 때 검사한다
@@ -59,10 +57,6 @@ final class Session {
     func roleChanged(amHost: Bool) {
         self.amHost = amHost
         Presence.shared.amHost = amHost && World.myRoom != nil
-        reset()
-    }
-
-    private func reset() {
         clientByKey.removeAll()
         hostKey = nil
         hostID = nil
