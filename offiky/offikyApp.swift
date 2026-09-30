@@ -21,6 +21,7 @@ struct offikyApp: App {
             Button(Control.shared.isOn ? "조종 끝내기  esc" : "캐릭터 조종  ⌥D") {
                 Control.shared.toggle()
             }
+            .disabled(OverlayController.shared.isHidden)
             if !Control.shared.hotKeyWorks {
                 Text("⌥D 를 다른 앱이 쓰고 있습니다")
             }
@@ -47,6 +48,9 @@ struct offikyApp: App {
                 Text("모두 같은 버전을 설치해야 합니다")
             }
             Divider()
+            Button(OverlayController.shared.isHidden ? "캐릭터 보이기" : "캐릭터 숨기기") {
+                OverlayController.shared.toggleHidden()
+            }
             Button("종료") { NSApplication.shared.terminate(nil) }
         } label: {
             // 배포본과 함께 떠 있을 때 열어 보지 않고 구분되어야 한다

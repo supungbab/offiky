@@ -1,7 +1,7 @@
 import AppKit
 import SpriteKit
 
-final class OverlayController {
+@Observable final class OverlayController {
     static let shared = OverlayController()
 
     private(set) var windows: [NSWindow] = []
@@ -10,6 +10,8 @@ final class OverlayController {
     private(set) var strip = FloorStrip(visibleFrames: [], main: nil)
     private var handle: NSWindow?
     private var handleMovedAt: TimeInterval = 0
+    /// 내 화면에서만 숨긴다. 좌표는 계속 보내므로 동료 화면에는 그대로 보인다
+    private(set) var isHidden = false
 
     private init() {}
 
@@ -43,13 +45,21 @@ final class OverlayController {
             window.level = NSWindow.Level(rawValue: NSWindow.Level.floating.rawValue + 1)
             window.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
             window.contentView = DragHandleView()
-            window.orderFrontRegardless()
+            if !isHidden { window.orderFrontRegardless() }
             handle = window
         }
         let origin = CGPoint(x: point.x - spriteDisplaySize / 2,
                              y: point.y - spriteDisplaySize / 2)
         guard handle?.frame.origin != origin else { return }
         handle?.setFrameOrigin(origin)
+    }
+
+    func toggleHidden() {
+        isHidden.toggle()
+        if isHidden { Control.shared.stop() }
+        for window in windows + [handle].compactMap({ $0 }) {
+            if isHidden { window.orderOut(nil) } else { window.orderFrontRegardless() }
+        }
     }
 
     @objc private func screensChanged() { rebuild() }
@@ -90,7 +100,7 @@ final class OverlayController {
 
             window.contentView = view
             window.setFrame(frame, display: true)
-            window.orderFrontRegardless()
+            if !isHidden { window.orderFrontRegardless() }
 
             let link = view.displayLink(target: self, selector: #selector(displayFrame))
             link.preferredFrameRateRange = CAFrameRateRange(minimum: 30, maximum: 30, preferred: 30)

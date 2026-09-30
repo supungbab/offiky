@@ -31,7 +31,7 @@ import SwiftUI
     func toggle() { isOn ? stop() : start() }
 
     func start() {
-        guard let screen = screenUnderMouse() else { return }
+        guard !OverlayController.shared.isHidden, let screen = screenUnderMouse() else { return }
         // 다른 곳을 클릭하면 조종을 끝낸다
         let panel = self.panel ?? KeyPanel.floating { [weak self] in
             self?.stop(restoringFocus: false)
