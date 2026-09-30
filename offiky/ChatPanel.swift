@@ -193,6 +193,7 @@ private struct ChatHistoryView: View {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         line(entry)
                             .font(.system(size: 12))
+                            .textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
                         Text(entry.at.formatted(date: .omitted, time: .shortened))
                             .font(.system(size: 11).monospacedDigit())
