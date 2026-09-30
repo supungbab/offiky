@@ -298,8 +298,7 @@ final class Session {
     private func apply(_ message: IncomingMessage, from id: String) {
         switch message {
         case let .position(msg):
-            guard abs(msg.x) <= Limits.maxX,
-                  msg.y == nil || (msg.y! >= 0 && msg.y! <= Limits.maxY)
+            guard abs(msg.x) <= Limits.maxX, (0...Limits.maxY).contains(msg.y ?? 0)
             else { return }
             World.shared.setPeerTarget(id: id, x: CGFloat(msg.x), y: CGFloat(msg.y ?? 0),
                                        bowing: msg.b == true, dragging: msg.d == true,
