@@ -152,8 +152,6 @@ enum Characters {
 
     private static var thumbCache: [Int: NSImage] = [:]
 
-    /// 목록에 쓰는 대기 첫 장. SKTexture.cgImage() 는 부를 때마다 GPU 에서 읽어 오므로
-    /// 캐시가 없으면 화면을 다시 그릴 때마다 40장을 새로 만든다 — 실측 192ms
     /// 메뉴바 아이콘. 개구리 머리를 스프라이트에서 잘라 쓴다 — 그림을 고치면 같이 바뀐다.
     /// 색을 살려야 하므로 template 가 아니다. 밝기 반전은 포기한다
     static func menuBarIcon(hasUpdate: Bool) -> NSImage? {
@@ -185,6 +183,8 @@ enum Characters {
         }
     }
 
+    /// 목록에 쓰는 대기 첫 장. SKTexture.cgImage() 는 부를 때마다 GPU 에서 읽어 오므로
+    /// 캐시가 없으면 화면을 다시 그릴 때마다 전부 새로 만든다 — 실측 192ms
     static func thumbnail(_ look: Look) -> NSImage? {
         let design = look.sanitized.design
         if let hit = thumbCache[design] { return hit }

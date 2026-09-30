@@ -452,7 +452,7 @@ enum IncomingMessage: Decodable {
     }
 }
 
-/// 캐릭터 외형. 내장 40종 중 하나를 가리키는 번호다
+/// 캐릭터 외형. `Characters.names` 중 하나를 가리키는 번호다
 struct Look: Codable, Equatable {
     var design: Int
 
