@@ -175,47 +175,6 @@ struct FocusReturn {
 /// 기록 칸 높이. 한 줄짜리 넷이 들어간다
 private let historyHeight: CGFloat = 100
 
-/// SwiftUI Text 는 한글을 어절 단위로만 줄바꿈해, 띄어쓰기 없는 긴 글이 이름 아래로 통째로 내려간다
-private struct ChatLine: NSViewRepresentable {
-    let entry: ChatLog.Entry
-
-    private var text: NSAttributedString {
-        let paragraph = NSMutableParagraphStyle()
-        paragraph.lineBreakStrategy = []
-        func part(_ string: String, _ color: NSColor, _ weight: NSFont.Weight = .regular) -> NSAttributedString {
-            NSAttributedString(string: string, attributes: [
-                .font: NSFont.systemFont(ofSize: 12, weight: weight),
-                .foregroundColor: color, .paragraphStyle: paragraph])
-        }
-        let out = NSMutableAttributedString()
-        if entry.isSystem {
-            out.append(part(entry.text, .tertiaryLabelColor))
-        } else {
-            out.append(part(entry.name, .labelColor, .semibold))
-            out.append(part((entry.isMe ? " (나)" : "") + " : ", .tertiaryLabelColor))
-            out.append(part(entry.text, .labelColor))
-        }
-        return out
-    }
-
-    func makeNSView(context: Context) -> NSTextField {
-        let field = NSTextField(labelWithAttributedString: text)
-        field.maximumNumberOfLines = 0
-        field.lineBreakMode = .byWordWrapping
-        return field
-    }
-
-    func updateNSView(_ field: NSTextField, context: Context) {
-        field.attributedStringValue = text
-    }
-
-    func sizeThatFits(_ proposal: ProposedViewSize, nsView field: NSTextField, context: Context) -> CGSize? {
-        guard let width = proposal.width else { return nil }
-        field.preferredMaxLayoutWidth = width
-        return CGSize(width: width, height: field.fittingSize.height)
-    }
-}
-
 private struct ChatHistoryView: View {
     var body: some View {
         ScrollView {
@@ -223,8 +182,19 @@ private struct ChatHistoryView: View {
                 // 입력란이 아래라 최신이 아래여야 한다. 저장은 최신이 앞이다
                 ForEach(ChatLog.shared.entries.reversed()) { entry in
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        ChatLine(entry: entry)
+                        if entry.isSystem {
+                            Text(entry.text).font(.system(size: 12)).foregroundStyle(.tertiary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        } else {
+                            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                                (Text(entry.name).fontWeight(.semibold)
+                                 + Text(entry.isMe ? " (나) :" : " :").foregroundStyle(.tertiary))
+                                    .font(.system(size: 12))
+                                    .fixedSize()
+                                Text(entry.text).font(.system(size: 12)).textSelection(.enabled)
+                            }
                             .frame(maxWidth: .infinity, alignment: .leading)
+                        }
                         Text(entry.at.formatted(date: .omitted, time: .shortened))
                             .font(.system(size: 11).monospacedDigit())
                             .foregroundStyle(.tertiary)
@@ -293,6 +263,7 @@ private struct ChatInputView: View {
 
     private var panel: KeyPanel?
     private var hotKey: HotKey?
+    private var keyMonitor: Any?
     private var presenting = false
     private var focus = FocusReturn()
 
@@ -310,6 +281,27 @@ private struct ChatInputView: View {
             self?.toggle()
         }
         hotKeyWorks = hotKey?.registered ?? false
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            self?.redirect(event) ?? event
+        }
+    }
+
+    /// 기록의 글을 선택하면 입력란이 포커스를 잃는다. 그때 누른 키는 입력란으로 보내고 Esc 는 창을 닫는다
+    private func redirect(_ event: NSEvent) -> NSEvent? {
+        guard let panel, event.window === panel, !event.modifierFlags.contains(.command),
+              (panel.firstResponder as? NSTextView)?.isEditable != true
+        else { return event }
+        if event.keyCode == UInt16(kVK_Escape) { hide(); return nil }
+        guard let field = panel.contentView.flatMap(editableField) else { return event }
+        panel.makeFirstResponder(field)
+        // 포커스를 받으면 전체가 선택되어 입력한 글자가 쓰던 글을 덮어쓴다
+        field.currentEditor()?.selectedRange = NSRange(location: field.stringValue.utf16.count, length: 0)
+        return event
+    }
+
+    private func editableField(in view: NSView) -> NSTextField? {
+        if let field = view as? NSTextField, field.isEditable { return field }
+        return view.subviews.lazy.compactMap(editableField).first
     }
 
     func toggle() {
