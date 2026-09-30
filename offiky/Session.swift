@@ -95,7 +95,7 @@ final class Session {
                y: node.y > 0 ? Double(node.y) : nil,
                b: node.isBowing ? true : nil,
                d: node.isDragging ? true : nil,
-               f: Int(node.facingSign))
+               f: Int(node.facing))
     }
 
     /// 받는 쪽이 도착 시각 대신 이걸로 표본을 놓는다. 망이 흔들려도 걸음이 고르다

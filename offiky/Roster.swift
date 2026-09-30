@@ -1,16 +1,16 @@
 import SwiftUI
 
+struct RosterRow: Identifiable {
+    let id: String
+    let name: String
+    let look: Look
+    let isMe: Bool
+    let isHost: Bool
+}
+
 /// 누가 접속해 있는지와 누가 중계를 맡았는지 보여준다. 위치는 화면에서 직접 보면 된다.
 struct RosterView: View {
-    @State private var rows: [Row] = []
-
-    struct Row: Identifiable {
-        let id: String
-        let name: String
-        let look: Look
-        let isMe: Bool
-        let isHost: Bool
-    }
+    @State private var rows: [RosterRow] = []
 
     var body: some View {
         // 인원수는 이 창을 연 메뉴 항목에 이미 있다. 여기에 또 적지 않는다
@@ -51,9 +51,7 @@ struct RosterView: View {
     }
 
     private func refresh() {
-        rows = World.shared.roster().map {
-            Row(id: $0.id, name: $0.name, look: $0.look, isMe: $0.isMe, isHost: $0.isHost)
-        }
+        rows = World.shared.roster()
     }
 }
 

@@ -134,14 +134,14 @@ struct RemoteTests {
         let strip = FloorStrip(visibleFrames: [CGRect(x: 0, y: 0, width: 1800, height: 1000)],
                                main: nil)
         let node = CharacterNode(id: "p", name: "p", isLocal: false)
-        #expect(node.facingSign == -1)
+        #expect(node.facing == -1)
         node.setRemoteTarget(x: 100, y: 50, at: 0)
         node.setRemoteTarget(x: 120, y: 50, at: 0.1)
         node.setRemoteTarget(x: 140, y: 50, at: 0.2)
         node.update(dt: 1.0 / 30, now: 0.30, strip: strip)
         node.update(dt: 1.0 / 30, now: 0.35, strip: strip)
         #expect(node.y > 0)
-        #expect(node.facingSign == 1)
+        #expect(node.facing == 1)
     }
 }
 
@@ -168,7 +168,7 @@ struct ControlTests {
         node.hold(1, dash: false)
         for i in 0..<60 { node.update(dt: 1.0 / 60, now: Double(i) / 60, strip: strip) }
         #expect(abs(node.x - (900 + CharacterNode.walkSpeed)) < 2)
-        #expect(node.facingSign == 1)
+        #expect(node.facing == 1)
 
         node.hold(0, dash: false)
         let stopped = node.x
@@ -605,7 +605,7 @@ struct FacingTests {
             sent = now
             if mine.isDragging { theirs.isDragging = true }
             else if theirs.isDragging { theirs.endDrag() }
-            theirs.faceAsTold(mine.facingSign)
+            theirs.faceAsTold(mine.facing)
             theirs.setRemoteTarget(x: mine.x, y: mine.y, at: now)
         }
 
@@ -618,7 +618,7 @@ struct FacingTests {
             theirs.update(dt: 1.0 / 60, now: now, strip: strip)
             now += 1.0 / 60
         }
-        #expect(mine.facingSign == theirs.facingSign)
+        #expect(mine.facing == theirs.facing)
 
         mine.endDrag()
         var everMatched = true
@@ -627,7 +627,7 @@ struct FacingTests {
             relay()
             theirs.update(dt: 1.0 / 60, now: now, strip: strip)
             // 한 프레임이라도 갈리면 깜박인다. 0.1초 뒤 바로잡혀도 보인다
-            if mine.facingSign != theirs.facingSign { everMatched = false }
+            if mine.facing != theirs.facing { everMatched = false }
             now += 1.0 / 60
         }
         #expect(everMatched)
@@ -638,13 +638,13 @@ struct FacingTests {
         let node = CharacterNode(id: "p", name: "p", isLocal: false)
         node.faceAsTold(1)
         for i in 0..<30 { node.setRemoteTarget(x: 100, y: 0, at: Double(i) / 10) }
-        #expect(node.facingSign == 1)
+        #expect(node.facing == 1)
     }
 
     /// 옛 버전은 방향을 싣지 않는다. 그때는 예전처럼 움직임으로 읽는다
     @MainActor @Test func 방향을_안_보내는_상대는_움직임으로_읽는다() {
         let node = CharacterNode(id: "p", name: "p", isLocal: false)
-        #expect(node.facingSign == -1)
+        #expect(node.facing == -1)
         var now: TimeInterval = 0
         var walked: CGFloat = 100
         for _ in 0..<40 {
@@ -652,7 +652,7 @@ struct FacingTests {
             node.setRemoteTarget(x: walked, y: 0, at: now)
             for _ in 0..<6 { node.update(dt: 1.0 / 60, now: now, strip: strip); now += 1.0 / 60 }
         }
-        #expect(node.facingSign == 1)
+        #expect(node.facing == 1)
     }
 }
 
@@ -888,7 +888,7 @@ struct SendTimeTests {
 
         #expect(!node.isBowing)
         #expect(!node.isDragging)
-        #expect(node.facingSign == 1)
+        #expect(node.facing == 1)
         #expect(node.lastSeen == 0.2)
     }
 
@@ -965,12 +965,12 @@ struct SceneRebuildTests {
         // 테스트를 띄운 앱도 World.tick 을 부른다. 그 시각보다 뒤에서 시작해야 무시되지 않는다
         let now = max(ProcessInfo.processInfo.systemUptime, world.lastTick) + 1
 
-        let before = CharacterScene(size: frame.size)
+        let before = SKScene(size: frame.size)
         world.attach(scenes: [before], strip: strip)
         world.tick(now: now + 1)
         #expect(world.me.parent === before)
 
-        let after = CharacterScene(size: frame.size)
+        let after = SKScene(size: frame.size)
         world.attach(scenes: [after], strip: strip)
         world.tick(now: now + 2)
         #expect(world.me.parent === after)

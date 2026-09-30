@@ -160,7 +160,7 @@ private final class Bot {
         case 7:     me.jump(); if Bool.random() { DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { me.jump() } }
                     until = now + .random(in: 0.6...1.2)
         case 8:     me.hold(0, dash: false); me.isBowing = true; until = now + .random(in: 0.5...1.5)
-        default:    me.hold(-me.facingSign, dash: false); until = now + .random(in: 0.3...1)
+        default:    me.hold(-me.facing, dash: false); until = now + .random(in: 0.3...1)
         }
     }
 }

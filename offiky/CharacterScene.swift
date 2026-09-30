@@ -39,8 +39,7 @@ final class CharacterNode: SKNode {
     /// 원격 캐릭터의 보간 속도가 이 값을 넘으면 대시 동작을 그린다
     static let dashAnimationThreshold: CGFloat = 110
     /// 이동 방향. +1 오른쪽, -1 왼쪽
-    private var facing: CGFloat = -1
-    var facingSign: CGFloat { facing }
+    private(set) var facing: CGFloat = -1
 
     func face(_ direction: CGFloat) {
         guard direction != 0 else { return }
@@ -114,7 +113,6 @@ final class CharacterNode: SKNode {
         self.depthBias = CGFloat(stableHash(id) % 997) / 1000
         super.init()
 
-        shadowStep = -1
         shadow.zPosition = -2
         addChild(shadow)
 
@@ -503,9 +501,6 @@ extension CharacterNode {
     }
 }
 
-/// World.tick 은 OverlayController 의 표시 링크가 부른다
-final class CharacterScene: SKScene {}
-
 final class World {
     static let shared = World()
 
@@ -528,7 +523,7 @@ final class World {
     }
     private(set) var strip = FloorStrip(visibleFrames: [], main: nil)
 
-    private var scenes: [CharacterScene] = []
+    private var scenes: [SKScene] = []
     private(set) var lastTick: TimeInterval = 0
     private var lastSweep: TimeInterval = 0
     private var reportedHurtUntil: TimeInterval = 0
@@ -598,7 +593,7 @@ final class World {
 
     /// 화면 구성이 바뀌면 위치를 새 띠 안으로 당기기만 한다.
     /// 되돌리면 노트북을 열고 닫을 때마다 캐릭터가 순간이동한다.
-    func attach(scenes: [CharacterScene], strip: FloorStrip) {
+    func attach(scenes: [SKScene], strip: FloorStrip) {
         // 화면 구성이 바뀌면 좌표계가 통째로 움직인다. 보이는 자리를 지키려면
         // 바뀌기 전의 화면 위치를 받아 두었다가 새 좌표계로 되돌려야 한다
         if !self.strip.frames.isEmpty, let spot = self.strip.place(x: me.x, y: me.y) {
@@ -627,10 +622,6 @@ final class World {
         }
         me.x = strip.clamp(me.x)
     }
-
-    func beginDrag() { me.beginDrag() }
-
-    func endDrag() { me.endDrag() }
 
     /// 전역 커서 좌표를 띠 좌표로 바꾼다. 세로는 커서가 있는 화면의
     /// 바닥을 기준으로 잡는다.
@@ -722,14 +713,13 @@ extension World {
         peers[id] = nil
     }
 
-    /// 메뉴는 SwiftUI 가 관찰하는 값이 바뀔 때만 다시 그린다.
-    /// 함수를 직접 부르면 앱을 켠 순간의 값이 그대로 굳는다.
-    func roster() -> [(id: String, name: String, look: Look, isMe: Bool, isHost: Bool)] {
+    /// 참가자 창이 1초마다 다시 읽는다
+    func roster() -> [RosterRow] {
         let host = Session.shared.hostPeer
-        let mine = (me.id, me.displayName, me.look, true, me.id == host)
+        let mine = RosterRow(id: me.id, name: me.displayName, look: me.look, isMe: true, isHost: me.id == host)
         let others = peers.values
             .sorted { $0.displayName < $1.displayName }
-            .map { ($0.id, $0.displayName, $0.look, false, $0.id == host) }
+            .map { RosterRow(id: $0.id, name: $0.displayName, look: $0.look, isMe: false, isHost: $0.id == host) }
         return [mine] + others
     }
 

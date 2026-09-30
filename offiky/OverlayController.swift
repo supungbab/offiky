@@ -5,7 +5,7 @@ final class OverlayController {
     static let shared = OverlayController()
 
     private(set) var windows: [NSWindow] = []
-    private(set) var scenes: [CharacterScene] = []
+    private(set) var scenes: [SKScene] = []
     private var links: [CADisplayLink] = []
     private(set) var strip = FloorStrip(visibleFrames: [], main: nil)
     private var handle: NSWindow?
@@ -83,7 +83,7 @@ final class OverlayController {
             let view = SKView(frame: CGRect(origin: .zero, size: frame.size))
             view.allowsTransparency = true
             view.preferredFramesPerSecond = 30
-            let scene = CharacterScene(size: frame.size)
+            let scene = SKScene(size: frame.size)
             scene.backgroundColor = .clear
             scene.scaleMode = .resizeFill
             view.presentScene(scene)
@@ -116,7 +116,7 @@ final class DragHandleView: NSView {
     }
 
     override func mouseDown(with event: NSEvent) {
-        World.shared.beginDrag()
+        World.shared.me.beginDrag()
     }
 
     override func mouseDragged(with event: NSEvent) {
@@ -126,6 +126,6 @@ final class DragHandleView: NSView {
 
     override func mouseUp(with event: NSEvent) {
         guard World.shared.me.isDragging else { return }
-        World.shared.endDrag()
+        World.shared.me.endDrag()
     }
 }
