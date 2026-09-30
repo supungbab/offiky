@@ -67,7 +67,10 @@ final class Net {
     private var hostRetryAt: Date?
     /// 응답하지 않은 호스트 → 후보에서 제외하는 기한. Wi-Fi 가 끊기면 광고가 만료될 때까지 남는다
     private var unresponsive: [String: Date] = [:]
+    /// 좌표가 끊긴 호스트. 잠깐 버벅인 것일 수 있어 짧게 제외한다
     static let unresponsiveFor: TimeInterval = 60
+    /// 연결을 거부하는 호스트. 광고만 남은 것이다. 앱 id 는 실행마다 새로 뽑으므로 다시 켠 사람은 해당하지 않는다
+    static let refusingFor: TimeInterval = 600
     /// 인사 전에 연달아 끊긴 횟수. 한 번의 일시 실패로 호스트를 제외하면 새로 들어온 사람만 따로 떨어진다
     private var hostFailures = 0
     static let hostFailureLimit = 3
@@ -450,7 +453,7 @@ final class Net {
             hostRetryAt = Date().addingTimeInterval(Net.retryDelay)
             // 호스트라고 광고하면서 인사하지 않았다. 광고하기 전이면 아직 호스트가 되는 중이라 다시 연결한다
             if !link.traffic.isIdentified, claims.contains(peer) { hostFailures += 1 }
-            if hostFailures >= Net.hostFailureLimit { markUnresponsive(peer) } else { dial() }
+            if hostFailures >= Net.hostFailureLimit { markUnresponsive(peer, for: Net.refusingFor) } else { dial() }
             if link.traffic.isIdentified, let browser {
                 closedHosts.insert(peer)
                 browsed(browser.browseResults)
@@ -507,16 +510,16 @@ final class Net {
     /// 좌표가 끊겨 없는 것으로 판정했다. 연결이 살아 있어도 쓸모없으므로 끊는다
     func dropLinks(to id: String) {
         queue.async {
-            if id == self.host { self.markUnresponsive(id); return }
+            if id == self.host { self.markUnresponsive(id, for: Net.unresponsiveFor); return }
             for (key, link) in self.links where link.peerID == id { self.drop(key) }
         }
     }
 
     /// 광고만 남은 호스트에 계속 다시 연결하지 않고 다음 사람을 호스트로 고른다
-    // ponytail: 광고가 60초보다 오래 남으면 기한마다 한 번 다시 시도한다. 반복되면 기한을 늘린다
-    private func markUnresponsive(_ id: String) {
-        unresponsive[id] = Date().addingTimeInterval(Net.unresponsiveFor)
-        queue.asyncAfter(deadline: .now() + Net.unresponsiveFor + 0.1) { [weak self] in self?.elect() }
+    // ponytail: 광고만 남은 호스트에 기한마다 한 번 다시 시도한다. 그때 진짜 호스트를 따르는 사람이 없으면 잠깐 갈라진다
+    private func markUnresponsive(_ id: String, for duration: TimeInterval) {
+        unresponsive[id] = Date().addingTimeInterval(duration)
+        queue.asyncAfter(deadline: .now() + duration + 0.1) { [weak self] in self?.elect() }
         elect()
     }
 
