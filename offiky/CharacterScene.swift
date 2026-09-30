@@ -61,6 +61,7 @@ final class CharacterNode: SKNode {
     private var previousX: CGFloat = 0
     var hurtUntil: TimeInterval = 0
     private var bubbleUntil: TimeInterval = 0
+    private var bubbleIsTyping = false
     private var wasAirborne = false
     private var peakY: CGFloat = 0
     private var shadowStep = -1
@@ -451,13 +452,14 @@ final class CharacterNode: SKNode {
 private let bubbleMaxWidth: CGFloat = 100
 
 extension CharacterNode {
-    func showBubble(text: String, now: TimeInterval) {
+    /// 입력 중 표시는 흰 말풍선이면 채팅으로 읽힌다. 회색으로 구분한다
+    func showBubble(text: String, now: TimeInterval, typing: Bool = false) {
         bubbleNode?.removeFromParent()
 
         let label = SKLabelNode(fontNamed: "Helvetica")
         label.text = text
         label.fontSize = 11
-        label.fontColor = .black
+        label.fontColor = typing ? NSColor(white: 0.35, alpha: 1) : .black
         label.numberOfLines = 0
         label.preferredMaxLayoutWidth = bubbleMaxWidth
         label.verticalAlignmentMode = .center
@@ -468,16 +470,44 @@ extension CharacterNode {
                           height: max(label.frame.height, 12) + padding * 2)
         let bubble = SKShapeNode(rectOf: size, cornerRadius: 4)
         bubble.name = "bubble"
-        bubble.fillColor = .white
-        bubble.strokeColor = .black
+        bubble.fillColor = typing ? NSColor(white: 0.85, alpha: 1) : .white
+        bubble.strokeColor = typing ? NSColor(white: 0.5, alpha: 1) : .black
         bubble.lineWidth = 1
         bubble.zPosition = 1
         let nameTop = nameBackground?.frame.maxY ?? spriteDisplaySize / 2 + 16
         bubble.position = CGPoint(x: 0, y: nameTop + 4 + size.height / 2)
         bubble.addChild(label)
         addChild(bubble)
+        if typing { animateDots(label) }
         bubbleNode = bubble
-        bubbleUntil = now + 5
+        bubbleUntil = now + (typing ? 3 : 5)
+        bubbleIsTyping = typing
+    }
+
+    /// 방금 한 말은 입력 중 표시로 덮어쓰지 않는다. 읽기 전에 가려진다
+    func showTyping(now: TimeInterval) {
+        if bubbleIsTyping { bubbleUntil = now + 3; return }
+        guard bubbleNode == nil else { return }
+        showBubble(text: "•••", now: now, typing: true)
+    }
+
+    /// 크기는 `•••` 로 잡고, 점을 하나씩 따로 두어 차례로 밝힌다
+    private func animateDots(_ label: SKLabelNode) {
+        let step = label.frame.width / 3
+        label.text = nil
+        for i in 0..<3 {
+            let dot = SKLabelNode(fontNamed: label.fontName)
+            dot.text = "•"
+            dot.fontSize = label.fontSize
+            dot.fontColor = label.fontColor
+            dot.verticalAlignmentMode = .center
+            dot.position.x = CGFloat(i - 1) * step
+            dot.alpha = 0.3
+            let pulse = SKAction.sequence([.fadeAlpha(to: 1, duration: 0.3),
+                                           .fadeAlpha(to: 0.3, duration: 0.3)])
+            dot.run(.sequence([.wait(forDuration: 0.2 * Double(i)), .repeatForever(pulse)]))
+            label.addChild(dot)
+        }
     }
 
     /// SKAction 으로 지우면 노드가 씬에서 빠져 있는 동안 시간이 흐르지 않아 말풍선이 남는다
@@ -486,6 +516,7 @@ extension CharacterNode {
         bubbleNode?.removeFromParent()
         bubbleNode = nil
         bubbleUntil = 0
+        bubbleIsTyping = false
     }
 
     func clampBubble(sceneWidth: CGFloat) {
@@ -733,6 +764,11 @@ extension World {
         guard let node = id == myID ? me : peers[id] else { return }
         node.showBubble(text: text, now: ProcessInfo.processInfo.systemUptime)
         ChatLog.shared.add(name: node.displayName, text: text, isMe: id == myID)
+    }
+
+    func showTyping(id: String) {
+        guard let node = id == myID ? me : peers[id] else { return }
+        node.showTyping(now: ProcessInfo.processInfo.systemUptime)
     }
 }
 

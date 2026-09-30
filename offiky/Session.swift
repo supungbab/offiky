@@ -18,6 +18,7 @@ final class Session {
     private var awaitingUDP: Set<String> = []
     private var lastSent: PosMsg?
     private var lastSentAt: TimeInterval = 0
+    private var lastTypingAt: TimeInterval = 0
     /// 바뀐 뒤 같은 좌표를 더 보내는 횟수. UDP 로 멈춘 자리를 잃어도 상대가 멈춘 것을 안다
     private var repeatsLeft = 0
     static let settleRepeats = 2
@@ -109,6 +110,16 @@ final class Session {
         guard let body = validChat(text), let data = encode(SayMsg(msg: body)) else { return }
         Net.shared.broadcast(data)
         World.shared.showBubble(id: World.shared.myID, text: body)
+        lastTypingAt = 0
+    }
+
+    /// 받는 쪽 입력 중 표시는 3초 뒤 만료된다. 그보다 짧은 간격으로 다시 보낸다
+    func sendTyping() {
+        let now = ProcessInfo.processInfo.systemUptime
+        guard now - lastTypingAt >= 2 else { return }
+        lastTypingAt = now
+        if let data = encode(TypingMsg()) { Net.shared.broadcast(data) }
+        World.shared.showTyping(id: World.shared.myID)
     }
 
     func sendProfile() {
@@ -224,6 +235,8 @@ final class Session {
         case let .say(msg):
             guard let body = validChat(msg.msg) else { return }
             World.shared.showBubble(id: id, text: body)
+        case .typing:
+            World.shared.showTyping(id: id)
         case let .profile(msg):
             World.shared.addPeer(id: id, name: sanitizeName(msg.name), look: msg.look.sanitized)
         case .hit:

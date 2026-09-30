@@ -294,6 +294,11 @@ struct ProfileMsg: Codable {
     let look: Look
 }
 
+/// 입력 중. 받은 쪽은 잠시 입력 중 말풍선을 표시한다. 끝났다는 메시지는 없고 만료로 사라진다
+struct TypingMsg: Codable {
+    var t = "typing"
+}
+
 /// 높은 곳에서 떨어진 피격은 소유자만 판정하고 다른 화면에 한 번 알린다.
 struct HitMsg: Codable {
     var t = "hit"
@@ -378,6 +383,7 @@ enum IncomingMessage: Decodable {
     case hello(HelloMsg)
     case position(PosMsg)
     case say(SayMsg)
+    case typing(TypingMsg)
     case profile(ProfileMsg)
     case hit(HitMsg)
     case full(FullMsg)
@@ -391,6 +397,7 @@ enum IncomingMessage: Decodable {
         case "hello":   self = .hello(try HelloMsg(from: decoder))
         case "pos":     self = .position(try PosMsg(from: decoder))
         case "say":     self = .say(try SayMsg(from: decoder))
+        case "typing":  self = .typing(try TypingMsg(from: decoder))
         case "profile": self = .profile(try ProfileMsg(from: decoder))
         case "hit":     self = .hit(try HitMsg(from: decoder))
         case "full":    self = .full(try FullMsg(from: decoder))

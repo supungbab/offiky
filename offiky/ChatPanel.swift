@@ -229,6 +229,7 @@ private struct ChatInputView: View {
                 .onChange(of: draft) {
                     draft = clamped(draft, maxCount: Limits.maxChat,
                                     maxBytes: Limits.maxChatBytes)
+                    if !draft.isEmpty { Session.shared.sendTyping() }
                 }
                 .onAppear { DispatchQueue.main.async { focused = true } }
                 // 보내고도 열어 둔다. 대화가 이어질 때 ⌥F 를 다시 누르지 않아도 된다

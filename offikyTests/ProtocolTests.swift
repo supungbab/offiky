@@ -367,6 +367,15 @@ struct MessageTests {
         #expect(!say.contains("id"))
     }
 
+    @Test func 입력_중인_것을_읽는다() throws {
+        let typing = try JSONDecoder().decode(IncomingMessage.self,
+                                              from: JSONEncoder().encode(TypingMsg()))
+        guard case .typing = typing else {
+            Issue.record("typing 메시지로 디코딩되지 않았다")
+            return
+        }
+    }
+
     @Test func 정원이_찬_것을_읽는다() throws {
         let full = try JSONDecoder().decode(IncomingMessage.self,
                                             from: JSONEncoder().encode(FullMsg()))
