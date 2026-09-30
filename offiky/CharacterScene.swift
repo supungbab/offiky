@@ -706,6 +706,8 @@ extension World {
     static let hostTimeout: TimeInterval = 4
 
     func addPeer(id: String, name: String, look: Look) {
+        // 호스트는 LAN 의 누구든 맡을 수 있다. 명단을 끝없이 보내도 정원까지만 받는다
+        guard peers[id] != nil || peers.count < Limits.maxRoomMembers - 1 else { return }
         if peers[id] == nil { ChatLog.shared.joined(name) }
         let node = peers[id] ?? CharacterNode(id: id, name: name, isLocal: false)
         node.lastSeen = ProcessInfo.processInfo.systemUptime

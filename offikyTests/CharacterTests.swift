@@ -477,6 +477,15 @@ struct RemoteDragTests {
         world.peerWasHit(id: id)
         #expect((world.peers[id]?.hurtUntil ?? 0) > before)
     }
+
+    /// 호스트가 명단을 끝없이 보내도 정원까지만 받는다
+    @MainActor @Test func 정원을_넘는_피어는_받지_않는다() {
+        let world = World.shared
+        let ids = (0..<Limits.maxRoomMembers + 5).map { "cap-test-\($0)" }
+        defer { ids.forEach { world.removePeer(id: $0) } }
+        for id in ids { world.addPeer(id: id, name: "peer", look: .neutral) }
+        #expect(world.peers.count == Limits.maxRoomMembers - 1)
+    }
 }
 
 @Suite("서 있을 때")
