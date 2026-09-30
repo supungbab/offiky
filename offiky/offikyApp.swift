@@ -74,7 +74,8 @@ struct offikyApp: App {
                 let here = room.id == World.myRoom
                 let full = room.count >= Limits.maxRoomMembers
                 let mark = here ? " · 현재 방" : full ? " · 정원" : ""
-                Button("\(room.label)  \(room.count)명\(mark)") {
+                // 현재 방은 참가자 메뉴와 같은 숫자를 쓴다. 광고 수는 연결된 수와 다를 수 있다
+                Button("\(room.label)  \(here ? Presence.shared.count : room.count)명\(mark)") {
                     World.join(room: room.id, name: room.name)
                 }
                 .disabled(here || full)
