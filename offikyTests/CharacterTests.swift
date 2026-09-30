@@ -478,14 +478,6 @@ struct RemoteDragTests {
         #expect((world.peers[id]?.hurtUntil ?? 0) > before)
     }
 
-    /// 호스트가 명단을 끝없이 보내도 정원까지만 받는다
-    @MainActor @Test func 정원을_넘는_피어는_받지_않는다() {
-        let world = World.shared
-        let ids = (0..<Limits.maxRoomMembers + 5).map { "cap-test-\($0)" }
-        defer { ids.forEach { world.removePeer(id: $0) } }
-        for id in ids { world.addPeer(id: id, name: "peer", look: .neutral) }
-        #expect(world.peers.count == Limits.maxRoomMembers - 1)
-    }
 }
 
 @Suite("서 있을 때")
@@ -516,7 +508,6 @@ struct StillTests {
 
     @Test func 생존_주기가_제한시간보다_넉넉하다() {
         #expect(keepaliveInterval * 3 < World.peerTimeout)
-        #expect(hostKeepaliveInterval * 3 < World.hostTimeout)
     }
 
     /// 서 있던 몇 초가 도착 간격으로 들어가면 움직이기 시작할 때 반 초 늦게 보인다
@@ -933,14 +924,6 @@ struct ChatLogTests {
         #expect(log.entries.contains { $0.text.contains("누구씨") })
         log.joined("누구씨")
         #expect(!log.entries.contains { $0.text.contains("누구씨") })
-    }
-
-    @MainActor @Test func 명단을_다시_받는_동안은_들어왔다고_적지_않는다() {
-        let log = ChatLog.shared
-        log.clear()
-        log.regrouping()
-        log.joined("딴사람")
-        #expect(!log.entries.contains { $0.text.contains("딴사람") })
     }
 
     @MainActor @Test func 기록은_상한을_넘지_않고_최신이_앞이다() {

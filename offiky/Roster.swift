@@ -5,10 +5,9 @@ struct RosterRow: Identifiable {
     let name: String
     let look: Look
     let isMe: Bool
-    let isHost: Bool
 }
 
-/// 누가 접속해 있는지와 누가 중계를 맡았는지 보여준다. 위치는 화면에서 직접 보면 된다.
+/// 누가 접속해 있는지 보여준다. 위치는 화면에서 직접 보면 된다.
 struct RosterView: View {
     @State private var rows: [RosterRow] = []
 
@@ -24,15 +23,6 @@ struct RosterView: View {
                             Text("나").font(.caption2).foregroundStyle(.secondary)
                         }
                         Spacer()
-                        // 이 사람이 나가면 다른 사람이 이어받으며 잠깐 끊긴다
-                        if row.isHost {
-                            Text("호스트")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(.quaternary, in: Capsule())
-                        }
                     }
                     .padding(.vertical, 5)
                     if row.id != rows.last?.id { Divider() }

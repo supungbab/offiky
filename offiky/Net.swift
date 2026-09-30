@@ -3,7 +3,7 @@ import Network
 
 private let serviceType = "_offiky._tcp"
 
-/// 방에서 id 가 가장 작은 사람이 호스트다. 클라이언트는 호스트에게만 연결하고 호스트가 중계한다.
+/// 같은 방 사람끼리 모두 직접 연결한다. 두 사람 사이의 연결은 id 가 작은 쪽이 연다
 final class Net {
     static let shared = Net()
 
@@ -18,62 +18,41 @@ final class Net {
     }()
     private var listener: NWListener?
     private var udpListener: NWListener?
-    /// 호스트가 나눠 준 토큰 → 그 클라이언트의 연결
+    /// 내가 나눠 준 토큰 → 그 연결. 연결을 연 상대가 이 토큰을 대고 UDP 흐름을 연다
     private var udpTokens: [String: String] = [:]
-    /// 호스트일 때 알려 줄 UDP 포트. 메인에서만 읽고 쓴다
+    /// 받은 연결의 상대에게 알려 줄 UDP 포트. 메인에서만 읽고 쓴다
     var udpPort: UInt16?
     private var browser: NWBrowser?
 
-    /// 연결 하나. 내가 시작한 쪽은 상대를 알고 시작하고, 받은 쪽은 hello 를 받아야 안다
+    /// 연결 하나. 내가 연 쪽은 상대를 알고 시작하고, 받은 쪽은 hello 를 받아야 안다
     private final class Link {
         let connection: NWConnection
         var peerID: String?
-        var traffic: LinkTrafficPolicy
+        /// 상대가 연 연결. UDP 흐름은 이쪽이 받는다
+        let inbound: Bool
+        var traffic = LinkTrafficPolicy(startedAt: ProcessInfo.processInfo.systemUptime)
         var buffer = Data()
         var windowStart: TimeInterval = 0
         var lines = 0
         var handshakeWork: DispatchWorkItem?
-        /// 좌표용 흐름. 호스트는 클라이언트가 토큰을 대고 연 흐름을, 클라이언트는 호스트로 연 흐름을 쥔다
+        /// 좌표용 흐름. 받은 쪽은 상대가 토큰을 대고 연 흐름을, 연 쪽은 상대에게 연 흐름을 가진다
         var udp: NWConnection?
-        /// 클라이언트가 데이터그램 첫 줄에 적는 토큰
+        /// 연 쪽이 데이터그램 첫 줄에 적는 토큰
         var udpToken = Data()
         /// 상대의 데이터그램을 받아 양방향으로 통하는 것을 확인했다. 그 전에는 TCP 로도 보낸다
         var udpConfirmed = false
-        init(_ connection: NWConnection, peerID: String?, maxLines: Int, maxPending: Int) {
+        init(_ connection: NWConnection, peerID: String?) {
             self.connection = connection
             self.peerID = peerID
-            self.traffic = LinkTrafficPolicy(
-                startedAt: ProcessInfo.processInfo.systemUptime,
-                maxLines: maxLines, maxPending: maxPending)
+            self.inbound = peerID == nil
         }
     }
 
     private var links: [String: Link] = [:]
+    /// 같은 방에서 광고가 보이는 사람
     private var visible: Set<String> = []
-    private var adverts: [String: Advert] = [:]
-    /// 인사한 뒤 연결이 끊긴 호스트. 광고가 사라지면 기다리지 않고 바로 지운다
-    private var closedHosts: Set<String> = []
-    static let advertGrace: TimeInterval = 2
-    /// 지금 호스트로 판정한 사람. 방에 없으면 nil
-    private var host: String?
-    /// 호스트라고 광고하는 사람들. 현직이 보이면 그대로 둔다
-    private var claims: Set<String> = []
-    /// 광고에 적힌 입장 시각과 따르는 사람 수. 호스트를 고르는 기준이다
-    private var joined: [String: Int] = [:]
-    private var followers: [String: Int] = [:]
-    /// 이 방에 들어온 시각(ms). 망이 바뀌어 다시 연결해도 그대로 두고, 방을 옮기거나 깨어나면 새로 찍는다
-    private var joinedAt = 0
-    /// 호스트 연결이 실패하면 쉬었다 다시 연결한다. 바로 다시 하면 실패가 반복되며 회전한다
-    private var hostRetryAt: Date?
-    /// 응답하지 않은 호스트 → 후보에서 제외하는 기한. Wi-Fi 가 끊기면 광고가 만료될 때까지 남는다
-    private var unresponsive: [String: Date] = [:]
-    /// 좌표가 끊긴 호스트. 잠깐 버벅인 것일 수 있어 짧게 제외한다
-    static let unresponsiveFor: TimeInterval = 60
-    /// 연결을 거부하는 호스트. 광고만 남은 것이다. 앱 id 는 실행마다 새로 뽑으므로 다시 켠 사람은 해당하지 않는다
-    static let refusingFor: TimeInterval = 600
-    /// 인사 전에 연달아 끊긴 횟수. 한 번의 일시 실패로 호스트를 제외하면 새로 들어온 사람만 따로 떨어진다
-    private var hostFailures = 0
-    static let hostFailureLimit = 3
+    /// 연결이 실패한 사람 → 다시 여는 시각. 광고만 남은 사람에게는 이 주기로만 시도한다
+    private var retryAt: [String: Date] = [:]
     private var dialWork: DispatchWorkItem?
     private var monitor: NWPathMonitor?
     private var restartWork: DispatchWorkItem?
@@ -81,7 +60,7 @@ final class Net {
     private var running = false
     private var trafficWindowStart: TimeInterval = 0
     private var totalLines = 0
-    /// 연결마다 flushDelay 동안 모아 둔다. 건마다 보내면 호스트의 send 가 인원의 제곱으로 는다
+    /// 연결마다 flushDelay 동안 모아 둔다. 건마다 보내면 send 가 그만큼 는다
     private var pending: [String: Data] = [:]
     /// 좌표. UDP 가 통하면 그쪽으로 보낸다
     private var pendingFast: [String: Data] = [:]
@@ -97,14 +76,11 @@ final class Net {
 
     private init() {}
 
-    private var amHost: Bool { host == World.shared.myID }
-
     /// 절전 알림과 앱 시작은 메인에서 온다. 상태는 전부 이 큐 것이므로 넘겨서 만진다
     func start() {
         queue.async {
             guard !self.running else { return }
             self.running = true
-            self.joinedAt = Int(Date().timeIntervalSince1970 * 1000)
             self.startListener()
             self.startBrowser()
             self.startPathMonitor()
@@ -131,11 +107,7 @@ final class Net {
         browser?.stateUpdateHandler = nil
         browser?.cancel(); browser = nil
         visible.removeAll()
-        adverts.removeAll()
-        closedHosts.removeAll()
-        claims.removeAll()
-        unresponsive.removeAll()
-        host = nil
+        retryAt.removeAll()
         dropAllLinks()
         flushWork?.cancel(); flushWork = nil
         trafficWindowStart = 0
@@ -151,7 +123,6 @@ final class Net {
         queue.async {
             guard self.running else { return }
             self.teardown()
-            self.joinedAt = Int(Date().timeIntervalSince1970 * 1000)
             self.startListener()
             self.startBrowser()
         }
@@ -187,13 +158,6 @@ final class Net {
         self.monitor = monitor
     }
 
-    /// 클라이언트도 리스너를 연다 — 이게 광고 수단이고, 언제든 호스트가 될 수 있기 때문이다
-    /// 실행 중인 리스너의 service 를 다시 넣으면 광고가 갱신된다. 역할이 바뀔 때마다 부른다
-    private func advertise() {
-        guard let room = World.myRoom else { return }
-        listener?.service = advertisement(room: room)
-    }
-
     private func advertisement(room: String) -> NWListener.Service {
         NWListener.Service(
             name: World.shared.myID, type: serviceType,
@@ -202,13 +166,10 @@ final class Net {
                 "pv": String(protocolVersion),
                 "room": room,
                 "rname": World.myRoomName ?? room,
-                // 지금 중계를 맡고 있다는 표시. 새로 들어온 사람이 이걸 보고 현직에 붙는다
-                "h": amHost ? "1" : "0",
-                "j": String(joinedAt),
-                "n": String(amHost ? links.values.filter(\.traffic.isIdentified).count : 0),
             ]).data)
     }
 
+    /// 리스너가 광고 수단이기도 하다. 방에 없으면 열지 않는다
     private func startListener() {
         guard let room = World.myRoom else { return }
         guard let listener = try? NWListener(using: Net.tcp) else { return }
@@ -236,14 +197,13 @@ final class Net {
         udpListener = udp
     }
 
-    /// 보낸 쪽마다 흐름이 하나씩 생긴다. 첫 데이터그램의 토큰으로 어느 클라이언트인지 판정한다
+    /// 보낸 쪽마다 흐름이 하나씩 생긴다. 첫 데이터그램의 토큰으로 어느 연결인지 판정한다
     private func acceptUDP(_ flow: NWConnection) {
-        guard amHost else { flow.cancel(); return }
         flow.start(queue: queue)
         receiveDatagrams(flow, key: nil)
     }
 
-    /// 호스트가 준 토큰을 이 연결에 묶는다. 같은 연결의 옛 토큰은 무효가 된다
+    /// 내가 준 토큰을 이 연결에 묶는다. 같은 연결의 옛 토큰은 무효가 된다
     func allowUDP(_ token: String, for key: String) {
         queue.async {
             self.udpTokens = self.udpTokens.filter { $0.value != key }
@@ -251,10 +211,10 @@ final class Net {
         }
     }
 
-    /// 클라이언트가 호스트의 UDP 포트로 흐름을 연다. 주소는 TCP 연결의 상대 주소를 쓴다
+    /// 내가 연 연결의 상대 UDP 포트로 흐름을 연다. 주소는 TCP 연결의 상대 주소를 쓴다
     func openUDP(port: Int, token: String, via key: String) {
         queue.async {
-            guard let link = self.links[key], link.peerID != nil,
+            guard let link = self.links[key], !link.inbound,
                   case let .hostPort(host, _)? = link.connection.currentPath?.remoteEndpoint,
                   let port = NWEndpoint.Port(rawValue: UInt16(clamping: port)), port.rawValue > 0
             else { return }
@@ -273,7 +233,7 @@ final class Net {
         }
     }
 
-    /// `key` 가 nil 이면 호스트가 받은 흐름이라 첫 줄이 토큰이다
+    /// `key` 가 nil 이면 받은 흐름이라 첫 줄이 토큰이다
     private func receiveDatagrams(_ flow: NWConnection, key known: String?) {
         flow.receiveMessage { [weak self] data, _, _, error in
             guard let self else { return }
@@ -291,7 +251,7 @@ final class Net {
             }
             guard let link = self.links[key] else { flow.cancel(); return }
             if link.udp !== flow {
-                // 클라이언트가 흐름을 다시 열었다. 받는 쪽은 호스트뿐이다
+                // 상대가 흐름을 다시 열었다. 받는 쪽만 새 흐름으로 교체한다
                 guard known == nil else { flow.cancel(); return }
                 link.udp?.cancel()
                 link.udp = flow
@@ -317,88 +277,49 @@ final class Net {
         self.browser = browser
     }
 
-    /// 호스트가 광고를 다시 등록하는 동안 목록에서 사라진다. 그때 선출하면 모두가 연결을 두 번 끊는다
+    /// 광고가 사라져도 연결은 끊지 않는다. 연결이 살아 있는지는 연결이 알려 준다
     private func browsed(_ results: Set<NWBrowser.Result>) {
-        var fresh: [String: [String: String]] = [:]
+        var entries: [(id: String, pv: String?, room: String?, roomName: String?)] = []
         for result in results {
-            if case let .bonjour(txt) = result.metadata, let id = txt["id"] { fresh[id] = txt.dictionary }
-        }
-        adverts = keptAdverts(adverts, fresh: fresh, now: ProcessInfo.processInfo.systemUptime,
-                              grace: Net.advertGrace, closed: closedHosts)
-        if adverts.count > fresh.count {
-            queue.asyncAfter(deadline: .now() + Net.advertGrace) { [weak self] in
-                guard let self, let browser = self.browser else { return }
-                self.browsed(browser.browseResults)
+            if case let .bonjour(txt) = result.metadata, let id = txt["id"] {
+                entries.append((id, txt["pv"], txt["room"], txt["rname"]))
             }
         }
-        var entries: [(id: String, pv: String?, room: String?, roomName: String?)] = []
-        var claiming: Set<String> = []
-        var joined: [String: Int] = [:], followers: [String: Int] = [:]
-        for (id, advert) in adverts {
-            let txt = advert.txt
-            entries.append((id, txt["pv"], txt["room"], txt["rname"]))
-            if txt["h"] == "1" { claiming.insert(id) }
-            joined[id] = txt["j"].flatMap { Int($0) }
-            followers[id] = txt["n"].flatMap { Int($0) }
-        }
-        // 거절당한 뒤 기다리던 호스트가 막 맡기 시작했다. 재시도 대기 없이 바로 연결한다
-        if let host = self.host, claiming.contains(host), !self.claims.contains(host) {
-            hostRetryAt = nil
-        }
-        claims = claiming
-        self.joined = joined
-        self.followers = followers
         // 방에 없어도 듣기는 한다. 참여할 방 목록을 보여줘야 하기 때문이다
         let peers = compatiblePeers(entries, myRoom: World.myRoom)
-        visible = peers.ids
+        visible = peers.ids.subtracting([World.shared.myID])
+        retryAt = retryAt.filter { visible.contains($0.key) }
         // 메뉴가 관찰하는 값으로 밀어 넣는다. 여기서 읽어 가게 두면
         // 값이 바뀌어도 메뉴를 다시 그릴 이유가 없어 경고가 뜨지 않는다
         DispatchQueue.main.async {
             Presence.shared.otherVersions = peers.mismatched
             if Presence.shared.rooms != peers.rooms { Presence.shared.rooms = peers.rooms }
         }
-        elect()
-    }
-
-    /// 광고를 볼 때마다 다시 판정한다. 호스트가 사라지면 남은 사람 중 가장 작은 id 가 호스트가 된다
-    private func elect() {
-        let now = Date()
-        unresponsive = unresponsive.filter { $0.value > now }
-        let elected = World.myRoom == nil
-            ? nil
-            : electHost(among: visible, claiming: claims,
-                        joined: joined.merging([World.shared.myID: joinedAt]) { $1 },
-                        followers: followers, me: World.shared.myID,
-                        excluding: Set(unresponsive.keys))
-        if elected != host {
-            host = elected
-            hostRetryAt = nil
-            hostFailures = 0
-            dropAllLinks()
-            advertise()
-        }
         dial()
     }
 
-    /// 호스트는 연결하지 않는다 — 받기만 한다
+    /// 나보다 id 가 큰 사람에게만 연다. 작은 사람은 저쪽에서 연다
     private func dial() {
         dialWork?.cancel()
-        guard let host, host != World.shared.myID else { return }
-        guard !links.values.contains(where: { $0.peerID == host }) else { return }
-        if let at = hostRetryAt, at > Date() {
-            let work = DispatchWorkItem { [weak self] in self?.dial() }
-            dialWork = work
-            queue.asyncAfter(deadline: .now() + max(0.1, at.timeIntervalSinceNow), execute: work)
-            return
+        guard World.myRoom != nil else { return }
+        let me = World.shared.myID
+        let now = Date()
+        var next: Date?
+        for id in visible where me < id && !links.values.contains(where: { $0.peerID == id }) {
+            if let at = retryAt[id], at > now { next = min(next ?? at, at); continue }
+            guard links.count < Limits.maxLinks else { break }
+            let endpoint = NWEndpoint.service(name: id, type: serviceType,
+                                              domain: "local.", interface: nil)
+            add(NWConnection(to: endpoint, using: Net.tcp), peerID: id)
         }
-        let endpoint = NWEndpoint.service(name: host, type: serviceType,
-                                          domain: "local.", interface: nil)
-        add(NWConnection(to: endpoint, using: Net.tcp), peerID: host)
+        guard let next else { return }
+        let work = DispatchWorkItem { [weak self] in self?.dial() }
+        dialWork = work
+        queue.asyncAfter(deadline: .now() + max(0.1, next.timeIntervalSinceNow), execute: work)
     }
 
     private func accept(_ connection: NWConnection) {
-        // 클라이언트는 받지 않는다. 호스트가 아닌 동안 들어온 연결은 옛 판정에서 온 것이다
-        guard amHost, links.count < Limits.maxLinks else { connection.cancel(); return }
+        guard World.myRoom != nil, links.count < Limits.maxLinks else { connection.cancel(); return }
         add(connection, peerID: nil)
     }
 
@@ -406,13 +327,7 @@ final class Net {
         // Bonjour 결과를 위조해 대량으로 광고해도 연결 수가 끝없이 늘어나면 안 된다
         guard links.count < Limits.maxLinks else { connection.cancel(); return }
         let key = UUID().uuidString
-        // 호스트 연결 하나에는 전원 몫이 중계되어 온다. 클라이언트 하나가 보내는 양과 다르다
-        let toHost = peerID != nil
-        let link = Link(connection, peerID: peerID,
-                        maxLines: toHost
-                            ? Limits.maxRelayedLinesPerSecond : Limits.maxLinesPerSecond,
-                        maxPending: toHost
-                            ? Limits.maxRosterLines : Limits.maxPendingLines)
+        let link = Link(connection, peerID: peerID)
         links[key] = link
         let handshakeWork = DispatchWorkItem { [weak self, weak link] in
             guard let self, let link, self.links[key] === link,
@@ -428,7 +343,6 @@ final class Net {
             guard let self, self.links[key] === link else { return }
             switch state {
             case .ready:
-                if peerID != nil { self.hostRetryAt = nil }
                 DispatchQueue.main.async { self.onReady?(key, peerID) }
             // .waiting 은 기한이 없다. 남겨 두면 dial 이 연결된 것으로 보고 다시 하지 않는다
             case .failed, .cancelled, .waiting:
@@ -447,17 +361,10 @@ final class Net {
         pendingFast[key] = nil
         udpTokens = udpTokens.filter { $0.value != key }
         close(link)
-        if amHost, link.traffic.isIdentified { advertise() }
-        // 내가 시작한 연결만 다시 연결한다. 받은 연결은 저쪽에서 다시 온다
-        if let peer = link.peerID {
-            hostRetryAt = Date().addingTimeInterval(Net.retryDelay)
-            // 호스트라고 광고하면서 인사하지 않았다. 광고하기 전이면 아직 호스트가 되는 중이라 다시 연결한다
-            if !link.traffic.isIdentified, claims.contains(peer) { hostFailures += 1 }
-            if hostFailures >= Net.hostFailureLimit { markUnresponsive(peer, for: Net.refusingFor) } else { dial() }
-            if link.traffic.isIdentified, let browser {
-                closedHosts.insert(peer)
-                browsed(browser.browseResults)
-            }
+        // 내가 연 연결만 다시 연다. 받은 연결은 저쪽에서 다시 온다
+        if !link.inbound, let peer = link.peerID {
+            retryAt[peer] = Date().addingTimeInterval(Net.retryDelay)
+            dial()
         }
         DispatchQueue.main.async { self.onGone?(key) }
     }
@@ -469,16 +376,16 @@ final class Net {
         link.connection.cancel()
     }
 
-    /// 호스트가 바뀌면 이전 구성의 연결은 전부 쓸모없다
+    /// 방을 옮기거나 망이 바뀌면 이전 연결은 전부 쓸모없다
     private func dropAllLinks() {
         dialWork?.cancel()
+        let keys = Array(links.keys)
         links.values.forEach(close)
         links.removeAll()
         pending.removeAll()
         pendingFast.removeAll()
         udpTokens.removeAll()
-        let amHost = self.amHost
-        DispatchQueue.main.async { Session.shared.roleChanged(amHost: amHost) }
+        DispatchQueue.main.async { keys.forEach { self.onGone?($0) } }
     }
 
     /// hello 를 받아 상대를 알게 됐다. 먼저 자리를 잡은 연결이 이긴다 —
@@ -486,7 +393,7 @@ final class Net {
     func identify(_ key: String, as id: String) {
         queue.async {
             guard let link = self.links[key] else { return }
-            // 내가 시작한 연결은 상대를 알고 있다. 다른 이름을 대면 그 연결이 아니다
+            // 내가 연 연결은 상대를 알고 있다. 다른 이름을 대면 그 연결이 아니다
             if let known = link.peerID, known != id { self.drop(key); return }
             if self.links.contains(where: { $0.key != key && $0.value.peerID == id }) {
                 self.drop(key)
@@ -494,11 +401,9 @@ final class Net {
             }
             link.peerID = id
             link.traffic.identify()
-            self.closedHosts.remove(id)
-            if id == self.host { self.hostFailures = 0 }
+            self.retryAt[id] = nil
             link.handshakeWork?.cancel()
             link.handshakeWork = nil
-            if self.amHost { self.advertise() }
         }
     }
 
@@ -510,17 +415,8 @@ final class Net {
     /// 좌표가 끊겨 없는 것으로 판정했다. 연결이 살아 있어도 쓸모없으므로 끊는다
     func dropLinks(to id: String) {
         queue.async {
-            if id == self.host { self.markUnresponsive(id, for: Net.unresponsiveFor); return }
             for (key, link) in self.links where link.peerID == id { self.drop(key) }
         }
-    }
-
-    /// 광고만 남은 호스트에 계속 다시 연결하지 않고 다음 사람을 호스트로 고른다
-    // ponytail: 광고만 남은 호스트에 기한마다 한 번 다시 시도한다. 그때 진짜 호스트를 따르는 사람이 없으면 잠깐 갈라진다
-    private func markUnresponsive(_ id: String, for duration: TimeInterval) {
-        unresponsive[id] = Date().addingTimeInterval(duration)
-        queue.asyncAfter(deadline: .now() + duration + 0.1) { [weak self] in self?.elect() }
-        elect()
     }
 
     private func receiveLines(key: String) {
@@ -574,14 +470,13 @@ final class Net {
 
     /// 연결 목록은 이 큐에서만 바뀐다. 메인에서 바로 읽으면 바뀌는 중에 읽을 수 있다.
     /// `fast` 는 잃어도 다음 것이 대신하는 좌표다
-    func broadcast(_ data: Data, except excluded: String? = nil, fast: Bool = false) {
+    func broadcast(_ data: Data, fast: Bool = false) {
         guard data.count <= Limits.maxMessageBytes else { return }
         var line = data; line.append(0x0A)
         queue.async {
             // hello 를 끝내지 않은 연결은 방과 버전을 증명하지 않았다. 이쪽 좌표와
             // 채팅을 받아 가게 두지 않고, 느린 연결에 송신 버퍼가 쌓이는 것도 막는다.
-            for (key, link) in self.links
-            where key != excluded && link.traffic.isIdentified {
+            for (key, link) in self.links where link.traffic.isIdentified {
                 self.enqueue(line, to: key, fast: fast)
             }
         }
@@ -593,8 +488,7 @@ final class Net {
         queue.async { self.enqueue(line, to: key) }
     }
 
-    /// 줄은 개행으로 나뉘므로 이어 붙인 것을 한 번에 보내도 받는 쪽은 그대로 읽는다.
-    /// 좌표 주기만큼 모으면 한 사람의 연속 좌표 두 건이 한 번에 나가 200ms 마다 도착한다
+    /// 줄은 개행으로 나뉘므로 합친 것을 한 번에 보내도 받는 쪽은 그대로 읽는다
     static let flushDelay: TimeInterval = 0.02
 
     private func enqueue(_ line: Data, to key: String, fast: Bool = false) {
@@ -616,8 +510,8 @@ final class Net {
             guard let link = links[key] else { continue }
             let viaUDP = link.udp?.state == .ready
             if let udp = link.udp, viaUDP {
-                // 호스트가 받은 흐름은 이미 누구인지 안다. 클라이언트만 토큰을 적는다
-                let prefix = amHost ? Data() : link.udpToken
+                // 받은 흐름은 이미 누구인지 안다. 흐름을 연 쪽만 토큰을 적는다
+                let prefix = link.inbound ? Data() : link.udpToken
                 for datagram in datagrams(data, prefix: prefix) {
                     #if DEBUG
                     // `-netLoss 0.05 -netJitter 0.08` 로 나쁜 망을 모사한다

@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
 
-let protocolVersion = 9
+let protocolVersion = 10
 let spriteDisplaySize: CGFloat = 40
 /// 바닥을 화면 맨 아래에서 띄우는 높이. Dock 이나 화면 끝에 붙어 보이지 않게 한다
 let floorOffset: CGFloat = 8
@@ -12,8 +12,6 @@ let positionInterval: TimeInterval = 0.1
 /// 서 있으면 좌표가 그대로라 보내지 않는다. 그래도 이만큼마다 한 번은 보내야
 /// 받는 쪽 15초 판정에서 없는 사람이 되지 않는다
 let keepaliveInterval: TimeInterval = 3
-/// 호스트는 더 자주 보낸다. 받는 쪽이 호스트가 사라진 것을 빨리 판정해야 멈춰 있는 시간이 짧다
-let hostKeepaliveInterval: TimeInterval = 1
 
 /// 자리나 자세가 바뀌었는지. 생존 신호 주기는 Session 이 판정한다
 func shouldSend(_ msg: PosMsg, last: PosMsg?) -> Bool {
@@ -25,22 +23,17 @@ func shouldSend(_ msg: PosMsg, last: PosMsg?) -> Bool {
 
 enum Limits {
     static let maxMessageBytes = 16 * 1024
-    /// 한 방에 들어갈 수 있는 사람 수. 호스트 하나가 전원 몫을 중계하므로 상한이 필요하다
-    static let maxRoomMembers = 50
-    /// 호스트가 동시에 유지할 수 있는 소켓 수. 정원의 두 배 남짓이다
-    static let maxLinks = 128
-    /// 클라이언트 하나에게서 초당 받을 수 있는 줄 수. 정상 좌표 10줄에 채팅 여유를 넉넉히 둔다.
+    /// 한 방에 들어갈 수 있는 사람 수. 모두 서로 직접 연결하므로 좌표 건수가 인원의 제곱으로 는다
+    static let maxRoomMembers = 15
+    /// 동시에 유지할 수 있는 소켓 수. 연결을 여는 중인 것까지 정원의 두 배 남짓이다
+    static let maxLinks = 32
+    /// 한 연결에서 초당 받을 수 있는 줄 수. 정상 좌표 10줄에 채팅 여유를 넉넉히 둔다.
     static let maxLinesPerSecond = 60
-    /// 호스트 연결 하나에서 받을 수 있는 줄 수. 전원이 움직이면 그만큼 곱해져 온다
-    static let maxRelayedLinesPerSecond = maxRoomMembers * maxLinesPerSecond
     /// 여러 연결이 동시에 쏟아부어도 메인 큐가 무너지지 않게 한다.
-    /// 50명이 모두 움직여도 호스트가 받는 정상 좌표는 초당 약 500줄이다.
-    static let maxTotalLinesPerSecond = 5_000
-    /// 악수를 끝내기 전에 받아 줄 줄 수. 클라이언트는 hello 와 좌표 두 줄만 보낸다
+    /// 정원이 모두 움직여도 받는 정상 좌표는 초당 140줄이다.
+    static let maxTotalLinesPerSecond = 2_000
+    /// 악수를 끝내기 전에 받아 줄 줄 수. hello·좌표·UDP 안내 세 줄이 온다
     static let maxPendingLines = 16
-    /// 호스트는 확정 직후 명단을 한 번에 보낸다 — 사람마다 hello 와 좌표 두 줄이다.
-    /// 그 첫 줄로 연결을 확정하지만 판정이 메인 큐를 거쳐 돌아오는 사이 나머지가 다 도착한다
-    static let maxRosterLines = 2 * maxRoomMembers + maxPendingLines
     static let maxName = 20
     static let maxNameBytes = 256
     /// 방 이름 길이. 글자 수와 바이트 수 둘 다 막는다
@@ -166,35 +159,6 @@ func idIsTaken(_ id: String, by key: String, in table: [String: String]) -> Bool
     table.contains { $0.key != key && $0.value == id }
 }
 
-/// 방에 먼저 들어온 사람이 호스트다. 맡은 사람이 있으면 그대로 두고, 나가면 남은 사람 중 먼저 들어온 사람이 이어받는다.
-/// 둘이 맡고 있으면 따르는 사람이 많은 쪽, 같으면 먼저 들어온 쪽이다. 모두 같은 광고를 보고 같은 답을 낸다.
-/// `excluding` 은 광고는 남았는데 응답하지 않는 사람이다
-func electHost(among peers: Set<String>, claiming: Set<String>, joined: [String: Int],
-               followers: [String: Int] = [:], me: String, excluding: Set<String> = []) -> String {
-    let everyone = peers.subtracting(excluding).union([me])
-    let claims = claiming.intersection(everyone)
-    if claims.count == 1, let incumbent = claims.first { return incumbent }
-    func rank(_ id: String) -> (Int, Int, String) { (-(followers[id] ?? 0), joined[id] ?? .max, id) }
-    return (claims.isEmpty ? everyone : claims).min { rank($0) < rank($1) } ?? me
-}
-
-/// 마지막으로 본 광고. 다시 등록하는 동안 목록에서 잠깐 삭제되므로 사라져도 바로 지우지 않는다
-struct Advert: Equatable {
-    let txt: [String: String]
-    var goneAt: TimeInterval?
-}
-
-/// 사라진 광고는 grace 동안 남긴다. 연결이 끊긴 사람(`closed`)은 실제로 나갔으므로 남기지 않는다
-func keptAdverts(_ kept: [String: Advert], fresh: [String: [String: String]],
-                 now: TimeInterval, grace: TimeInterval, closed: Set<String> = []) -> [String: Advert] {
-    var result = fresh.mapValues { Advert(txt: $0) }
-    for (id, advert) in kept where fresh[id] == nil && !closed.contains(id) {
-        let goneAt = advert.goneAt ?? now
-        if now - goneAt < grace { result[id] = Advert(txt: advert.txt, goneAt: goneAt) }
-    }
-    return result
-}
-
 /// 방을 구분하는 값. 만들 때 새로 뽑는다 — 이름이 같아도 다른 방이고,
 /// 이름을 바꿔도 같은 방이다
 func newRoomID() -> String {
@@ -298,10 +262,9 @@ struct HelloMsg: Codable {
     let room: String
 }
 
+/// 보낸 사람은 연결이 정한다. 메시지에 id 를 적지 않으므로 남을 사칭할 수 없다
 struct PosMsg: Codable, Equatable {
     var t = "pos"
-    /// 호스트가 중계할 때만 채운다. 클라이언트는 비워 보내고 보낸 사람은 연결이 정한다
-    var id: String?
     let x: Double
     let y: Double?
     /// 인사 중일 때만 싣는다. 옛 버전은 이 값을 무시하고 서 있는 것으로 본다
@@ -316,13 +279,11 @@ struct PosMsg: Codable, Equatable {
 
 struct SayMsg: Codable {
     var t = "say"
-    var id: String?
     let msg: String
 }
 
 struct ProfileMsg: Codable {
     var t = "profile"
-    var id: String?
     let name: String
     let look: Look
 }
@@ -330,21 +291,14 @@ struct ProfileMsg: Codable {
 /// 높은 곳에서 떨어진 피격은 소유자만 판정하고 다른 화면에 한 번 알린다.
 struct HitMsg: Codable {
     var t = "hit"
-    var id: String?
 }
 
-/// 클라이언트가 빠졌다고 호스트가 알린다. 없으면 남은 사람들이 15초 판정까지 기다린다
-struct ByeMsg: Codable {
-    var t = "bye"
-    let id: String
-}
-
-/// 정원이 찼다. 받은 쪽은 방에서 나간다
+/// 정원이 찼다. 들어오려던 쪽은 방에서 나간다
 struct FullMsg: Codable {
     var t = "full"
 }
 
-/// 호스트가 좌표용 UDP 포트를 알린다. 클라이언트는 데이터그램 첫 줄에 토큰을 적어 자기를 밝힌다
+/// 연결을 받은 쪽이 좌표용 UDP 포트를 알린다. 연결을 연 쪽은 데이터그램 첫 줄에 토큰을 적어 자기를 밝힌다
 struct UDPMsg: Codable {
     var t = "udp"
     let port: Int
@@ -377,9 +331,7 @@ enum IncomingLineDecision: Equatable {
 /// 소켓과 분리한 링크 정책. 악수와 트래픽 제한을 실제 연결 없이도 검증한다.
 struct LinkTrafficPolicy {
     let startedAt: TimeInterval
-    /// 이 연결에서 초당 받을 수 있는 줄 수. 호스트 연결은 전원 몫이 중계되어 훨씬 많다
     var maxLines = Limits.maxLinesPerSecond
-    /// 악수를 끝내기 전에 받아 줄 줄 수. 호스트 연결은 명단이 먼저 쏟아진다
     var maxPending = Limits.maxPendingLines
     private(set) var isIdentified = false
     private(set) var pendingLines = 0
@@ -411,22 +363,8 @@ enum IncomingMessage: Decodable {
     case say(SayMsg)
     case profile(ProfileMsg)
     case hit(HitMsg)
-    case bye(ByeMsg)
     case full(FullMsg)
     case udp(UDPMsg)
-
-    /// 호스트가 중계한 것에만 있다. 클라이언트끼리는 서로 직접 보지 못한다
-    var senderID: String? {
-        switch self {
-        case let .hello(msg):    msg.id
-        case let .position(msg): msg.id
-        case let .say(msg):      msg.id
-        case let .profile(msg):  msg.id
-        case let .hit(msg):      msg.id
-        case let .bye(msg):      msg.id
-        case .full, .udp:        nil
-        }
-    }
 
     private enum CodingKeys: String, CodingKey { case t }
 
@@ -438,7 +376,6 @@ enum IncomingMessage: Decodable {
         case "say":     self = .say(try SayMsg(from: decoder))
         case "profile": self = .profile(try ProfileMsg(from: decoder))
         case "hit":     self = .hit(try HitMsg(from: decoder))
-        case "bye":     self = .bye(try ByeMsg(from: decoder))
         case "full":    self = .full(try FullMsg(from: decoder))
         case "udp":     self = .udp(try UDPMsg(from: decoder))
         default:

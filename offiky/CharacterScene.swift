@@ -504,8 +504,7 @@ extension CharacterNode {
 final class World {
     static let shared = World()
 
-    /// 이 실행에서만 유효하다. 호스트를 이 값으로 정하고, 호스트가 중계하는 좌표마다
-    /// 실려 나가므로 UUID 를 통째로 쓰지 않는다 — 50명이면 충돌 확률이 3e-7 이다
+    /// 이 실행에서만 유효하다. 광고 이름이자 연결을 누가 열지 정하는 값이다
     let myID = String(UUID().uuidString.prefix(8))
 
     /// 외형과 첫 위치를 정한다. myID 에 묶으면 실행할 때마다 색이 바뀐다.
@@ -634,15 +633,12 @@ final class World {
     /// 화면이 꺼져 tick 이 멈춰도 판정이 계속되도록 타이머가 호출한다
     func sweepPeers(now: TimeInterval) {
         defer { lastSweep = now }
-        // 내가 멈췄다 돌아왔다. 그동안 못 받은 것을 끊김으로 판정하면 살아 있는 호스트를 1분간 제외한다
-        if lastSweep > 0, now - lastSweep > World.hostTimeout {
+        // 내가 멈췄다 돌아왔다. 그동안 못 받은 것을 끊김으로 판정하면 살아 있는 사람을 모두 끊는다
+        if lastSweep > 0, now - lastSweep > World.stallGap {
             for node in peers.values { node.lastSeen = now }
             return
         }
-        let host = Session.shared.hostPeer
-        let expired = peers.compactMap { id, node in
-            now - node.lastSeen > (id == host ? World.hostTimeout : World.peerTimeout) ? id : nil
-        }
+        let expired = peers.compactMap { id, node in now - node.lastSeen > World.peerTimeout ? id : nil }
         for id in expired { Session.shared.peerGone(id) }
     }
 
@@ -693,12 +689,10 @@ final class World {
 extension World {
     /// 좌표가 이만큼 끊기면 없는 것으로 본다. 0.1초마다 오므로 넉넉한 값이다
     static let peerTimeout: TimeInterval = 15
-    /// 호스트가 멈추면 모두의 좌표가 같이 멈추므로 먼저 판정한다. 호스트 생존 신호 네 번 분량이다
-    static let hostTimeout: TimeInterval = 4
+    /// 판정 타이머가 이만큼 멈췄으면 내가 멈췄던 것이다. 타이머는 0.25초마다 실행된다
+    static let stallGap: TimeInterval = 4
 
     func addPeer(id: String, name: String, look: Look) {
-        // 호스트는 LAN 의 누구든 맡을 수 있다. 명단을 끝없이 보내도 정원까지만 받는다
-        guard peers[id] != nil || peers.count < Limits.maxRoomMembers - 1 else { return }
         if peers[id] == nil { ChatLog.shared.joined(name) }
         let node = peers[id] ?? CharacterNode(id: id, name: name, isLocal: false)
         node.lastSeen = ProcessInfo.processInfo.systemUptime
@@ -715,11 +709,10 @@ extension World {
 
     /// 참가자 창이 1초마다 다시 읽는다
     func roster() -> [RosterRow] {
-        let host = Session.shared.hostPeer
-        let mine = RosterRow(id: me.id, name: me.displayName, look: me.look, isMe: true, isHost: me.id == host)
+        let mine = RosterRow(id: me.id, name: me.displayName, look: me.look, isMe: true)
         let others = peers.values
             .sorted { $0.displayName < $1.displayName }
-            .map { RosterRow(id: $0.id, name: $0.displayName, look: $0.look, isMe: false, isHost: $0.id == host) }
+            .map { RosterRow(id: $0.id, name: $0.displayName, look: $0.look, isMe: false) }
         return [mine] + others
     }
 
@@ -751,8 +744,6 @@ extension World {
     var otherVersions = 0
     /// 지금 들어가 있는 방 이름. nil 이면 혼자다
     var room = roomDisplayName(id: World.myRoom, name: World.myRoomName)
-    /// 내가 중계를 맡았는지. 메뉴가 관찰해야 해서 Session 것을 여기에 복사해 둔다
-    var amHost = false
     /// 망에 보이는 방들. 참여하기 목록에 쓴다
     var rooms: [RoomListing] = []
     private init() {}

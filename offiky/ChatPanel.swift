@@ -130,9 +130,6 @@ struct FocusReturn {
 
     private init() {}
 
-    /// 명단을 통째로 다시 받는 동안(호스트 교체·재연결)은 들어왔다고 적지 않는다
-    private var regroupingUntil = Date.distantPast
-
     func add(name: String, text: String, isMe: Bool) {
         insert(Entry(name: name, text: text, at: Date(), isMe: isMe))
     }
@@ -142,7 +139,6 @@ struct FocusReturn {
     }
 
     func joined(_ name: String) {
-        guard Date() >= regroupingUntil else { return }
         // 잠깐 끊겼다 돌아온 것이면 나갔다는 줄을 지우고 끝낸다
         if let index = entries.firstIndex(where: {
             $0.isSystem && $0.text == ChatLog.goneText(name)
@@ -155,11 +151,8 @@ struct FocusReturn {
 
     func gone(_ name: String) { note(ChatLog.goneText(name)) }
 
-    func regrouping() { regroupingUntil = Date().addingTimeInterval(10) }
-
     func clear() {
         entries.removeAll()
-        regroupingUntil = .distantPast
     }
 
     private static func goneText(_ name: String) -> String { "\(name) 님이 나갔습니다" }

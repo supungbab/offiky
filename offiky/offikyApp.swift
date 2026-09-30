@@ -27,8 +27,7 @@ struct offikyApp: App {
             Divider()
             // 방 만들기는 들어가 있을 때 내밀지 않는다. 이름 고치기로 읽힌다
             if let room = Presence.shared.room {
-                // 내가 나가면 남은 사람들이 잠깐 끊기므로 맡고 있다는 것이 보여야 한다
-                Text(Presence.shared.amHost ? "방 · 호스트 · \(room)" : "방 · \(room)")
+                Text("방 · \(room)")
                 // 누가 있는지는 방 이야기다. 방에 없으면 나뿐이라 내밀 것이 없다
                 Button("참가자 \(Presence.shared.count)명…") { openRoster() }
                 Button("방 나가기") { World.leaveRoom() }
@@ -119,7 +118,7 @@ struct offikyApp: App {
     }
 }
 
-/// 방에 다 찼다고 호스트가 알려 왔다. 이미 방에서 나온 뒤다
+/// 들어가려던 방이 찼다고 알려 왔다. 이미 방에서 나온 뒤다
 func tellRoomIsFull() {
     let alert = NSAlert()
     alert.messageText = "방이 가득 찼습니다"
@@ -167,7 +166,7 @@ private final class Bot {
 #endif
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    /// App Nap 이 타이머를 늦추면 생존 신호가 끊겨 호스트가 사라진 것으로 판정된다
+    /// App Nap 이 타이머를 늦추면 생존 신호가 끊겨 동료 화면에서 내가 사라진 것으로 판정된다
     private var activity: NSObjectProtocol?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -175,7 +174,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             options: .userInitiatedAllowingIdleSystemSleep, reason: "좌표 생존 신호")
         OverlayController.shared.start()
         Session.shared.start()
-        // 테스트 호스트로 켜지면 망에 나가지 않는다. 실제 방에 참가자로 뜨고 호스트 판정까지 바뀐다
+        // 테스트 호스트로 켜지면 망에 나가지 않는다. 실제 방에 참가자로 뜬다
         if NSClassFromString("XCTestCase") == nil { Net.shared.start() }
         ChatPanel.shared.install()
         Control.shared.install()
@@ -193,7 +192,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { _ in
             let overlay = OverlayController.shared
             let age = ProcessInfo.processInfo.systemUptime - World.shared.lastTick
-            watch.info("me=\(World.shared.myID, privacy: .public) host=\(Session.shared.hostPeer ?? "-", privacy: .public) amHost=\(Presence.shared.amHost) screens=\(NSScreen.screens.count) windows=\(overlay.windows.count) visible=\(overlay.windows.filter(\.isVisible).count) scenes=\(overlay.scenes.count) tickAge=\(age, format: .fixed(precision: 1)) peers=\(World.shared.peers.count) count=\(Presence.shared.count)")
+            watch.info("me=\(World.shared.myID, privacy: .public) screens=\(NSScreen.screens.count) windows=\(overlay.windows.count) visible=\(overlay.windows.filter(\.isVisible).count) scenes=\(overlay.scenes.count) tickAge=\(age, format: .fixed(precision: 1)) peers=\(World.shared.peers.count) count=\(Presence.shared.count)")
         }
         #endif
 

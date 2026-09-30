@@ -359,33 +359,15 @@ struct MessageTests {
         #expect(msg.msg == "안녕")
     }
 
-    /// 클라이언트가 보내는 것에는 id 가 없다. 포함하면 남을 사칭할 수 있다 —
-    /// 호스트는 연결로 보낸 사람을 정하고 중계할 때만 그 값을 채운다
-    @Test func 클라이언트가_보내는_좌표와_채팅에는_id_가_없다() throws {
+    /// 보낸 사람은 연결이 정한다. 메시지에 id 가 있으면 남을 사칭할 수 있다
+    @Test func 좌표와_채팅에는_id_가_없다() throws {
         let pos = String(decoding: try JSONEncoder().encode(PosMsg(x: 1, y: nil)), as: UTF8.self)
         let say = String(decoding: try JSONEncoder().encode(SayMsg(msg: "hi")), as: UTF8.self)
         #expect(!pos.contains("id"))
         #expect(!say.contains("id"))
     }
 
-    @Test func 호스트가_중계한_것에는_보낸_사람이_있다() throws {
-        let data = try JSONEncoder().encode(PosMsg(id: "철수", x: 1, y: nil))
-        let message = try JSONDecoder().decode(IncomingMessage.self, from: data)
-        #expect(message.senderID == "철수")
-        #expect(try JSONDecoder()
-            .decode(IncomingMessage.self, from: JSONEncoder().encode(PosMsg(x: 1, y: nil)))
-            .senderID == nil)
-    }
-
-    @Test func 클라이언트가_빠진_것과_정원이_찬_것을_구분한다() throws {
-        let bye = try JSONDecoder().decode(IncomingMessage.self,
-                                           from: JSONEncoder().encode(ByeMsg(id: "철수")))
-        guard case let .bye(msg) = bye else {
-            Issue.record("bye 메시지로 디코딩되지 않았다")
-            return
-        }
-        #expect(msg.id == "철수")
-
+    @Test func 정원이_찬_것을_읽는다() throws {
         let full = try JSONDecoder().decode(IncomingMessage.self,
                                             from: JSONEncoder().encode(FullMsg()))
         guard case .full = full else {
@@ -401,14 +383,6 @@ struct MessageTests {
         let everything = try JSONEncoder().encode(
             PosMsg(x: 1234.5, y: 48, b: true, d: true, f: 1, m: 802489529))
         #expect(everything.count < 76)
-    }
-
-    /// 중계하면 id 가 붙는다. UUID 를 통째로 쓰면 그 자리가 한 건의 절반을 넘는다
-    @MainActor @Test func 중계한_좌표도_작다() throws {
-        #expect(World.shared.myID.count == 8)
-        let relayed = try JSONEncoder().encode(
-            PosMsg(id: World.shared.myID, x: 1234.5, y: nil, f: 1, m: 802489529))
-        #expect(relayed.count < 60)
     }
 
     @Test func hello_는_프로토콜_번호를_싣는다() throws {
@@ -453,36 +427,10 @@ struct LinkTrafficPolicyTests {
                                 totalLines: Limits.maxPendingLines + 1) == .disconnect)
     }
 
-    /// 호스트는 확정 직후 명단을 한 번에 보낸다. 그 첫 줄로 연결을 확정하지만
-    /// 판정이 메인 큐를 거쳐 돌아오는 사이 나머지가 다 도착한다 — 클라이언트 몫으로 재면 끊긴다
-    @MainActor @Test func 명단이_한_번에_와도_악수_전에_끊기지_않는다() {
-        var policy = LinkTrafficPolicy(startedAt: 0, maxLines: Limits.maxRelayedLinesPerSecond,
-                                       maxPending: Limits.maxRosterLines)
-        // 정원이 찬 방에 들어가면 사람마다 hello 와 좌표가 한 줄씩 온다
-        #expect(2 * Limits.maxRoomMembers <= Limits.maxRosterLines)
-        for line in 1...Limits.maxRosterLines {
-            #expect(policy.decision(linkLines: line, totalLines: line) == .forward)
-        }
-        #expect(policy.decision(linkLines: Limits.maxRosterLines + 1,
-                                totalLines: Limits.maxRosterLines + 1) == .disconnect)
-    }
-
     @MainActor @Test func 링크별_상한을_넘긴_연결만_끊는다() {
         var policy = LinkTrafficPolicy(startedAt: 0)
         policy.identify()
         #expect(policy.decision(linkLines: Limits.maxLinesPerSecond + 1,
-                                totalLines: 1) == .disconnect)
-    }
-
-    /// 호스트 연결 하나에 전원 몫이 중계되어 온다. 클라이언트 몫으로 재면 호스트를 끊는다
-    @MainActor @Test func 호스트_연결은_중계된_양을_견딘다() {
-        var policy = LinkTrafficPolicy(startedAt: 0, maxLines: Limits.maxRelayedLinesPerSecond)
-        policy.identify()
-        let everyoneWalking = Limits.maxRoomMembers * Int(1 / positionInterval)
-        #expect(everyoneWalking <= Limits.maxRelayedLinesPerSecond)
-        #expect(policy.decision(linkLines: everyoneWalking, totalLines: everyoneWalking)
-                == .forward)
-        #expect(policy.decision(linkLines: Limits.maxRelayedLinesPerSecond + 1,
                                 totalLines: 1) == .disconnect)
     }
 
@@ -495,102 +443,8 @@ struct LinkTrafficPolicyTests {
     }
 }
 
-@Suite("광고 유지")
-struct AdvertGraceTests {
-    /// 호스트가 광고를 다시 등록하는 동안 목록에서 사라져도 선출에 반영하지 않는다
-    @Test func 잠깐_사라진_광고는_남기고_오래_사라지면_지운다() {
-        let host = ["h": "1"]
-        let seen = keptAdverts([:], fresh: ["가지": host], now: 0, grace: 2)
-        // 오래 조용하다가 사라져도 사라진 때부터 센다
-        let gone = keptAdverts(seen, fresh: [:], now: 100, grace: 2)
-        #expect(gone["가지"]?.txt == host)
-        #expect(keptAdverts(gone, fresh: [:], now: 101, grace: 2)["가지"]?.txt == host)
-        #expect(keptAdverts(gone, fresh: [:], now: 102, grace: 2).isEmpty)
-        #expect(keptAdverts(gone, fresh: ["가지": ["h": "0"]], now: 101, grace: 2)["가지"]?.goneAt == nil)
-        // 연결이 끊긴 사람은 기다리지 않는다
-        #expect(keptAdverts(seen, fresh: [:], now: 100, grace: 2, closed: ["가지"]).isEmpty)
-    }
-}
-
-@Suite("호스트 뽑기")
-struct HostElectionTests {
-
-    /// 들어온 순서. 방을 만든 가지가 가장 먼저다
-    private let joined = ["가지": 1, "나무": 2, "바람": 3, "다래": 4]
-
-    /// id 가 아니라 들어온 순서로 고른다. 방을 만든 사람이 기본 호스트다
-    @Test func 아무도_맡지_않았으면_먼저_들어온_사람이_호스트다() {
-        #expect(electHost(among: ["나무", "바람"], claiming: [], joined: joined, me: "가지") == "가지")
-        #expect(electHost(among: ["가지", "바람"], claiming: [], joined: joined, me: "나무") == "가지")
-    }
-
-    @Test func 혼자면_내가_호스트다() {
-        #expect(electHost(among: [], claiming: [], joined: joined, me: "바람") == "바람")
-    }
-
-    /// 나갔다 다시 들어온 사람은 입장 시각이 새로 찍혀, 맡고 있는 사람을 밀어내지 않는다
-    @Test func 맡고_있는_사람이_보이면_그대로_둔다() {
-        var rejoined = joined
-        rejoined["가지"] = 9
-        #expect(electHost(among: ["나무", "바람"], claiming: ["나무"], joined: rejoined, me: "가지")
-                == "나무")
-        // 맡은 사람 자신도 같은 답을 낸다
-        #expect(electHost(among: ["가지", "바람"], claiming: ["나무"], joined: rejoined, me: "나무")
-                == "나무")
-    }
-
-    /// 호스트가 나가면 남은 사람 중 먼저 들어온 사람이 이어받는다
-    @Test func 맡은_사람이_사라지면_먼저_들어온_사람이_이어받는다() {
-        #expect(electHost(among: ["다래", "바람"], claiming: ["가지"], joined: joined, me: "나무")
-                == "나무")
-    }
-
-    /// 광고는 남았는데 응답하지 않는 호스트는 빼고 고른다. 남은 사람 모두 같은 답을 낸다
-    @Test func 응답하지_않는_호스트는_빼고_고른다() {
-        let dead: Set = ["가지"]
-        #expect(electHost(among: ["가지", "바람"], claiming: ["가지"], joined: joined, me: "나무",
-                          excluding: dead) == "나무")
-        #expect(electHost(among: ["가지", "나무"], claiming: ["가지"], joined: joined, me: "바람",
-                          excluding: dead) == "나무")
-    }
-
-    /// 끊겼다 돌아온 옛 호스트는 따르는 사람이 없다. 그사이 이어받은 쪽을 따른다
-    @Test func 둘이_맡고_있으면_따르는_사람이_많은_쪽이다() {
-        #expect(electHost(among: ["나무", "바람"], claiming: ["가지", "나무"], joined: joined,
-                          followers: ["가지": 0, "나무": 1], me: "가지") == "나무")
-    }
-
-    /// 막 들어온 사람이 광고를 받기 전에 스스로 맡을 수 있다. 둘 다 따르는 사람이 없으면 먼저 들어온 쪽이다
-    @Test func 따르는_사람이_같으면_먼저_들어온_쪽이다() {
-        #expect(electHost(among: ["다래"], claiming: ["가지", "다래"], joined: joined, me: "가지")
-                == "가지")
-    }
-
-    /// 다른 방 사람이 맡고 있다고 광고해도 이 방의 판정에 끼어들지 못한다
-    @Test func 방_밖의_주장은_세지_않는다() {
-        #expect(electHost(among: ["나무"], claiming: ["딴방"], joined: joined, me: "바람") == "나무")
-    }
-
-    /// 방에 있는 모두가 같은 사람을 가리켜야 연결이 호스트 하나로 모인다
-    @Test func 누가_보아도_같은_사람을_가리킨다() {
-        let everyone: Set = ["가지", "나무", "바람", "다래"]
-        for claiming in [Set<String>(), ["바람"], ["바람", "다래"]] {
-            let elected = everyone.map {
-                electHost(among: everyone.subtracting([$0]), claiming: claiming, joined: joined,
-                          followers: ["바람": 2, "다래": 1], me: $0)
-            }
-            #expect(Set(elected).count == 1)
-        }
-    }
-
-    /// 입장 시각을 적지 않은 광고는 맨 뒤로 보낸다. 앞에 두면 아무나 호스트를 가져간다
-    @Test func 입장_시각이_없으면_맨_뒤다() {
-        #expect(electHost(among: ["나무", "모름"], claiming: [], joined: joined, me: "바람") == "나무")
-    }
-}
-
-@Suite("호스트 표시", .serialized)
-struct HostBadgeTests {
+@Suite("환경설정 분리", .serialized)
+struct PreferenceIsolationTests {
 
     /// 실제 환경설정에 쓰면 켜 둔 앱의 방이 날아간다. 따로 만든 곳에만 쓰고 지운다
     private func inRoom<T>(_ id: String?, _ body: () -> T) -> T {
@@ -606,24 +460,6 @@ struct HostBadgeTests {
         return body()
     }
 
-    /// 참가자 목록이 중계를 맡은 사람을 짚어 주는지. 혼자면 내가 호스트다
-    @MainActor @Test func 방에_있으면_호스트가_표시된다() {
-        inRoom("testroom") {
-            let rows = World.shared.roster()
-            #expect(rows.first?.isMe == true)
-            #expect(rows.first?.isHost == true)
-            #expect(Session.shared.hostPeer == World.shared.myID)
-        }
-    }
-
-    /// 방에 없으면 호스트라는 것이 없다
-    @MainActor @Test func 방에_없으면_아무도_호스트가_아니다() {
-        inRoom(nil) {
-            #expect(Session.shared.hostPeer == nil)
-            #expect(World.shared.roster().allSatisfy { !$0.isHost })
-        }
-    }
-
     /// 테스트가 실제 환경설정을 건드리면 안 된다 — 이것 때문에 방이 한 번 날아갔다
     @MainActor @Test func 실제_환경설정은_건드리지_않는다() {
         let before = UserDefaults.standard.string(forKey: "roomID")
@@ -636,10 +472,11 @@ struct HostBadgeTests {
 @Suite("방 정원")
 struct RoomCapacityTests {
 
-    /// 호스트를 포함해 정원까지 받는다. 클라이언트는 마흔아홉이다
-    @Test func 호스트를_포함해_쉰_명이다() {
-        #expect(Limits.maxRoomMembers == 50)
+    /// 모두 서로 직접 연결하므로 좌표 건수가 인원의 제곱으로 는다. Wi-Fi AP 하나가 감당하는 선으로 제한한다
+    @Test func 나를_포함해_열다섯_명이다() {
+        #expect(Limits.maxRoomMembers == 15)
         #expect(Limits.maxRoomMembers - 1 < Limits.maxLinks)
+        #expect((Limits.maxRoomMembers - 1) * Limits.maxLinesPerSecond <= Limits.maxTotalLinesPerSecond)
     }
 }
 
@@ -851,6 +688,5 @@ struct DatagramTests {
                                                from: Data(#"{"t":"udp","port":5000,"token":"x"}"#.utf8))
         guard case let .udp(msg) = message else { Issue.record("udp 가 아니다"); return }
         #expect(msg.port == 5000 && msg.token == "x")
-        #expect(message.senderID == nil)
     }
 }
