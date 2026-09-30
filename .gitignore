@@ -29,3 +29,6 @@ build/
 # 편집기
 *.swp
 *~
+
+# 커버리지
+*.profraw
