@@ -13,6 +13,10 @@ struct offikyApp: App {
                    ?? "업데이트 확인…") {
                 UpdateChecker.shared.checkAndTell()
             }
+            if Presence.shared.otherVersions > 0 {
+                Text("버전이 다른 동료 \(Presence.shared.otherVersions)명은 보이지 않습니다")
+                Text("모두 최신 버전으로 업데이트하면 보입니다")
+            }
             Divider()
             Button("채팅 열기  ⌥F") { ChatPanel.shared.show() }
             if !ChatPanel.shared.hotKeyWorks {
@@ -42,11 +46,6 @@ struct offikyApp: App {
             Divider()
             Button("내 캐릭터…") { openCharacterPicker() }
             Button("내 이름 변경…") { changeName() }
-            if Presence.shared.otherVersions > 0 {
-                Divider()
-                Text("버전이 다른 동료 \(Presence.shared.otherVersions)명은 보이지 않습니다")
-                Text("모두 같은 버전을 설치해야 합니다")
-            }
             Divider()
             Button(OverlayController.shared.isHidden ? "캐릭터 보이기" : "캐릭터 숨기기") {
                 OverlayController.shared.toggleHidden()
