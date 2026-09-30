@@ -57,13 +57,18 @@ final class OverlayController {
     /// 절전 전환 중 0개로 보고되는 목록으로 창을 지우면 되살릴 계기가 남지 않는다
     func rebuild(frames: [CGRect] = NSScreen.screens.map(\.visibleFrame)) {
         guard !frames.isEmpty else { return }
-        windows.forEach { $0.orderOut(nil) }
+        let built = FloorStrip(visibleFrames: frames, main: frames.first)
+        // 깨어날 때 연달아 호출될 때마다 SKView 를 해제하면 SpriteKit display link 큐가 해제된 뷰를 release 해 크래시한다
+        guard built.frames != strip.frames || windows.isEmpty else { return }
+        for window in windows {
+            (window.contentView as? SKView)?.isPaused = true
+            (window.contentView as? SKView)?.presentScene(nil)
+            window.orderOut(nil)
+        }
         windows.removeAll()
         scenes.removeAll()
         links.forEach { $0.invalidate() }
         links.removeAll()
-
-        let built = FloorStrip(visibleFrames: frames, main: frames.first)
 
         for frame in built.frames {
             let window = NSWindow(contentRect: frame, styleMask: .borderless,
