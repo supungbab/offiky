@@ -978,10 +978,25 @@ struct PeerSweepTests {
     /// 화면이 꺼져 tick 이 멈춘 동안에도 끊긴 사람은 퇴장 처리되고 참가자 수가 바뀐다
     @MainActor @Test func tick_없이도_끊긴_피어를_제거한다() {
         let world = World.shared
+        let now = ProcessInfo.processInfo.systemUptime
         world.addPeer(id: "sweep-test", name: "끊긴씨", look: Look(design: 0))
         #expect(Presence.shared.count == 1 + world.peers.count)
-        world.sweepPeers(now: ProcessInfo.processInfo.systemUptime + World.peerTimeout + 1)
+        world.peers["sweep-test"]?.lastSeen = now - World.peerTimeout - 1
+        // 앞선 판정과 간격이 벌어져 있으면 내가 멈춘 것으로 보고 건너뛴다
+        world.sweepPeers(now: now)
+        world.sweepPeers(now: now + 0.25)
         #expect(world.peers["sweep-test"] == nil)
         #expect(Presence.shared.count == 1 + world.peers.count)
+    }
+
+    /// 멈췄던 쪽이 돌아오자마자 호스트를 끊긴 것으로 판정하면 1분간 호스트가 둘이 된다
+    @MainActor @Test func 내가_멈췄다_돌아오면_끊김으로_판정하지_않는다() {
+        let world = World.shared
+        let now = ProcessInfo.processInfo.systemUptime
+        world.addPeer(id: "stall-test", name: "기다린씨", look: Look(design: 0))
+        world.sweepPeers(now: now)
+        world.sweepPeers(now: now + 30)
+        #expect(world.peers["stall-test"] != nil)
+        world.removePeer(id: "stall-test")
     }
 }

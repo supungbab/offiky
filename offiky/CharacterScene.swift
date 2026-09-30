@@ -530,6 +530,7 @@ final class World {
 
     private var scenes: [CharacterScene] = []
     private(set) var lastTick: TimeInterval = 0
+    private var lastSweep: TimeInterval = 0
     private var reportedHurtUntil: TimeInterval = 0
     private var placed = false
     /// 마지막으로 보이던 화면 위 자리. 전환 중에는 화면이 0개로 보고되는 순간이 있어,
@@ -641,6 +642,12 @@ final class World {
 
     /// 화면이 꺼져 tick 이 멈춰도 판정이 계속되도록 타이머가 호출한다
     func sweepPeers(now: TimeInterval) {
+        defer { lastSweep = now }
+        // 내가 멈췄다 돌아왔다. 그동안 못 받은 것을 끊김으로 판정하면 살아 있는 호스트를 1분간 제외한다
+        if lastSweep > 0, now - lastSweep > World.hostTimeout {
+            for node in peers.values { node.lastSeen = now }
+            return
+        }
         let host = Session.shared.hostPeer
         let expired = peers.compactMap { id, node in
             now - node.lastSeen > (id == host ? World.hostTimeout : World.peerTimeout) ? id : nil
