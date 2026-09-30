@@ -8,7 +8,7 @@ import SwiftUI
 
     private var panel: KeyPanel?
     private var hotKey: HotKey?
-    private var previousApp: NSRunningApplication?
+    private var focus = FocusReturn()
     /// 눌려 있는 방향키. 마지막에 누른 쪽으로 간다
     private var pressed: [Int] = []
     private var lastTap: (code: Int, at: TimeInterval) = (0, 0)
@@ -31,42 +31,20 @@ import SwiftUI
     func toggle() { isOn ? stop() : start() }
 
     func start() {
-        // 화면 구성이 바뀌는 순간에는 화면이 0개로 보고된다. 띄울 곳이 없다
-        guard let screen = NSScreen.screens
-            .first(where: { $0.frame.contains(NSEvent.mouseLocation) }) ?? NSScreen.main
-        else { return }
-        let size = panelSize
-        // 채팅 입력창과 같은 높이에 둔다
-        let origin = CGPoint(x: screen.visibleFrame.midX - size.width / 2,
-                             y: screen.visibleFrame.minY + screen.visibleFrame.height * 0.22)
-
-        let panel = self.panel ?? {
-            let created = KeyPanel(contentRect: CGRect(origin: origin, size: size),
-                                   styleMask: [.borderless, .nonactivatingPanel],
-                                   backing: .buffered, defer: false)
-            created.isOpaque = false
-            created.backgroundColor = .clear
-            created.hasShadow = true
-            created.level = .modalPanel
-            created.hidesOnDeactivate = false
-            created.isReleasedWhenClosed = false
-            created.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-            created.contentView = KeyCatcher(rootView: HintView())
-            // 다른 곳을 클릭하면 조종을 끝낸다
-            NotificationCenter.default.addObserver(
-                forName: NSWindow.didResignKeyNotification,
-                object: created, queue: .main
-            ) { [weak self] _ in self?.stop(restoringFocus: false) }
-            self.panel = created
-            return created
-        }()
-
-        if let front = NSWorkspace.shared.frontmostApplication,
-           front.bundleIdentifier != Bundle.main.bundleIdentifier {
-            previousApp = front
+        guard let screen = screenUnderMouse() else { return }
+        // 다른 곳을 클릭하면 조종을 끝낸다
+        let panel = self.panel ?? KeyPanel.floating { [weak self] in
+            self?.stop(restoringFocus: false)
         }
+        if self.panel == nil {
+            panel.contentView = KeyCatcher(rootView: HintView())
+            self.panel = panel
+        }
+
+        focus.remember()
         isOn = true
-        panel.setFrame(CGRect(origin: origin, size: size), display: true)
+        panel.setFrame(CGRect(origin: panelOrigin(on: screen, width: panelSize.width),
+                              size: panelSize), display: true)
         NSApp.activate(ignoringOtherApps: true)
         panel.makeKeyAndOrderFront(nil)
         panel.makeFirstResponder(panel.contentView)
@@ -80,12 +58,7 @@ import SwiftUI
         World.shared.me.isBowing = false
         World.shared.me.hold(0, dash: false)
         panel?.orderOut(nil)
-
-        let target = previousApp
-        previousApp = nil
-        guard restoringFocus, let target else { return }
-        NSApp.yieldActivation(to: target)
-        target.activate()
+        focus.restore(restoringFocus)
     }
 
     /// 같은 방향을 빠르게 두 번 누르면 대시한다

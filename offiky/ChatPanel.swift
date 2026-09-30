@@ -59,6 +59,57 @@ extension View {
 /// borderless 윈도우는 기본적으로 키 윈도우가 되지 않아 입력을 받지 못한다.
 final class KeyPanel: NSPanel {
     override var canBecomeKey: Bool { true }
+
+    /// 채팅창과 조작 안내가 쓰는 창. 다른 곳을 클릭하면 `onResign` 을 호출한다
+    static func floating(onResign: @escaping () -> Void) -> KeyPanel {
+        let panel = KeyPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel],
+                             backing: .buffered, defer: false)
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.hasShadow = true
+        panel.level = .modalPanel
+        panel.hidesOnDeactivate = false
+        panel.isReleasedWhenClosed = false
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        NotificationCenter.default.addObserver(
+            forName: NSWindow.didResignKeyNotification, object: panel, queue: .main
+        ) { _ in onResign() }
+        return panel
+    }
+}
+
+/// 마우스가 있는 화면. 화면 구성이 바뀌는 순간에는 0개로 보고되어 nil 이다
+func screenUnderMouse() -> NSScreen? {
+    NSScreen.screens.first { $0.frame.contains(NSEvent.mouseLocation) } ?? NSScreen.main
+}
+
+/// 채팅 입력란과 조작 안내가 같은 높이에 뜬다
+func panelOrigin(on screen: NSScreen, width: CGFloat) -> CGPoint {
+    CGPoint(x: screen.visibleFrame.midX - width / 2,
+            y: screen.visibleFrame.minY + screen.visibleFrame.height * 0.22)
+}
+
+/// 띄우기 직전의 앱을 기억했다가 닫을 때 포커스를 되돌린다
+struct FocusReturn {
+    private var app: NSRunningApplication?
+
+    /// 우리 앱이 이미 앞에 있으면 직전 값을 유지한다. 덮어쓰면 복귀 대상이 자기 자신이 된다
+    mutating func remember() {
+        if let front = NSWorkspace.shared.frontmostApplication,
+           front.bundleIdentifier != Bundle.main.bundleIdentifier {
+            app = front
+        }
+    }
+
+    /// 다른 앱을 클릭해 닫힌 경우에는 그 앱이 이미 앞에 있으므로 `restoring` 을 false 로 호출한다
+    mutating func restore(_ restoring: Bool) {
+        let target = app
+        app = nil
+        guard restoring, let target else { return }
+        // macOS 14 부터 다른 앱을 그냥 activate 하면 시스템이 무시한다
+        NSApp.yieldActivation(to: target)
+        target.activate()
+    }
 }
 
 /// 방에 있는 동안만 들고 있는 채팅 기록. 디스크에 쓰지 않는다
@@ -212,7 +263,7 @@ private struct ChatInputView: View {
     private var panel: KeyPanel?
     private var hotKey: HotKey?
     private var presenting = false
-    private var previousApp: NSRunningApplication?
+    private var focus = FocusReturn()
 
     private init() {}
 
@@ -235,47 +286,23 @@ private struct ChatInputView: View {
     }
 
     func show() {
-        // 화면 구성이 바뀌는 순간에는 화면이 0개로 보고된다. 띄울 곳이 없다
-        guard let screen = NSScreen.screens
-            .first(where: { $0.frame.contains(NSEvent.mouseLocation) }) ?? NSScreen.main
-        else { return }
+        guard let screen = screenUnderMouse() else { return }
         // 입력란은 있던 자리에 두고 기록 칸이 그 위로 쌓인다
-        let bar = screen.visibleFrame.minY + screen.visibleFrame.height * 0.22
-        let room = screen.visibleFrame.maxY - bar - panelSize.height - 24
+        let origin = panelOrigin(on: screen, width: panelSize.width)
+        let room = screen.visibleFrame.maxY - origin.y - panelSize.height - 24
         let above = min(historyHeight + 1, max(0, room))
         let size = CGSize(width: panelSize.width, height: panelSize.height + above)
-        let origin = CGPoint(x: screen.visibleFrame.midX - size.width / 2, y: bar)
 
-        let panel = self.panel ?? {
-            let created = KeyPanel(contentRect: CGRect(origin: origin, size: size),
-                                   styleMask: [.borderless, .nonactivatingPanel],
-                                   backing: .buffered, defer: false)
-            created.isOpaque = false
-            created.backgroundColor = .clear
-            created.hasShadow = true
-            created.level = .modalPanel
-            created.hidesOnDeactivate = false
-            created.isReleasedWhenClosed = false
-            created.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-            // 스포트라이트처럼 다른 곳을 클릭하면 사라진다
-            NotificationCenter.default.addObserver(
-                forName: NSWindow.didResignKeyNotification,
-                object: created, queue: .main
-            ) { [weak self] _ in
-                guard let self, !self.presenting else { return }
-                self.hide(restoringFocus: false)
-            }
-            self.panel = created
-            return created
-        }()
+        // 스포트라이트처럼 다른 곳을 클릭하면 사라진다
+        let panel = self.panel ?? KeyPanel.floating { [weak self] in
+            guard let self, !self.presenting else { return }
+            self.hide(restoringFocus: false)
+        }
+        self.panel = panel
 
         // 매번 새 뷰를 넣어 입력란을 비우고 포커스를 다시 잡는다
         presenting = true
-        // 우리 앱이 이미 앞에 있으면 직전 값을 유지한다. 덮어쓰면 복귀 대상이 자기 자신이 된다.
-        if let front = NSWorkspace.shared.frontmostApplication,
-           front.bundleIdentifier != Bundle.main.bundleIdentifier {
-            previousApp = front
-        }
+        focus.remember()
         panel.contentView = NSHostingView(rootView: ChatInputView())
         panel.setFrame(CGRect(origin: origin, size: size), display: true)
         NSApp.activate(ignoringOtherApps: true)
@@ -290,12 +317,7 @@ private struct ChatInputView: View {
     /// Esc·전송으로 닫을 때는 띄우기 직전의 앱으로 포커스를 되돌린다.
     /// 다른 앱을 클릭해 닫힌 경우에는 그 앱이 이미 앞에 있으므로 되돌리지 않는다.
     func hide(restoringFocus: Bool = true) {
-        let target = previousApp
-        previousApp = nil
         panel?.orderOut(nil)
-        guard restoringFocus, let target else { return }
-        // macOS 14 부터 다른 앱을 그냥 activate 하면 시스템이 무시한다
-        NSApp.yieldActivation(to: target)
-        target.activate()
+        focus.restore(restoringFocus)
     }
 }
