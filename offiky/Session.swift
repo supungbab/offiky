@@ -109,7 +109,7 @@ final class Session {
     private func sendPosition() {
         let msg = snapshot(of: World.shared.me)
         let now = ProcessInfo.processInfo.systemUptime
-        if shouldSend(msg, last: lastSent, since: 0) {
+        if shouldSend(msg, last: lastSent) {
             repeatsLeft = Session.settleRepeats
         } else if repeatsLeft > 0 {
             repeatsLeft -= 1

@@ -489,25 +489,20 @@ struct StillTests {
     }
 
     @Test func 바뀐_것이_없으면_보내지_않는다() {
-        #expect(!shouldSend(pos(100), last: pos(100), since: 0.1))
+        #expect(!shouldSend(pos(100), last: pos(100)))
     }
 
     @Test func 처음에는_보낸다() {
-        #expect(shouldSend(pos(100), last: nil, since: 0))
+        #expect(shouldSend(pos(100), last: nil))
     }
 
     @Test func 한_칸이라도_움직이면_보낸다() {
-        #expect(shouldSend(pos(100.5), last: pos(100), since: 0.1))
+        #expect(shouldSend(pos(100.5), last: pos(100)))
     }
 
     /// 자세만 바뀌어도 알려야 상대 화면에서 같이 웅크린다
     @Test func 자리가_같아도_자세가_바뀌면_보낸다() {
-        #expect(shouldSend(pos(100, b: true), last: pos(100), since: 0.1))
-    }
-
-    @Test func 가만히_있어도_생존_주기마다_보낸다() {
-        #expect(!shouldSend(pos(100), last: pos(100), since: keepaliveInterval - 0.01))
-        #expect(shouldSend(pos(100), last: pos(100), since: keepaliveInterval))
+        #expect(shouldSend(pos(100, b: true), last: pos(100)))
     }
 
     @Test func 생존_주기가_제한시간보다_넉넉하다() {
@@ -892,8 +887,8 @@ struct SendTimeTests {
         let a = PosMsg(x: 100, y: nil, m: 1000)
         let b = PosMsg(x: 100, y: nil, m: 2000)
         // 시각만 다른 것은 안 보낸다. 견주면 서 있어도 초당 열 번 나간다
-        #expect(!shouldSend(a, last: b, since: 0.1))
-        #expect(shouldSend(PosMsg(x: 101, y: nil, m: 2000), last: b, since: 0.1))
+        #expect(!shouldSend(a, last: b))
+        #expect(shouldSend(PosMsg(x: 101, y: nil, m: 2000), last: b))
     }
 }
 

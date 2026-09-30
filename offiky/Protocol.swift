@@ -15,12 +15,12 @@ let keepaliveInterval: TimeInterval = 3
 /// 호스트는 더 자주 보낸다. 받는 쪽이 호스트가 사라진 것을 빨리 판정해야 멈춰 있는 시간이 짧다
 let hostKeepaliveInterval: TimeInterval = 1
 
-/// 바뀐 것이 없으면 생존 신호 주기마다 한 번만 보낸다
-func shouldSend(_ msg: PosMsg, last: PosMsg?, since: TimeInterval) -> Bool {
+/// 자리나 자세가 바뀌었는지. 생존 신호 주기는 Session 이 판정한다
+func shouldSend(_ msg: PosMsg, last: PosMsg?) -> Bool {
     guard var last else { return true }
-    // 보낸 시각은 견주지 않는다. 매번 달라서 서 있어도 계속 보내게 된다
+    // 보낸 시각은 비교하지 않는다. 매번 달라서 서 있어도 계속 보내게 된다
     last.m = msg.m
-    return msg != last || since >= keepaliveInterval
+    return msg != last
 }
 
 enum Limits {
