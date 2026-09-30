@@ -21,7 +21,9 @@ final class Net {
     /// 내가 나눠 준 토큰 → 그 연결. 연결을 연 상대가 이 토큰을 대고 UDP 흐름을 연다
     private var udpTokens: [String: String] = [:]
     /// 받은 연결의 상대에게 알려 줄 UDP 포트. 메인에서만 읽고 쓴다
-    var udpPort: UInt16?
+    var udpPort: UInt16? {
+        didSet { if udpPort != nil, udpPort != oldValue { onUDPPort?() } }
+    }
     private var browser: NWBrowser?
 
     /// 연결 하나. 내가 연 쪽은 상대를 알고 시작하고, 받은 쪽은 hello 를 받아야 안다
@@ -38,8 +40,9 @@ final class Net {
         /// 좌표용 흐름. 받은 쪽은 상대가 토큰을 대고 연 흐름을, 연 쪽은 상대에게 연 흐름을 가진다
         var udp: NWConnection?
         /// 연 쪽이 데이터그램 첫 줄에 적는 토큰
-        var udpToken = Data()
-        /// 상대의 데이터그램을 받아 양방향으로 통하는 것을 확인했다. 그 전에는 TCP 로도 보낸다
+        var udpToken = ""
+        /// 양방향으로 통하는 것을 확인했다. 그 전에는 TCP 로도 보낸다.
+        /// 연 쪽은 상대 데이터그램을 받았을 때, 받은 쪽은 연 쪽이 그렇다고 알려 왔을 때다
         var udpConfirmed = false
         init(_ connection: NWConnection, peerID: String?) {
             self.connection = connection
@@ -73,6 +76,8 @@ final class Net {
     /// 연결이 열렸다. 내가 연 연결이면 상대 id 를 이미 안다
     var onReady: ((String, String?) -> Void)?
     var onGone: ((String) -> Void)?
+    /// UDP 포트를 알게 됐다. 메인에서 호출된다
+    var onUDPPort: (() -> Void)?
 
     private init() {}
 
@@ -221,7 +226,7 @@ final class Net {
             link.udp?.cancel()
             let flow = NWConnection(host: host, port: port, using: .udp)
             link.udp = flow
-            link.udpToken = Data((token + "\n").utf8)
+            link.udpToken = token
             link.udpConfirmed = false
             flow.stateUpdateHandler = { [weak link] state in
                 guard case .failed = state, let link, link.udp === flow else { return }
@@ -239,14 +244,17 @@ final class Net {
             guard let self else { return }
             var lines = data ?? Data()
             let key: String
+            // 연 쪽은 받은 쪽이 먼저 받아야 보내 오므로, 받았으면 양방향이 통한다
+            var confirmed = true
             if let known {
                 key = known
             } else {
                 guard let newline = lines.firstIndex(of: 0x0A),
-                      let token = String(data: lines[..<newline], encoding: .utf8),
-                      let bound = self.udpTokens[token]
+                      let prefix = readUDPPrefix(Data(lines[..<newline])),
+                      let bound = self.udpTokens[prefix.token]
                 else { flow.cancel(); return }
                 key = bound
+                confirmed = prefix.acked
                 lines = Data(lines[lines.index(after: newline)...])
             }
             guard let link = self.links[key] else { flow.cancel(); return }
@@ -255,8 +263,9 @@ final class Net {
                 guard known == nil else { flow.cancel(); return }
                 link.udp?.cancel()
                 link.udp = flow
+                link.udpConfirmed = false
             }
-            link.udpConfirmed = true
+            if confirmed { link.udpConfirmed = true }
             for line in lines.split(separator: 0x0A) {
                 guard self.deliver(Data(line), from: link, key: key) else { return }
             }
@@ -511,7 +520,8 @@ final class Net {
             let viaUDP = link.udp?.state == .ready
             if let udp = link.udp, viaUDP {
                 // 받은 흐름은 이미 누구인지 안다. 흐름을 연 쪽만 토큰을 적는다
-                let prefix = link.inbound ? Data() : link.udpToken
+                let prefix = link.inbound
+                    ? Data() : udpPrefix(token: link.udpToken, acked: link.udpConfirmed)
                 for datagram in datagrams(data, prefix: prefix) {
                     #if DEBUG
                     // `-netLoss 0.05 -netJitter 0.08` 로 나쁜 망을 모사한다

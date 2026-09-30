@@ -8,8 +8,10 @@ final class Session {
 
     /// 인사를 마친 연결 → 그 너머 사람
     private var peerByKey: [String: String] = [:]
-    /// 내가 연 연결. 이쪽이 먼저 인사하고, 받은 쪽은 확인한 뒤 답한다
-    private var dialed: Set<String> = []
+    /// 내가 연 연결 → 광고로 알고 연 상대. 이쪽이 먼저 인사하고, 받은 쪽은 확인한 뒤 답한다
+    private var dialed: [String: String] = [:]
+    /// UDP 포트를 알기 전에 인사를 마친 받은 연결. 포트를 알면 안내한다
+    private var awaitingUDP: Set<String> = []
     private var lastSent: PosMsg?
     private var lastSentAt: TimeInterval = 0
     /// 바뀐 뒤 같은 좌표를 더 보내는 횟수. UDP 로 멈춘 자리를 잃어도 상대가 멈춘 것을 안다
@@ -30,6 +32,10 @@ final class Session {
         Net.shared.onGone = { [weak self] key in
             DispatchQueue.main.async { self?.linkGone(key) }
         }
+        Net.shared.onUDPPort = { [weak self] in
+            guard let self else { return }
+            for key in self.awaitingUDP { self.inviteUDP(key) }
+        }
 
         // 기본 모드 타이머는 대화상자나 메뉴를 열어 두면 멈춘다.
         // 그동안 좌표가 끊겨 동료 쪽 15초 판정에 해당해 내 캐릭터가 사라진다
@@ -45,9 +51,19 @@ final class Session {
     }
 
     private func linkReady(_ key: String, peerID: String?) {
-        guard peerID != nil else { return }
-        dialed.insert(key)
+        guard let peerID else { return }
+        dialed[key] = peerID
+        // 인사하면 상대가 나를 추가한 뒤라 정원 안내를 받아 주지 않는다. 확정하지 않은 연결은 악수 기한이 지나면 정리된다
+        if isFull(for: peerID) {
+            if let data = encode(FullMsg()) { Net.shared.send(data, to: key) }
+            return
+        }
         guard sendHello(to: key) else { Net.shared.dropLink(key); return }
+    }
+
+    /// 이 사람이 새로 들어오면 정원을 넘는지
+    private func isFull(for id: String) -> Bool {
+        World.shared.peers[id] == nil && World.shared.peers.count >= Limits.maxRoomMembers - 1
     }
 
     /// 서 있으면 다음 좌표가 몇 초 뒤다. 좌표를 같이 보내지 않으면 그때까지 띠 왼쪽 끝에 서 있는 것으로 보인다
@@ -119,7 +135,8 @@ final class Session {
     }
 
     private func linkGone(_ key: String) {
-        dialed.remove(key)
+        dialed[key] = nil
+        awaitingUDP.remove(key)
         guard let id = peerByKey.removeValue(forKey: key) else { return }
         World.shared.removePeer(id: id)
     }
@@ -131,11 +148,11 @@ final class Session {
             greet(msg, key: key)
         case .full:
             // 들어가려던 방이 찼다. 이미 들어와 있는 사람의 연결로는 쫓아낼 수 없다
-            guard peerByKey[key] == nil, dialed.contains(key) else { return }
+            guard peerByKey[key] == nil else { return }
             World.leaveRoom()
             tellRoomIsFull()
         case let .udp(msg):
-            guard peerByKey[key] != nil, dialed.contains(key), msg.token.utf8.count <= 64
+            guard peerByKey[key] != nil, dialed[key] != nil, msg.token.utf8.count <= 64
             else { return }
             Net.shared.openUDP(port: msg.port, token: msg.token, via: key)
         default:
@@ -149,32 +166,34 @@ final class Session {
               let room = World.myRoom,
               msg.room == room,
               msg.id != World.shared.myID,
+              // 내가 연 연결이면 광고한 사람이 답해야 한다
+              dialed[key].map({ $0 == msg.id }) ?? true,
               !idIsTaken(msg.id, by: key, in: peerByKey)
         else {
             Net.shared.dropLink(key)
             return
         }
         let isNew = peerByKey[key] == nil
-        let full = World.shared.peers[msg.id] == nil
-            && World.shared.peers.count >= Limits.maxRoomMembers - 1
-        if isNew, full {
-            // 받은 연결이면 알리기만 한다. 확정하지 않은 연결은 악수 기한이 지나면 정리된다
-            if dialed.contains(key) { Net.shared.dropLink(key) }
+        if isNew, isFull(for: msg.id) {
+            // 받은 연결이면 알리기만 한다. 확정하지 않은 연결은 악수 기한이 지나면 정리된다.
+            // 연 연결은 이미 인사해 상대가 안내를 받아 주지 않는다. 다시 열 때 linkReady 가 알린다
+            if dialed[key] != nil { Net.shared.dropLink(key) }
             else if let data = encode(FullMsg()) { Net.shared.send(data, to: key) }
             return
         }
         peerByKey[key] = msg.id
         Net.shared.identify(key, as: msg.id)
         World.shared.addPeer(id: msg.id, name: sanitizeName(msg.name), look: msg.look.sanitized)
-        if isNew, !dialed.contains(key) {
+        if isNew, dialed[key] == nil {
             _ = sendHello(to: key)
             inviteUDP(key)
         }
     }
 
-    /// 포트를 모르면 알리지 않는다. 그 연결은 TCP 로만 주고받는다
+    /// 포트를 모르면 알게 될 때까지 미룬다. 그동안은 TCP 로만 주고받는다
     private func inviteUDP(_ key: String) {
-        guard let port = Net.shared.udpPort else { return }
+        guard let port = Net.shared.udpPort else { awaitingUDP.insert(key); return }
+        awaitingUDP.remove(key)
         let token = UUID().uuidString
         Net.shared.allowUDP(token, for: key)
         if let data = encode(UDPMsg(port: Int(port), token: token)) { Net.shared.send(data, to: key) }

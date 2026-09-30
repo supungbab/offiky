@@ -303,6 +303,19 @@ struct UDPMsg: Codable {
     let token: String
 }
 
+/// 흐름을 연 쪽이 데이터그램 첫 줄에 적는 값. 상대 데이터그램을 받았으면 `!` 를 붙여 반대 방향도 통한다고 알린다
+func udpPrefix(token: String, acked: Bool) -> Data {
+    Data((token + (acked ? "!" : "") + "\n").utf8)
+}
+
+/// `udpPrefix` 의 첫 줄(개행 제외)을 읽는다
+func readUDPPrefix(_ line: Data) -> (token: String, acked: Bool)? {
+    guard var token = String(data: line, encoding: .utf8) else { return nil }
+    let acked = token.hasSuffix("!")
+    if acked { token.removeLast() }
+    return (token, acked)
+}
+
 /// 데이터그램 하나의 상한. 넘으면 IP 조각으로 나뉘고 조각 하나만 잃어도 전체를 잃는다
 let maxDatagramBytes = 1200
 

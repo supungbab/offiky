@@ -674,6 +674,14 @@ struct DatagramTests {
         #expect(body.split(separator: 0x0A).count == 30)
     }
 
+    @Test func 토큰_줄에_수신_확인_여부를_적는다() throws {
+        for acked in [false, true] {
+            let line = udpPrefix(token: "tok", acked: acked).dropLast()
+            let read = try #require(readUDPPrefix(Data(line)))
+            #expect(read.token == "tok" && read.acked == acked)
+        }
+    }
+
     @Test func 빈_입력이면_보내지_않는다() {
         #expect(datagrams(Data(), prefix: Data("t\n".utf8)).isEmpty)
     }
