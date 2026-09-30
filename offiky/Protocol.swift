@@ -384,8 +384,6 @@ struct LinkTrafficPolicy {
     private(set) var isIdentified = false
     private(set) var pendingLines = 0
 
-    var canReceiveBroadcast: Bool { isIdentified }
-
     mutating func identify() { isIdentified = true }
 
     func handshakeExpired(at now: TimeInterval, timeout: TimeInterval) -> Bool {

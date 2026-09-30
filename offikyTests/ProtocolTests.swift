@@ -435,12 +435,12 @@ struct LinkTrafficPolicyTests {
 
     @MainActor @Test func 악수_전에는_방송을_받지_않고_기한이_지나면_만료된다() {
         var policy = LinkTrafficPolicy(startedAt: 10)
-        #expect(!policy.canReceiveBroadcast)
+        #expect(!policy.isIdentified)
         #expect(!policy.handshakeExpired(at: 14.99, timeout: 5))
         #expect(policy.handshakeExpired(at: 15, timeout: 5))
 
         policy.identify()
-        #expect(policy.canReceiveBroadcast)
+        #expect(policy.isIdentified)
         #expect(!policy.handshakeExpired(at: 100, timeout: 5))
     }
 
@@ -491,7 +491,7 @@ struct LinkTrafficPolicyTests {
         policy.identify()
         #expect(policy.decision(linkLines: 10,
                                 totalLines: Limits.maxTotalLinesPerSecond + 1) == .discard)
-        #expect(policy.canReceiveBroadcast)
+        #expect(policy.isIdentified)
     }
 }
 

@@ -125,7 +125,6 @@ final class Net {
         listener?.cancel(); listener = nil
         udpListener?.stateUpdateHandler = nil
         udpListener?.cancel(); udpListener = nil
-        udpTokens.removeAll()
         browser?.stateUpdateHandler = nil
         browser?.cancel(); browser = nil
         visible.removeAll()
@@ -136,8 +135,6 @@ final class Net {
         host = nil
         dropAllLinks()
         flushWork?.cancel(); flushWork = nil
-        pending.removeAll()
-        pendingFast.removeAll()
         trafficWindowStart = 0
         totalLines = 0
         DispatchQueue.main.async {
@@ -205,7 +202,7 @@ final class Net {
                 // 지금 중계를 맡고 있다는 표시. 새로 들어온 사람이 이걸 보고 현직에 붙는다
                 "h": amHost ? "1" : "0",
                 "j": String(joinedAt),
-                "n": String(amHost ? links.values.filter(\.traffic.canReceiveBroadcast).count : 0),
+                "n": String(amHost ? links.values.filter(\.traffic.isIdentified).count : 0),
             ]).data)
     }
 
@@ -446,10 +443,7 @@ final class Net {
         pending[key] = nil
         pendingFast[key] = nil
         udpTokens = udpTokens.filter { $0.value != key }
-        link.udp?.cancel()
-        link.handshakeWork?.cancel()
-        link.connection.stateUpdateHandler = nil
-        link.connection.cancel()
+        close(link)
         if amHost, link.traffic.isIdentified { advertise() }
         // 내가 시작한 연결만 다시 연결한다. 받은 연결은 저쪽에서 다시 온다
         if let peer = link.peerID {
@@ -465,15 +459,17 @@ final class Net {
         DispatchQueue.main.async { self.onGone?(key) }
     }
 
+    private func close(_ link: Link) {
+        link.udp?.cancel()
+        link.handshakeWork?.cancel()
+        link.connection.stateUpdateHandler = nil
+        link.connection.cancel()
+    }
+
     /// 호스트가 바뀌면 이전 구성의 연결은 전부 쓸모없다
     private func dropAllLinks() {
         dialWork?.cancel()
-        for link in links.values {
-            link.udp?.cancel()
-            link.handshakeWork?.cancel()
-            link.connection.stateUpdateHandler = nil
-            link.connection.cancel()
-        }
+        links.values.forEach(close)
         links.removeAll()
         pending.removeAll()
         pendingFast.removeAll()
@@ -582,7 +578,7 @@ final class Net {
             // hello 를 끝내지 않은 연결은 방과 버전을 증명하지 않았다. 이쪽 좌표와
             // 채팅을 받아 가게 두지 않고, 느린 연결에 송신 버퍼가 쌓이는 것도 막는다.
             for (key, link) in self.links
-            where key != excluded && link.traffic.canReceiveBroadcast {
+            where key != excluded && link.traffic.isIdentified {
                 self.enqueue(line, to: key, fast: fast)
             }
         }

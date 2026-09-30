@@ -50,10 +50,9 @@ final class Session {
         posTimer = timer
     }
 
+    /// 크기 상한은 Net 이 보낼 때 검사한다
     private func encode<T: Encodable>(_ value: T) -> Data? {
-        guard let data = try? encoder.encode(value), data.count <= Limits.maxMessageBytes
-        else { return nil }
-        return data
+        try? encoder.encode(value)
     }
 
     /// 호스트가 바뀌었다. 이전 구성에서 알던 사람은 전부 다시 받아야 한다
