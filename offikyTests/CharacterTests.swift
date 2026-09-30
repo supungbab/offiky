@@ -908,6 +908,15 @@ struct OverlayWindowTests {
         #expect(overlay.windows.count == 1)
         #expect(overlay.scenes.count == 1)
     }
+
+    @MainActor @Test func 화면_구성이_같으면_창을_다시_만들지_않는다() {
+        let overlay = OverlayController.shared
+        let frames = [CGRect(x: 0, y: 0, width: 1600, height: 900)]
+        overlay.rebuild(frames: frames)
+        let first = overlay.windows.first
+        overlay.rebuild(frames: frames)
+        #expect(overlay.windows.first === first)
+    }
 }
 
 /// 다른 테스트가 같은 기록을 쓰므로 이름으로 가려 확인한다
@@ -961,5 +970,18 @@ struct SceneRebuildTests {
         world.attach(scenes: [after], strip: strip)
         world.tick(now: now + 2)
         #expect(world.me.parent === after)
+    }
+}
+
+struct PeerSweepTests {
+
+    /// 화면이 꺼져 tick 이 멈춘 동안에도 끊긴 사람은 퇴장 처리되고 참가자 수가 바뀐다
+    @MainActor @Test func tick_없이도_끊긴_피어를_제거한다() {
+        let world = World.shared
+        world.addPeer(id: "sweep-test", name: "끊긴씨", look: Look(design: 0))
+        #expect(Presence.shared.count == 1 + world.peers.count)
+        world.sweepPeers(now: ProcessInfo.processInfo.systemUptime + World.peerTimeout + 1)
+        #expect(world.peers["sweep-test"] == nil)
+        #expect(Presence.shared.count == 1 + world.peers.count)
     }
 }

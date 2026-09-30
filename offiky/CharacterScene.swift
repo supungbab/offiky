@@ -523,12 +523,13 @@ final class World {
     }()
 
     private(set) var me: CharacterNode
-    private(set) var peers: [String: CharacterNode] = [:]
+    private(set) var peers: [String: CharacterNode] = [:] {
+        didSet { if Presence.shared.count != 1 + peers.count { Presence.shared.count = 1 + peers.count } }
+    }
     private(set) var strip = FloorStrip(visibleFrames: [], main: nil)
 
     private var scenes: [CharacterScene] = []
     private(set) var lastTick: TimeInterval = 0
-    private var lastPeerSweep: TimeInterval = 0
     private var reportedHurtUntil: TimeInterval = 0
     private var placed = false
     /// 마지막으로 보이던 화면 위 자리. 전환 중에는 화면이 0개로 보고되는 순간이 있어,
@@ -638,6 +639,15 @@ final class World {
         me.y = spot.y
     }
 
+    /// 화면이 꺼져 tick 이 멈춰도 판정이 계속되도록 타이머가 호출한다
+    func sweepPeers(now: TimeInterval) {
+        let host = Session.shared.hostPeer
+        let expired = peers.compactMap { id, node in
+            now - node.lastSeen > (id == host ? World.hostTimeout : World.peerTimeout) ? id : nil
+        }
+        for id in expired { Session.shared.peerGone(id) }
+    }
+
     func tick(now: TimeInterval) {
         guard !scenes.isEmpty else { return }
         // 화면마다 표시 링크가 따로 부르므로 한 프레임에 여러 번 들어온다
@@ -645,20 +655,6 @@ final class World {
         guard lastTick == 0 || elapsed >= 1.0 / 70 else { return }
         let dt = lastTick == 0 ? 1.0 / 60 : min(0.25, elapsed)
         lastTick = now
-
-        // 끊긴 피어를 찾는 일은 프레임마다 할 필요가 없다. 먼저 id를 모은 뒤 지워
-        // Dictionary를 순회하는 도중 변경하지도 않는다.
-        if now - lastPeerSweep >= 0.25 {
-            lastPeerSweep = now
-            let host = Session.shared.hostPeer
-            let expired = peers.compactMap { id, node in
-                now - node.lastSeen > (id == host ? World.hostTimeout : World.peerTimeout) ? id : nil
-            }
-            for id in expired { Session.shared.peerGone(id) }
-        }
-
-        let count = 1 + peers.count
-        if Presence.shared.count != count { Presence.shared.count = count }
 
         var visible: [(node: CharacterNode, placement: Placement)] = []
         func update(_ node: CharacterNode) {

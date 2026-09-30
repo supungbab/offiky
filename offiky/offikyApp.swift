@@ -183,6 +183,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Timer.scheduledTimer(withTimeInterval: 3600, repeats: true) { _ in
             Task { await UpdateChecker.shared.check() }
         }
+        let sweep = Timer(timeInterval: 0.25, repeats: true) { _ in
+            World.shared.sweepPeers(now: ProcessInfo.processInfo.systemUptime)
+        }
+        RunLoop.main.add(sweep, forMode: .common)
 
         #if DEBUG
         if UserDefaults.standard.bool(forKey: "bot") { Bot.shared.start() }
