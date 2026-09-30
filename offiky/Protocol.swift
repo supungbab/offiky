@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
 
-let protocolVersion = 10
+let protocolVersion = 11
 let spriteDisplaySize: CGFloat = 40
 /// 바닥을 화면 맨 아래에서 띄우는 높이. Dock 이나 화면 끝에 붙어 보이지 않게 한다
 let floorOffset: CGFloat = 8
@@ -157,6 +157,12 @@ func idIsTaken(_ id: String, by key: String, in table: [String: String]) -> Bool
     table.contains { $0.key != key && $0.value == id }
 }
 
+/// 정원을 넘으면 나갈 사람. 모두 같은 입장 시각을 보므로 누가 판정해도 같은 사람이 나간다
+func overflowing(_ members: [(id: String, since: Int)], limit: Int) -> String? {
+    guard members.count > limit else { return nil }
+    return members.max { ($0.since, $0.id) < ($1.since, $1.id) }?.id
+}
+
 /// 방을 구분하는 값. 만들 때 새로 뽑는다 — 이름이 같아도 다른 방이고,
 /// 이름을 바꿔도 같은 방이다
 func newRoomID() -> String {
@@ -258,6 +264,8 @@ struct HelloMsg: Codable {
     let name: String
     let look: Look
     let room: String
+    /// 방에 들어온 시각(ms). 정원을 넘으면 늦게 들어온 사람이 나간다
+    let since: Int
 }
 
 /// 보낸 사람은 연결이 정한다. 메시지에 id 를 적지 않으므로 남을 사칭할 수 없다
@@ -291,7 +299,7 @@ struct HitMsg: Codable {
     var t = "hit"
 }
 
-/// 정원이 찼다. 들어오려던 쪽은 방에서 나간다
+/// 정원이 찼다. 받은 쪽은 방에서 나간다
 struct FullMsg: Codable {
     var t = "full"
 }

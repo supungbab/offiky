@@ -566,6 +566,7 @@ final class World {
         store.set(id, forKey: "roomID")
         store.set(name, forKey: "roomName")
         Presence.shared.room = name
+        Session.shared.joinedAt = Session.now()
         Net.shared.roomChanged()
     }
 

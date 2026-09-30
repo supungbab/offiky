@@ -387,7 +387,7 @@ struct MessageTests {
 
     @Test func hello_는_프로토콜_번호를_싣는다() throws {
         let data = try JSONEncoder().encode(
-            HelloMsg(id: "abc", name: "나", look: .neutral, room: "room-a"))
+            HelloMsg(id: "abc", name: "나", look: .neutral, room: "room-a", since: 1))
         let back = try JSONDecoder().decode(HelloMsg.self, from: data)
         #expect(back.pv == protocolVersion)
         #expect(back.id == "abc")
@@ -513,6 +513,15 @@ struct ImpersonationTests {
 
     @Test func 빈_표에서는_누구든_받는다() {
         #expect(!idIsTaken("철수", by: "연결A", in: [:]))
+    }
+
+    @Test func 정원을_넘으면_가장_늦게_들어온_사람이_나간다() {
+        let room = [("가", 1), ("나", 2), ("다", 3)].map { (id: $0.0, since: $0.1) }
+        #expect(overflowing(room, limit: 3) == nil)
+        #expect(overflowing(room + [(id: "라", since: 4)], limit: 3) == "라")
+        #expect(overflowing(room + [(id: "라", since: 0)], limit: 3) == "다")
+        // 같은 시각이면 id 로 판정해 모두 같은 사람을 고른다
+        #expect(overflowing(room + [(id: "마", since: 3)], limit: 3) == "마")
     }
 }
 
