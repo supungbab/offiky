@@ -1,0 +1,164 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Offiky 도트 편집</title>
+<style>
+  body { margin: 16px; font: 13px -apple-system, sans-serif; background: #f4f4f5; color: #222; }
+  .bar, .pal { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+  main { display: flex; gap: 16px; align-items: flex-start; }
+  canvas { image-rendering: pixelated; background: #5a606e; display: block; }
+  #sheet { cursor: pointer; margin-bottom: 10px; }
+  #cell { cursor: crosshair; }
+  .sw { width: 26px; height: 26px; border: 2px solid #fff; outline: 1px solid #999; font: 10px monospace;
+        display: flex; align-items: end; justify-content: end; cursor: pointer; text-shadow: 0 0 2px #fff; }
+  .sw.on { outline: 3px solid #e11; }
+  textarea { width: 30ch; height: 640px; font: 14px/1.15 ui-monospace, Menlo, monospace; white-space: pre; }
+  #info { color: #666; min-width: 16ch; }
+</style>
+<div class="bar">
+  <input type="file" id="file" accept="image/png">
+  <button id="save">PNG 저장</button>
+  <button id="copy">전체 지도 복사</button>
+  <span id="info"></span>
+</div>
+<div class="pal" id="pal"></div>
+<main>
+  <div>
+    <canvas id="sheet"></canvas>
+    <canvas id="cell" width="480" height="480"></canvas>
+  </div>
+  <textarea id="txt" readonly></textarea>
+</main>
+<p style="color:#666">클릭·드래그 칠하기 · 우클릭 색 집기 · ⌘Z 되돌리기 · 위 시트에서 장 선택</p>
+<script>
+const CELL = 24, Z = 20, SZ = 3;
+const ROWS = [["대기", 4], ["걷기", 6], ["피격", 4], ["점프", 3], ["인사", 1], ["달리기", 6]];
+const src = document.createElement("canvas"), ctx = src.getContext("2d", { willReadFrequently: true });
+const sheet = document.getElementById("sheet"), cell = document.getElementById("cell");
+let name = "untitled", frame = [0, 0], color = null, extra = [], undo = [];
+
+function resize(w, h) { src.width = w; src.height = h; sheet.width = w * SZ; sheet.height = h * SZ; }
+resize(144, 144);
+
+const hex = (r, g, b) => "#" + [r, g, b].map(v => v.toString(16).padStart(2, "0")).join("");
+function px(x, y) { const d = ctx.getImageData(x, y, 1, 1).data; return d[3] ? hex(d[0], d[1], d[2]) : null; }
+
+// make_characters.py 와 같은 번호: 많이 쓴 차례, 같으면 먼저 나온 차례
+function palette() {
+  const d = ctx.getImageData(0, 0, src.width, src.height).data, count = new Map();
+  for (let i = 0; i < d.length; i += 4) if (d[i + 3]) {
+    const k = hex(d[i], d[i + 1], d[i + 2]); count.set(k, (count.get(k) || 0) + 1);
+  }
+  return [...count].sort((a, b) => b[1] - a[1]);
+}
+
+function frameText(order, r, c, label, n) {
+  const out = ["", `── ${label} ${c + 1}/${n}`];
+  for (let y = r * CELL; y < (r + 1) * CELL; y++) {
+    let line = "";
+    for (let x = c * CELL; x < (c + 1) * CELL; x++) { const k = px(x, y); line += k ? order.get(k) : "."; }
+    out.push(line);
+  }
+  return out;
+}
+
+function mapText(all) {
+  const pal = palette(), order = new Map(pal.map(([k], i) => [k, i + 1]));
+  const bar = "=".repeat(60), out = [bar, "  " + name, bar, "", "팔레트"];
+  pal.forEach(([k, n], i) => out.push(`  ${i + 1}  ${k}   (${n}칸)`));
+  ROWS.forEach(([label, n], r) => { for (let c = 0; c < n; c++)
+    if (all || (r === frame[0] && c === frame[1])) out.push(...frameText(order, r, c, label, n)); });
+  return { text: out.join("\n"), pal, order };
+}
+
+function draw() {
+  const s = sheet.getContext("2d");
+  s.imageSmoothingEnabled = false;
+  s.clearRect(0, 0, sheet.width, sheet.height);
+  s.drawImage(src, 0, 0, sheet.width, sheet.height);
+  s.strokeStyle = "rgba(255,255,255,.25)";
+  for (let x = 0; x <= src.width; x += CELL) { s.beginPath(); s.moveTo(x * SZ + .5, 0); s.lineTo(x * SZ + .5, sheet.height); s.stroke(); }
+  for (let y = 0; y <= src.height; y += CELL) { s.beginPath(); s.moveTo(0, y * SZ + .5); s.lineTo(sheet.width, y * SZ + .5); s.stroke(); }
+  s.strokeStyle = "#e11"; s.lineWidth = 2;
+  s.strokeRect(frame[1] * CELL * SZ + 1, frame[0] * CELL * SZ + 1, CELL * SZ - 2, CELL * SZ - 2);
+  s.lineWidth = 1;
+
+  const c = cell.getContext("2d");
+  c.imageSmoothingEnabled = false;
+  c.clearRect(0, 0, cell.width, cell.height);
+  c.drawImage(src, frame[1] * CELL, frame[0] * CELL, CELL, CELL, 0, 0, CELL * Z, CELL * Z);
+  c.strokeStyle = "rgba(255,255,255,.15)";
+  for (let i = 0; i <= CELL; i++) {
+    c.beginPath(); c.moveTo(i * Z + .5, 0); c.lineTo(i * Z + .5, CELL * Z); c.stroke();
+    c.beginPath(); c.moveTo(0, i * Z + .5); c.lineTo(CELL * Z, i * Z + .5); c.stroke();
+  }
+
+  const { text, pal, order } = mapText(false);
+  document.getElementById("txt").value = text;
+  const box = document.getElementById("pal"); box.innerHTML = "";
+  const keys = [null, ...pal.map(([k]) => k), ...extra.filter(k => !order.has(k))];
+  for (const k of keys) {
+    const el = document.createElement("div");
+    el.className = "sw" + (k === color ? " on" : "");
+    el.style.background = k || "repeating-conic-gradient(#ccc 0 25%, #fff 0 50%) 0 0/10px 10px";
+    el.textContent = k ? (order.get(k) || "·") : ".";
+    el.title = k || "지우개";
+    el.onclick = () => { color = k; draw(); };
+    box.appendChild(el);
+  }
+  const pick = document.createElement("input");
+  pick.type = "color"; pick.title = "새 색";
+  pick.onchange = () => { color = pick.value; extra.push(color); draw(); };
+  box.appendChild(pick);
+}
+
+function at(e) {
+  const r = cell.getBoundingClientRect();
+  const x = Math.floor((e.clientX - r.left) / Z), y = Math.floor((e.clientY - r.top) / Z);
+  return x < 0 || y < 0 || x >= CELL || y >= CELL ? null : [frame[1] * CELL + x, frame[0] * CELL + y, x, y];
+}
+
+function paint(e) {
+  const p = at(e); if (!p) return;
+  if (color) { ctx.fillStyle = color; ctx.fillRect(p[0], p[1], 1, 1); } else ctx.clearRect(p[0], p[1], 1, 1);
+  draw();
+}
+
+let down = false;
+cell.oncontextmenu = e => e.preventDefault();
+cell.onmousedown = e => {
+  if (e.button === 2) { const p = at(e); if (p) { color = px(p[0], p[1]); draw(); } return; }
+  undo.push(ctx.getImageData(0, 0, src.width, src.height)); if (undo.length > 100) undo.shift();
+  down = true; paint(e);
+};
+cell.onmousemove = e => {
+  const p = at(e);
+  document.getElementById("info").textContent = p ? `x ${p[2]}, y ${p[3]}  ${px(p[0], p[1]) || "."}` : "";
+  if (down) paint(e);
+};
+addEventListener("mouseup", () => down = false);
+addEventListener("keydown", e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === "z" && undo.length) { ctx.putImageData(undo.pop(), 0, 0); draw(); e.preventDefault(); }
+});
+
+sheet.onclick = e => {
+  const r = sheet.getBoundingClientRect();
+  frame = [Math.floor((e.clientY - r.top) / (CELL * SZ)), Math.floor((e.clientX - r.left) / (CELL * SZ))];
+  draw();
+};
+
+document.getElementById("file").onchange = e => {
+  const f = e.target.files[0]; if (!f) return;
+  name = f.name.replace(/\.png$/, "");
+  const img = new Image();
+  img.onload = () => { resize(img.width, img.height); ctx.drawImage(img, 0, 0); undo = []; frame = [0, 0]; draw(); };
+  img.src = URL.createObjectURL(f);
+};
+
+document.getElementById("save").onclick = () => src.toBlob(b => {
+  const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = name + ".png"; a.click();
+});
+
+document.getElementById("copy").onclick = () => navigator.clipboard.writeText(mapText(true).text);
+
+draw();
+</script>
