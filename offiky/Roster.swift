@@ -50,18 +50,6 @@ struct RosterView: View {
         }
     }
 
-    private func thumbnail(_ look: Look, size: CGFloat) -> some View {
-        Group {
-            if let image = Characters.thumbnail(look) {
-                Image(nsImage: image)
-                    .interpolation(.none)
-                    .resizable()
-                    .scaledToFit()
-            }
-        }
-        .frame(width: size, height: size)
-    }
-
     private func refresh() {
         rows = World.shared.roster().map {
             Row(id: $0.id, name: $0.name, look: $0.look, isMe: $0.isMe, isHost: $0.isHost)

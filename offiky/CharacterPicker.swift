@@ -104,17 +104,18 @@ struct CharacterPickerView: View {
         .buttonStyle(.plain)
     }
 
-    private func thumbnail(_ look: Look, size: CGFloat) -> some View {
-        Group {
-            if let image = Characters.thumbnail(look) {
-                Image(nsImage: image)
-                    .interpolation(.none)
-                    .resizable()
-                    .scaledToFit()
-            }
+}
+
+func thumbnail(_ look: Look, size: CGFloat) -> some View {
+    Group {
+        if let image = Characters.thumbnail(look) {
+            Image(nsImage: image)
+                .interpolation(.none)
+                .resizable()
+                .scaledToFit()
         }
-        .frame(width: size, height: size)
     }
+    .frame(width: size, height: size)
 }
 
 private let pickerPanel = Panel()
