@@ -42,10 +42,8 @@ final class HotKey {
 /// 채팅과 조작 안내는 같은 자리에 번갈아 뜬다. 크기가 다르면 바뀔 때 눈에 띈다
 let panelSize = CGSize(width: 620, height: 48)
 
-/// 시스템 HUD 와 같은 모서리. 두 창이 같은 값을 쓴다
-let panelRadius: CGFloat = 16
-
-private let panelShape = RoundedRectangle(cornerRadius: panelRadius, style: .continuous)
+/// 시스템 HUD 와 같은 모서리
+private let panelShape = RoundedRectangle(cornerRadius: 16, style: .continuous)
 
 /// 재질·테두리·모서리를 한 군데서 정한다. 두 창이 같은 것을 쓴다
 extension View {
@@ -183,15 +181,14 @@ private struct ChatHistoryView: View {
                 ForEach(ChatLog.shared.entries.reversed()) { entry in
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         if entry.isSystem {
-                            Text(entry.text).font(.system(size: 12)).foregroundStyle(.tertiary)
+                            Text(entry.text).foregroundStyle(.tertiary)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         } else {
                             HStack(alignment: .firstTextBaseline, spacing: 4) {
                                 (Text(entry.name).fontWeight(.semibold)
                                  + Text(entry.isMe ? " (나) :" : " :").foregroundStyle(.tertiary))
-                                    .font(.system(size: 12))
                                     .fixedSize()
-                                Text(entry.text).font(.system(size: 12)).textSelection(.enabled)
+                                Text(entry.text).textSelection(.enabled)
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                         }
@@ -201,6 +198,7 @@ private struct ChatHistoryView: View {
                     }
                 }
             }
+            .font(.system(size: 12))
             .padding(.horizontal, 16)
             .padding(.vertical, 11)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -245,10 +243,7 @@ private struct ChatInputView: View {
                     Session.shared.sendSay(draft)
                     draft = ""
                 }
-                .onExitCommand {
-                    draft = ""
-                    ChatPanel.shared.hide()
-                }
+                .onExitCommand { ChatPanel.shared.hide() }
             Text("\(draft.count)/\(Limits.maxChat)")
                 .font(.system(size: 12).monospacedDigit())
                 .foregroundStyle(.secondary)
@@ -263,7 +258,6 @@ private struct ChatInputView: View {
 
     private var panel: KeyPanel?
     private var hotKey: HotKey?
-    private var keyMonitor: Any?
     private var presenting = false
     private var focus = FocusReturn()
 
@@ -281,7 +275,7 @@ private struct ChatInputView: View {
             self?.toggle()
         }
         hotKeyWorks = hotKey?.registered ?? false
-        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+        _ = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             self?.redirect(event) ?? event
         }
     }
