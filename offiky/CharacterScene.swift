@@ -62,6 +62,7 @@ final class CharacterNode: SKNode {
     var hurtUntil: TimeInterval = 0
     private var bubbleUntil: TimeInterval = 0
     private var bubbleIsTyping = false
+    private var pendingTypingUntil: TimeInterval = 0
     private var wasAirborne = false
     private var peakY: CGFloat = 0
     private var shadowStep = -1
@@ -482,12 +483,13 @@ extension CharacterNode {
         bubbleNode = bubble
         bubbleUntil = now + (typing ? 3 : 5)
         bubbleIsTyping = typing
+        pendingTypingUntil = 0
     }
 
     /// 방금 한 말은 입력 중 표시로 덮어쓰지 않는다. 읽기 전에 가려진다
     func showTyping(now: TimeInterval) {
         if bubbleIsTyping { bubbleUntil = now + 3; return }
-        guard bubbleNode == nil else { return }
+        guard bubbleNode == nil else { pendingTypingUntil = now + 3; return }
         showBubble(text: "•••", now: now, typing: true)
     }
 
@@ -517,6 +519,7 @@ extension CharacterNode {
         bubbleNode = nil
         bubbleUntil = 0
         bubbleIsTyping = false
+        if now < pendingTypingUntil { showTyping(now: now) }
     }
 
     func clampBubble(sceneWidth: CGFloat) {
