@@ -18,10 +18,6 @@ final class UpdateChecker {
 
     private init() {}
 
-    var current: String {
-        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
-    }
-
     /// 조회에 실패하면 조용히 넘기지 않는다. 사내망에서 GitHub 이 막혀 있어도
     /// 사용자는 최신인 줄 알게 되기 때문이다.
     enum Result: Equatable { case upToDate, found(String), failed(Failure) }
@@ -50,12 +46,12 @@ final class UpdateChecker {
             switch result {
             case .upToDate:
                 alert.messageText = "최신 버전입니다"
-                alert.informativeText = "Offiky \(current) 를 사용 중입니다."
+                alert.informativeText = "Offiky \(bundleVersion) 를 사용 중입니다."
                 alert.addButton(withTitle: "확인")
             case .found(let version):
                 alert.messageText = "새 버전 \(version) 이 있습니다"
                 // 문장마다 줄을 나눈다. 한 줄로 두면 대화상자 폭에 맞춰 아무 데서나 끊긴다
-                alert.informativeText = "현재 버전은 \(current) 입니다.\n터미널이 열리고 설치가 진행됩니다."
+                alert.informativeText = "현재 버전은 \(bundleVersion) 입니다.\n터미널이 열리고 설치가 진행됩니다."
                 alert.addButton(withTitle: "업데이트")
                 alert.addButton(withTitle: "릴리스 페이지")
                 alert.addButton(withTitle: "나중에")
@@ -101,7 +97,7 @@ final class UpdateChecker {
         let latest = tag.hasPrefix("v") ? String(tag.dropFirst()) : tag
         // 받아 온 값을 주소에 넣지 않고 내가 아는 저장소로 조립한다
         releaseURL = URL(string: "https://github.com/\(repo)/releases/tag/\(tag)")
-        newVersion = UpdateChecker.isNewer(latest, than: current) ? latest : nil
+        newVersion = UpdateChecker.isNewer(latest, than: bundleVersion) ? latest : nil
         return newVersion.map { Result.found($0) } ?? .upToDate
     }
 

@@ -148,8 +148,8 @@ private final class Bot {
         let now = ProcessInfo.processInfo.systemUptime
         let strip = World.shared.strip
         // 끝에 닿으면 돌아선다
-        if me.x < strip.minX + 80 { me.hold(1, dash: false); until = now + .random(in: 1...3) }
-        if me.x > strip.maxX - 80 { me.hold(-1, dash: false); until = now + .random(in: 1...3) }
+        if me.x < 80 { me.hold(1, dash: false); until = now + .random(in: 1...3) }
+        if me.x > strip.length - 80 { me.hold(-1, dash: false); until = now + .random(in: 1...3) }
         guard now >= until else { return }
         me.isBowing = false
         let direction: CGFloat = Bool.random() ? 1 : -1

@@ -100,16 +100,14 @@ struct FloorStrip {
     }
 
     var length: CGFloat { frames.reduce(0) { $0 + $1.width } }
-    var minX: CGFloat { 0 }
-    var maxX: CGFloat { length }
 
     /// `x` 는 스프라이트 중심, `y` 는 바닥으로부터의 높이. 둘 다 포인트.
     func place(x: CGFloat, y: CGFloat) -> Placement? {
         guard !frames.isEmpty else { return nil }
         let half = spriteDisplaySize / 2
-        guard x + half >= minX, x - half <= maxX else { return nil }
+        guard x + half >= 0, x - half <= length else { return nil }
 
-        var accumulated = minX
+        var accumulated: CGFloat = 0
         for (index, frame) in frames.enumerated() {
             if x < accumulated + frame.width || index == frames.count - 1 {
                 let maxLift = max(0, frame.height - spriteDisplaySize - floorOffset)
@@ -126,7 +124,7 @@ struct FloorStrip {
     /// `place` 의 역변환. 전역 커서 좌표를 띠 좌표로 바꾼다.
     /// 두 함수가 같은 기준에서 누적해야 한다 — 어긋나면 잡아 끈 위치가 통째로 밀린다.
     func locate(global point: CGPoint) -> (x: CGFloat, y: CGFloat)? {
-        var accumulated = minX
+        var accumulated: CGFloat = 0
         for frame in frames {
             if frame.contains(point) {
                 return (accumulated + point.x - frame.minX,
@@ -140,8 +138,8 @@ struct FloorStrip {
     /// 캐릭터가 띠를 벗어나지 않게 한다
     func clamp(_ x: CGFloat) -> CGFloat {
         let half = spriteDisplaySize / 2
-        guard length > spriteDisplaySize else { return min(max(x, minX), maxX) }
-        return min(max(x, minX + half), maxX - half)
+        guard length > spriteDisplaySize else { return min(max(x, 0), length) }
+        return min(max(x, half), length - half)
     }
 
     /// 사라진 화면에 있던 캐릭터를 주 화면의 같은 가로 위치로 데려온다.
@@ -309,11 +307,11 @@ struct UDPMsg: Codable {
 let maxDatagramBytes = 1200
 
 /// 개행으로 나뉜 줄을 줄 경계에서 잘라 데이터그램마다 `prefix` 를 앞에 적는다
-func datagrams(_ lines: Data, prefix: Data = Data(), limit: Int = maxDatagramBytes) -> [Data] {
+func datagrams(_ lines: Data, prefix: Data = Data()) -> [Data] {
     var out: [Data] = []
     var current = prefix
     for line in lines.split(separator: 0x0A, omittingEmptySubsequences: true) {
-        if current.count > prefix.count, current.count + line.count + 1 > limit {
+        if current.count > prefix.count, current.count + line.count + 1 > maxDatagramBytes {
             out.append(current)
             current = prefix
         }
@@ -331,8 +329,6 @@ enum IncomingLineDecision: Equatable {
 /// 소켓과 분리한 링크 정책. 악수와 트래픽 제한을 실제 연결 없이도 검증한다.
 struct LinkTrafficPolicy {
     let startedAt: TimeInterval
-    var maxLines = Limits.maxLinesPerSecond
-    var maxPending = Limits.maxPendingLines
     private(set) var isIdentified = false
     private(set) var pendingLines = 0
 
@@ -343,10 +339,10 @@ struct LinkTrafficPolicy {
     }
 
     mutating func decision(linkLines: Int, totalLines: Int) -> IncomingLineDecision {
-        if linkLines > maxLines { return .disconnect }
+        if linkLines > Limits.maxLinesPerSecond { return .disconnect }
         if !isIdentified {
             pendingLines += 1
-            if pendingLines > maxPending { return .disconnect }
+            if pendingLines > Limits.maxPendingLines { return .disconnect }
         }
         // 전역 상한은 시스템 보호용이다. 임계점을 우연히 넘긴 정상 연결을 범인처럼
         // 끊지 않고, 이 윈도우의 초과 메시지만 버린다.

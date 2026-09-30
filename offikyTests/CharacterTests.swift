@@ -269,7 +269,7 @@ struct ControlTests {
         let node = node()
         node.hold(-1, dash: true)
         for i in 0..<1200 { node.update(dt: 1.0 / 60, now: Double(i) / 60, strip: strip) }
-        #expect(node.x == strip.clamp(strip.minX))
+        #expect(node.x == strip.clamp(0))
     }
 }
 
@@ -976,7 +976,7 @@ struct PeerSweepTests {
         #expect(Presence.shared.count == 1 + world.peers.count)
     }
 
-    /// 멈췄던 쪽이 돌아오자마자 호스트를 끊긴 것으로 판정하면 1분간 호스트가 둘이 된다
+    /// 멈췄던 쪽이 돌아오자마자 그동안 못 받은 좌표를 끊김으로 판정하면 살아 있는 사람을 모두 끊는다
     @MainActor @Test func 내가_멈췄다_돌아오면_끊김으로_판정하지_않는다() {
         let world = World.shared
         let now = ProcessInfo.processInfo.systemUptime

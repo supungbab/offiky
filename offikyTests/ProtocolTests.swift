@@ -31,10 +31,10 @@ struct FloorStripTests {
 
     @Test func 띠의_양_끝이_첫_화면과_마지막_화면이다() {
         for strip in [single, rightSide, leftSide, stacked] {
-            let left = strip.place(x: strip.minX, y: 0)
+            let left = strip.place(x: 0, y: 0)
             #expect(left?.screenIndex == 0)
             #expect(left?.point.x == 0)
-            #expect(strip.place(x: strip.maxX, y: 0)?.screenIndex == strip.frames.count - 1)
+            #expect(strip.place(x: strip.length, y: 0)?.screenIndex == strip.frames.count - 1)
         }
     }
 
@@ -56,13 +56,13 @@ struct FloorStripTests {
     @Test func 같은_행에서는_왼쪽부터_잇는다() {
         #expect(rightSide.frames.map(\.width) == [1000, 500])
         #expect(leftSide.frames.map(\.width) == [800, 1000])
-        #expect(rightSide.maxX == 1500)
-        #expect(leftSide.maxX == 1800)
+        #expect(rightSide.length == 1500)
+        #expect(leftSide.length == 1800)
     }
 
     @Test func 세로로_쌓이면_아래_행을_먼저_둔다() {
         #expect(stacked.frames.map(\.minY) == [0, 800])
-        #expect(stacked.maxX == 2000)
+        #expect(stacked.length == 2000)
         #expect(stacked.mainIndex == 0)
     }
 
@@ -105,7 +105,7 @@ struct FloorStripTests {
 
     @Test func 주_화면보다_넓은_위치는_안으로_제한한다() {
         // 보조(800)의 오른쪽 끝에 있었어도 주 화면(1000) 밖으로 나가지 않는다
-        #expect(leftSide.onMain(offset: 5000) <= leftSide.maxX)
+        #expect(leftSide.onMain(offset: 5000) <= leftSide.length)
         #expect(leftSide.onMain(offset: -100) == 800)
     }
 
@@ -160,7 +160,7 @@ struct FloorStripTests {
     /// 어긋나면 잡아 끈 위치가 통째로 밀린다.
     @Test func 좌표와_화면_변환이_왕복한다() throws {
         for strip in [single, rightSide, leftSide, stacked] {
-            for x in stride(from: strip.minX + 30, to: strip.maxX - 30, by: 137) {
+            for x in stride(from: 30, to: strip.length - 30, by: 137) {
                 let spot = try #require(strip.place(x: x, y: 0))
                 let frame = strip.frames[spot.screenIndex]
                 let global = CGPoint(x: frame.minX + spot.point.x,
@@ -667,7 +667,7 @@ struct DatagramTests {
         let line = Data(repeating: 0x61, count: 100) + Data([0x0A])
         let prefix = Data("tok\n".utf8)
         let out = datagrams(Array(repeating: line, count: 30).reduce(Data(), +),
-                            prefix: prefix, limit: 1200)
+                            prefix: prefix)
         #expect(out.count == 3)
         #expect(out.allSatisfy { $0.count <= 1200 && $0.starts(with: prefix) })
         let body = out.map { $0.dropFirst(prefix.count) }.reduce(Data(), +)
@@ -679,7 +679,7 @@ struct DatagramTests {
     }
 
     @Test func 한도보다_긴_줄도_혼자_나간다() {
-        let out = datagrams(Data(repeating: 0x61, count: 2000) + Data([0x0A]), limit: 1200)
+        let out = datagrams(Data(repeating: 0x61, count: 2000) + Data([0x0A]))
         #expect(out.count == 1)
     }
 

@@ -1,15 +1,16 @@
 import AppKit
 import SwiftUI
 
+let bundleVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString")
+    as? String ?? "0"
+
 /// 버전이 다르면 서로 보이지 않으므로 동료끼리 대조할 수 있어야 한다.
 /// 빌드 번호는 배포마다 버전과 함께 올라가므로 보여줄 것이 없다.
 var appVersion: String {
-    let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString")
-        as? String ?? "?"
     #if DEBUG
-    return "\(version) · 디버그"
+    return "\(bundleVersion) · 디버그"
     #else
-    return version
+    return bundleVersion
     #endif
 }
 
