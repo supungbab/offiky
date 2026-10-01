@@ -51,7 +51,7 @@ final class UpdateChecker {
             case .found(let version):
                 alert.messageText = "새 버전 \(version) 이 있습니다"
                 // 문장마다 줄을 나눈다. 한 줄로 두면 대화상자 폭에 맞춰 아무 데서나 끊긴다
-                alert.informativeText = "현재 버전은 \(bundleVersion) 입니다.\n터미널이 열리고 설치가 진행됩니다.\n설치가 끝나면 Offiky 가 다시 실행됩니다."
+                alert.informativeText = "현재 버전은 \(bundleVersion) 입니다.\n터미널이 열리고 설치가 진행됩니다."
                 alert.addButton(withTitle: "업데이트")
                 alert.addButton(withTitle: "릴리스 페이지")
                 alert.addButton(withTitle: "나중에")
