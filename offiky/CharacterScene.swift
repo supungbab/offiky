@@ -62,7 +62,6 @@ final class CharacterNode: SKNode {
     var hurtUntil: TimeInterval = 0
     /// 묘비로 서 있는 동안. 원격은 주인이 좌표에 적어 보낸 값을 따른다
     private(set) var isDead = false
-    private var deadUntil: TimeInterval = 0
     /// 죽은 채로 바닥에 닿은 시각. 원격도 이 시각부터 아파하고 묘비를 올린다
     private var deadSince: TimeInterval?
     /// 땅 위로 올라온 묘비의 줄 수. nil 이면 묘비를 그리지 않는다
@@ -116,7 +115,6 @@ final class CharacterNode: SKNode {
     static let hurtDropHeight = maxJumpHeight * 1.4
     /// 이보다 높은 데서 떨어지면 묘비가 된다. 화면 절반쯤까지 들어 올려야 닿는다
     static let deathDropHeight = hurtDropHeight * 2.5
-    static let deathDuration: TimeInterval = 60
     /// 묘비가 올라오기 전에 아파하는 시간
     static let deathHurtDuration: TimeInterval = 1
     /// 묘비가 땅에서 다 올라오는 데 걸리는 시간
@@ -168,7 +166,16 @@ final class CharacterNode: SKNode {
     /// 방향키를 누르고 있는 정도에 따라 제자리·걷기·대시 순으로 높이 뛴다.
     /// 두 번째는 떨어지던 속도를 지우고 다시 차오른다
     func jump() {
-        guard isLocal, !isDragging, !isDead, jumpsUsed < CharacterNode.maxJumps else { return }
+        guard isLocal, !isDragging else { return }
+        if isDead {
+            // 묘비가 다 올라온 뒤에만 살아난다
+            guard tombstoneRows == Characters.tombstoneRows.count - 1 else { return }
+            isDead = false
+            verticalSpeed = (2 * CharacterNode.gravity * CharacterNode.reviveApex).squareRoot()
+            jumpsUsed = CharacterNode.maxJumps
+            return
+        }
+        guard jumpsUsed < CharacterNode.maxJumps else { return }
         jumpsUsed += 1
         let apex: CGFloat = jumpsUsed > 1
             ? CharacterNode.airJumpApex
@@ -371,12 +378,7 @@ final class CharacterNode: SKNode {
     private func simulate(dt: TimeInterval, now: TimeInterval, strip: FloorStrip) {
         isWalking = false
         guard !isDragging else { return }
-        if isDead {
-            guard now >= deadUntil else { return }
-            isDead = false
-            verticalSpeed = (2 * CharacterNode.gravity * CharacterNode.reviveApex).squareRoot()
-            jumpsUsed = CharacterNode.maxJumps
-        }
+        guard !isDead else { return }
         let step = CGFloat(dt)
         // 맞은 동안에는 조종만 막는다. 중력까지 멈추면 공중에 떠 있는다
         let hurt = now < hurtUntil
@@ -450,10 +452,7 @@ final class CharacterNode: SKNode {
         let airborne = y > 0
         // 속도로 바꿔 견줄 이유가 없다. 높이가 높을수록 충격도 크다
         if wasAirborne && !airborne {
-            if peakY > CharacterNode.deathDropHeight {
-                isDead = true
-                deadUntil = now + CharacterNode.deathDuration
-            }
+            if peakY > CharacterNode.deathDropHeight { isDead = true }
             else if peakY > CharacterNode.hurtDropHeight { takeHit(now: now) }
         }
         if !airborne { peakY = 0 }

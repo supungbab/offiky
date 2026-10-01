@@ -275,21 +275,26 @@ struct ControlTests {
         #expect(dead.zPosition < other.zPosition)
     }
 
-    @MainActor @Test func 일분이_지나면_바닥에서_튀어_올라_살아난다() {
+    @MainActor @Test func 묘비가_다_올라온_뒤_위_키를_누르면_튀어_올라_살아난다() {
         let node = node()
         let landed = dropToDeath(node)
-        node.update(dt: 1.0 / 60, now: landed + CharacterNode.deathDuration - 0.1, strip: strip)
-        #expect(node.isDead)
+        let risen = landed + CharacterNode.deathHurtDuration + CharacterNode.tombstoneRiseDuration
+        node.update(dt: 1.0 / 60, now: risen - 0.1, strip: strip)
+        node.jump()
+        #expect(node.isDead)                           // 묘비가 올라오는 중에는 살아나지 않는다
 
-        var now = landed + CharacterNode.deathDuration
+        var now = risen + 3600
         node.update(dt: 1.0 / 60, now: now, strip: strip)
+        #expect(node.isDead)                           // 시간이 지나도 그대로다
+
+        node.jump()
         #expect(!node.isDead)
         var highest: CGFloat = 0
         repeat {
             now += 1.0 / 60
             node.update(dt: 1.0 / 60, now: now, strip: strip)
             highest = max(highest, node.y)
-        } while node.y > 0 && now < landed + CharacterNode.deathDuration + 3
+        } while node.y > 0 && now < risen + 3600 + 3
         #expect(highest > CharacterNode.jumpApex)
         #expect(node.hurtUntil == 0)                   // 부활 점프 착지는 아프지 않다
     }
