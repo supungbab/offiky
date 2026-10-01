@@ -154,6 +154,7 @@ final class Net {
             guard let self else { return }
             let key = "\(path.status)|"
                 + path.availableInterfaces.map(\.name).sorted().joined(separator: ",")
+                + "|" + path.gateways.map(\.debugDescription).sorted().joined(separator: ",")
             guard key != self.lastPath else { return }
             let firstReport = self.lastPath.isEmpty
             self.lastPath = key
