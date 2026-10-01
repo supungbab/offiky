@@ -51,7 +51,7 @@ final class UpdateChecker {
             case .found(let version):
                 alert.messageText = "새 버전 \(version) 이 있습니다"
                 // 문장마다 줄을 나눈다. 한 줄로 두면 대화상자 폭에 맞춰 아무 데서나 끊긴다
-                alert.informativeText = "현재 버전은 \(bundleVersion) 입니다.\n터미널이 열리고 설치가 진행됩니다."
+                alert.informativeText = "현재 버전은 \(bundleVersion) 입니다.\n터미널이 열리고 설치가 진행됩니다.\n설치가 끝나면 Offiky 가 다시 실행됩니다."
                 alert.addButton(withTitle: "업데이트")
                 alert.addButton(withTitle: "릴리스 페이지")
                 alert.addButton(withTitle: "나중에")
@@ -112,8 +112,12 @@ final class UpdateChecker {
         return String(xml[range])
     }
 
-    /// Homebrew 7 부터 upgrade 가 기본으로 [y/n] 을 묻는다. 옛 brew 는 --yes 를 모르니 환경변수로 끈다
-    private var command: String { "brew update && HOMEBREW_NO_ASK=1 brew upgrade --cask \(cask)" }
+    /// Homebrew 7 부터 upgrade 가 기본으로 [y/n] 을 묻는다. 옛 brew 는 --yes 를 모르니 환경변수로 끈다.
+    /// 앱은 명령을 넘기고 스스로 종료한다. brew 가 종료하려면 터미널에 자동화 권한이 있어야 하고,
+    /// 없으면 다시 실행하지도 않는다. 업그레이드가 실패해도 옛 버전을 다시 실행한다
+    private var command: String {
+        "brew update && HOMEBREW_NO_ASK=1 brew upgrade --cask \(cask); open -b com.offiky.app"
+    }
 
     /// 자동화 권한을 거부하면 붙여 넣을 수 있게 클립보드에 넣고 터미널만 연다
     private func runInTerminal() {
@@ -125,7 +129,7 @@ final class UpdateChecker {
             """)
         var error: NSDictionary?
         script?.executeAndReturnError(&error)
-        guard error != nil else { return }
+        guard error != nil else { NSApp.terminate(nil); return }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(command, forType: .string)
         guard let terminal = NSWorkspace.shared
