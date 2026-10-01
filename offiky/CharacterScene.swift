@@ -60,6 +60,13 @@ final class CharacterNode: SKNode {
     private var renderedFrame = -1
     private var previousX: CGFloat = 0
     var hurtUntil: TimeInterval = 0
+    /// 묘비로 서 있는 동안. 원격은 주인이 좌표에 적어 보낸 값을 따른다
+    private(set) var isDead = false
+    private var deadUntil: TimeInterval = 0
+    /// 죽은 채로 바닥에 닿은 시각. 원격도 이 시각부터 아파하고 묘비를 올린다
+    private var deadSince: TimeInterval?
+    /// 땅 위로 올라온 묘비의 줄 수. nil 이면 묘비를 그리지 않는다
+    private(set) var tombstoneRows: Int?
     private var bubbleUntil: TimeInterval = 0
     private var bubbleIsTyping = false
     private var pendingTypingUntil: TimeInterval = 0
@@ -107,6 +114,15 @@ final class CharacterNode: SKNode {
     /// 이보다 높은 데서 떨어져야 아프다. 뛰어서는 닿지 않는다 —
     /// 마우스로 들어 올렸을 때만 해당한다. 점프를 손대면 이 값이 같이 올라간다
     static let hurtDropHeight = maxJumpHeight * 1.4
+    /// 이보다 높은 데서 떨어지면 묘비가 된다. 화면 절반쯤까지 들어 올려야 닿는다
+    static let deathDropHeight = hurtDropHeight * 2.5
+    static let deathDuration: TimeInterval = 60
+    /// 묘비가 올라오기 전에 아파하는 시간
+    static let deathHurtDuration: TimeInterval = 1
+    /// 묘비가 땅에서 다 올라오는 데 걸리는 시간
+    static let tombstoneRiseDuration: TimeInterval = 0.6
+    /// 부활할 때 바닥에서 튀어 오르는 높이. 제자리 점프보다 높다
+    static let reviveApex: CGFloat = 96
 
     init(id: String, name: String, isLocal: Bool) {
         self.id = id
@@ -152,7 +168,7 @@ final class CharacterNode: SKNode {
     /// 방향키를 누르고 있는 정도에 따라 제자리·걷기·대시 순으로 높이 뛴다.
     /// 두 번째는 떨어지던 속도를 지우고 다시 차오른다
     func jump() {
-        guard isLocal, !isDragging, jumpsUsed < CharacterNode.maxJumps else { return }
+        guard isLocal, !isDragging, !isDead, jumpsUsed < CharacterNode.maxJumps else { return }
         jumpsUsed += 1
         let apex: CGFloat = jumpsUsed > 1
             ? CharacterNode.airJumpApex
@@ -185,6 +201,7 @@ final class CharacterNode: SKNode {
     }
 
     func beginDrag() {
+        guard !isDead else { return }
         isDragging = true
         verticalSpeed = 0
         jumpsUsed = 0
@@ -275,10 +292,11 @@ final class CharacterNode: SKNode {
     /// 한 위치 메시지에 실린 값은 한 스냅샷이다. 송신 시각이 오래됐으면 자세까지
     /// 전부 버려 위치와 행동이 서로 다른 패킷에서 섞이지 않게 한다.
     @discardableResult
-    func applyRemoteSnapshot(x: CGFloat, y: CGFloat, bowing: Bool, dragging: Bool,
+    func applyRemoteSnapshot(x: CGFloat, y: CGFloat, bowing: Bool, dragging: Bool, dead: Bool = false,
                              facing direction: Int?, sent: TimeInterval?, at now: TimeInterval) -> Bool {
         guard setRemoteTarget(x: x, y: y, sent: sent, at: now) else { return false }
         isBowing = bowing
+        isDead = dead
         if let direction { faceAsTold(CGFloat(direction)) }
         if dragging { isDragging = true }
         else if isDragging { endDrag() }
@@ -308,9 +326,29 @@ final class CharacterNode: SKNode {
         let running = !isDragging && now >= hurtUntil && y <= 0
             && speed > CharacterNode.dashAnimationThreshold
 
+        // 바닥에 닿은 뒤부터 센다. 원격은 보간이 늦어 공중에서 먼저 죽음을 받는다
+        if isDead, y <= 0 {
+            if deadSince == nil { deadSince = now; walkPhase = 0 }
+        } else {
+            deadSince = nil
+        }
+        tombstoneRows = deadSince.flatMap { since in
+            let rising = now - since - CharacterNode.deathHurtDuration
+            guard rising >= 0 else { return nil }
+            let full = Characters.tombstoneRows.count - 1
+            return min(full, Int(rising / CharacterNode.tombstoneRiseDuration * Double(full)) + 1)
+        }
+        if let rows = tombstoneRows {
+            image.texture = Characters.tombstoneRows[rows]
+            image.size.height = CGFloat(rows) * 2
+            renderedAnimation = nil
+            return
+        }
+        image.size.height = sheet.size.height * 2
+
         let animation: Animation
         if isDragging { animation = .idle }          // 들려 있는 동안은 가만히 서 있는다
-        else if now < hurtUntil { animation = .hurt }
+        else if now < hurtUntil || deadSince != nil { animation = .hurt }
         else if y > 0 { animation = .jump }
         else if isBowing { animation = isWalking ? .dash : .bow }
         else if running { animation = .dash }
@@ -333,6 +371,12 @@ final class CharacterNode: SKNode {
     private func simulate(dt: TimeInterval, now: TimeInterval, strip: FloorStrip) {
         isWalking = false
         guard !isDragging else { return }
+        if isDead {
+            guard now >= deadUntil else { return }
+            isDead = false
+            verticalSpeed = (2 * CharacterNode.gravity * CharacterNode.reviveApex).squareRoot()
+            jumpsUsed = CharacterNode.maxJumps
+        }
         let step = CGFloat(dt)
         // 맞은 동안에는 조종만 막는다. 중력까지 멈추면 공중에 떠 있는다
         let hurt = now < hurtUntil
@@ -405,7 +449,13 @@ final class CharacterNode: SKNode {
         }
         let airborne = y > 0
         // 속도로 바꿔 견줄 이유가 없다. 높이가 높을수록 충격도 크다
-        if wasAirborne && !airborne, peakY > CharacterNode.hurtDropHeight { takeHit(now: now) }
+        if wasAirborne && !airborne {
+            if peakY > CharacterNode.deathDropHeight {
+                isDead = true
+                deadUntil = now + CharacterNode.deathDuration
+            }
+            else if peakY > CharacterNode.hurtDropHeight { takeHit(now: now) }
+        }
         if !airborne { peakY = 0 }
         wasAirborne = airborne
     }
@@ -417,6 +467,11 @@ final class CharacterNode: SKNode {
         position = CGPoint(x: (placement.point.x / 2).rounded() * 2,
                            y: (placement.point.y / 2).rounded() * 2)
 
+        // 묘비는 그림자 없이 맨 아랫줄이 바닥에 닿게 그려져 있고, 뒤집지 않는다
+        let tombstone = tombstoneRows != nil
+        shadow.isHidden = tombstone
+        image.position.y = -spriteDisplaySize / 2 - (tombstone ? 0 : sheet.footPadding * 2)
+
         // 그림자는 캐릭터를 따라 뜨지 않고 바닥에 남는다
         // 발 위치보다 2pt 아래에 두어 캐릭터가 그림자를 밟고 선 것처럼 보이게 한다
         shadow.position = CGPoint(x: 0, y: -y - spriteDisplaySize / 2 - 2)
@@ -424,9 +479,10 @@ final class CharacterNode: SKNode {
         applyShadow(step: min(CharacterNode.shadowSteps.count - 1,
                               Int(lift * CGFloat(CharacterNode.shadowSteps.count))))
         shadow.alpha = 0.3 * (1 - 0.75 * lift)
-        zPosition = x + depthBias
+        // 묘비는 늘 다른 캐릭터 뒤에 둔다. 원격은 띠 왼쪽 밖(x < 0)에도 서므로 넉넉히 뺀다
+        zPosition = tombstone ? depthBias - 10_000 : x + depthBias
         // 스프라이트는 오른쪽을 보고 그려져 있다
-        image.xScale = facing
+        image.xScale = tombstone ? 1 : facing
         updateNameLabel()
     }
 
@@ -752,9 +808,9 @@ extension World {
     }
 
     func setPeerTarget(id: String, x: CGFloat, y: CGFloat,
-                       bowing: Bool, dragging: Bool, facing: Int?, sent: TimeInterval?) {
+                       bowing: Bool, dragging: Bool, dead: Bool, facing: Int?, sent: TimeInterval?) {
         guard let node = peers[id] else { return }
-        node.applyRemoteSnapshot(x: x, y: y, bowing: bowing, dragging: dragging,
+        node.applyRemoteSnapshot(x: x, y: y, bowing: bowing, dragging: dragging, dead: dead,
                                  facing: facing, sent: sent,
                                  at: ProcessInfo.processInfo.systemUptime)
     }

@@ -150,6 +150,23 @@ enum Characters {
         return (CGFloat(last - first + 1), CGFloat(height - 1 - bottom))
     }
 
+    /// 높은 데서 떨어진 캐릭터가 1분 동안 서 있는 묘비. 모든 모양이 같이 쓴다.
+    /// n 번째는 윗부분 n 줄이다. 땅에서 올라오는 동안 차례로 쓴다
+    static let tombstoneRows: [SKTexture] = {
+        guard let cg = NSImage(named: "tombstone")?
+            .cgImage(forProposedRect: nil, context: nil, hints: nil)
+        else { return [SKTexture()] }
+        let whole = SKTexture(cgImage: cg)
+        let rows = cg.height
+        return (0...rows).map { n in
+            let texture = SKTexture(rect: CGRect(x: 0, y: CGFloat(rows - n) / CGFloat(rows),
+                                                 width: 1, height: CGFloat(n) / CGFloat(rows)),
+                                    in: whole)
+            texture.filteringMode = .nearest
+            return texture
+        }
+    }()
+
     private static var thumbCache: [Int: NSImage] = [:]
 
     /// 메뉴바 아이콘. 개구리 머리를 스프라이트에서 잘라 쓴다 — 그림을 고치면 같이 바뀐다.

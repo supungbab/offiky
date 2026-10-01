@@ -81,6 +81,7 @@ final class Session {
                y: node.y > 0 ? Double(node.y) : nil,
                b: node.isBowing ? true : nil,
                d: node.isDragging ? true : nil,
+               k: node.isDead ? true : nil,
                f: Int(node.facing))
     }
 
@@ -231,6 +232,7 @@ final class Session {
             else { return }
             World.shared.setPeerTarget(id: id, x: CGFloat(msg.x), y: CGFloat(msg.y ?? 0),
                                        bowing: msg.b == true, dragging: msg.d == true,
+                                       dead: msg.k == true,
                                        facing: msg.f, sent: msg.m.map { Double($0) / 1000 })
         case let .say(msg):
             guard let body = validChat(msg.msg) else { return }

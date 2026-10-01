@@ -221,6 +221,79 @@ struct ControlTests {
         #expect(node.hurtUntil > 0)
     }
 
+    /// 묘비가 될 때까지 떨어뜨리고 착지한 시각을 돌려준다
+    @MainActor private func dropToDeath(_ node: CharacterNode) -> TimeInterval {
+        node.beginDrag()
+        node.y = CharacterNode.deathDropHeight + 10
+        node.update(dt: 1.0 / 60, now: 0, strip: strip)
+        node.endDrag()
+        var now = 1.0 / 60
+        while node.y > 0, now < 3 { node.update(dt: 1.0 / 60, now: now, strip: strip); now += 1.0 / 60 }
+        return now
+    }
+
+    @MainActor @Test func 아주_높은_곳에서_놓으면_묘비가_되어_움직이지_못한다() {
+        let node = node()
+        var now = dropToDeath(node)
+        #expect(node.isDead)
+        #expect(node.hurtUntil == 0)
+
+        node.hold(1, dash: true)
+        node.jump()
+        node.beginDrag()
+        #expect(!node.isDragging)
+        let x = node.x
+        for _ in 0..<60 { node.update(dt: 1.0 / 60, now: now, strip: strip); now += 1.0 / 60 }
+        #expect(node.x == x)
+        #expect(node.y == 0)
+    }
+
+    @MainActor @Test func 아파한_뒤에_묘비가_땅에서_올라온다() {
+        let node = node()
+        let landed = dropToDeath(node)
+        node.update(dt: 1.0 / 60, now: landed + 0.5, strip: strip)
+        #expect(node.tombstoneRows == nil)               // 아직 아파하는 중이다
+
+        let start = landed + CharacterNode.deathHurtDuration
+        node.update(dt: 1.0 / 60, now: start + CharacterNode.tombstoneRiseDuration / 2, strip: strip)
+        let half = node.tombstoneRows ?? 0
+        #expect(half > 1 && half < 24)
+
+        node.update(dt: 1.0 / 60, now: start + CharacterNode.tombstoneRiseDuration, strip: strip)
+        #expect(node.tombstoneRows == 24)
+    }
+
+    @MainActor @Test func 묘비는_다른_캐릭터_뒤에_선다() {
+        let dead = node()
+        let landed = dropToDeath(dead)
+        dead.update(dt: 1.0 / 60, now: landed + 2, strip: strip)
+        dead.render(placement: strip.place(x: dead.x, y: dead.y)!)
+
+        let other = CharacterNode(id: "other", name: "other", isLocal: false)
+        other.x = -10                                  // 띠 왼쪽 밖에 걸친 원격 캐릭터
+        other.render(placement: strip.place(x: other.x, y: 0)!)
+        #expect(dead.zPosition < other.zPosition)
+    }
+
+    @MainActor @Test func 일분이_지나면_바닥에서_튀어_올라_살아난다() {
+        let node = node()
+        let landed = dropToDeath(node)
+        node.update(dt: 1.0 / 60, now: landed + CharacterNode.deathDuration - 0.1, strip: strip)
+        #expect(node.isDead)
+
+        var now = landed + CharacterNode.deathDuration
+        node.update(dt: 1.0 / 60, now: now, strip: strip)
+        #expect(!node.isDead)
+        var highest: CGFloat = 0
+        repeat {
+            now += 1.0 / 60
+            node.update(dt: 1.0 / 60, now: now, strip: strip)
+            highest = max(highest, node.y)
+        } while node.y > 0 && now < landed + CharacterNode.deathDuration + 3
+        #expect(highest > CharacterNode.jumpApex)
+        #expect(node.hurtUntil == 0)                   // 부활 점프 착지는 아프지 않다
+    }
+
     @MainActor @Test func 집었다_놓아도_누르던_방향을_지킨다() {
         let node = node()
         node.hold(1, dash: false)

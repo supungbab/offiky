@@ -359,6 +359,14 @@ struct MessageTests {
         #expect(msg.msg == "안녕")
     }
 
+    @Test func 묘비일_때만_k_를_싣는다() throws {
+        let alive = String(decoding: try JSONEncoder().encode(PosMsg(x: 1, y: nil)), as: UTF8.self)
+        let dead = String(decoding: try JSONEncoder().encode(PosMsg(x: 1, y: nil, k: true)),
+                          as: UTF8.self)
+        #expect(!alive.contains("\"k\""))
+        #expect(dead.contains("\"k\":true"))
+    }
+
     /// 보낸 사람은 연결이 정한다. 메시지에 id 가 있으면 남을 사칭할 수 있다
     @Test func 좌표와_채팅에는_id_가_없다() throws {
         let pos = String(decoding: try JSONEncoder().encode(PosMsg(x: 1, y: nil)), as: UTF8.self)
