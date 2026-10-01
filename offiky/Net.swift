@@ -3,7 +3,7 @@ import Network
 
 private let serviceType = "_offiky._tcp"
 
-/// 같은 방 사람끼리 모두 직접 연결한다. 두 사람 사이의 연결은 id 가 작은 쪽이 연다
+/// 같은 채널 사람끼리 모두 직접 연결한다. 두 사람 사이의 연결은 id 가 작은 쪽이 연다
 final class Net {
     static let shared = Net()
 
@@ -52,7 +52,7 @@ final class Net {
     }
 
     private var links: [String: Link] = [:]
-    /// 같은 방에서 광고가 보이는 사람
+    /// 같은 채널에서 광고가 보이는 사람
     private var visible: Set<String> = []
     /// 연결이 실패한 사람 → 다시 여는 시각. 광고만 남은 사람에게는 이 주기로만 시도한다
     private var retryAt: [String: Date] = [:]
@@ -123,8 +123,8 @@ final class Net {
         }
     }
 
-    /// 방이 바뀌면 붙어 있던 사람들과 헤어지고 새 이름으로 다시 광고한다
-    func roomChanged() {
+    /// 채널이 바뀌면 붙어 있던 사람들과 헤어지고 새 채널로 다시 광고한다
+    func channelChanged() {
         queue.async {
             guard self.running else { return }
             self.teardown()
@@ -164,22 +164,19 @@ final class Net {
         self.monitor = monitor
     }
 
-    private func advertisement(room: String) -> NWListener.Service {
+    private func advertisement(channel: Int) -> NWListener.Service {
         NWListener.Service(
             name: World.shared.myID, type: serviceType,
             txtRecord: NWTXTRecord([
                 "id": World.shared.myID,
                 "pv": String(protocolVersion),
-                "room": room,
-                "rname": World.myRoomName ?? room,
+                "ch": String(channel),
             ]).data)
     }
 
-    /// 리스너가 광고 수단이기도 하다. 방에 없으면 열지 않는다
     private func startListener() {
-        guard let room = World.myRoom else { return }
         guard let listener = try? NWListener(using: Net.tcp) else { return }
-        listener.service = advertisement(room: room)
+        listener.service = advertisement(channel: World.myChannel)
         listener.newConnectionHandler = { [weak self] connection in
             self?.accept(connection)
         }
@@ -289,21 +286,20 @@ final class Net {
 
     /// 광고가 사라져도 연결은 끊지 않는다. 연결이 살아 있는지는 연결이 알려 준다
     private func browsed(_ results: Set<NWBrowser.Result>) {
-        var entries: [(id: String, pv: String?, room: String?, roomName: String?)] = []
+        var entries: [(id: String, pv: String?, channel: String?)] = []
         for result in results {
             if case let .bonjour(txt) = result.metadata, let id = txt["id"] {
-                entries.append((id, txt["pv"], txt["room"], txt["rname"]))
+                entries.append((id, txt["pv"], txt["ch"]))
             }
         }
-        // 방에 없어도 듣기는 한다. 참여할 방 목록을 보여줘야 하기 때문이다
-        let peers = compatiblePeers(entries, myRoom: World.myRoom)
+        let peers = compatiblePeers(entries, myChannel: World.myChannel)
         visible = peers.ids.subtracting([World.shared.myID])
         retryAt = retryAt.filter { visible.contains($0.key) }
         // 메뉴가 관찰하는 값으로 밀어 넣는다. 여기서 읽어 가게 두면
         // 값이 바뀌어도 메뉴를 다시 그릴 이유가 없어 경고가 뜨지 않는다
         DispatchQueue.main.async {
             Presence.shared.otherVersions = peers.mismatched
-            if Presence.shared.rooms != peers.rooms { Presence.shared.rooms = peers.rooms }
+            if Presence.shared.channelCounts != peers.counts { Presence.shared.channelCounts = peers.counts }
         }
         dial()
     }
@@ -311,7 +307,6 @@ final class Net {
     /// 나보다 id 가 큰 사람에게만 연다. 작은 사람은 저쪽에서 연다
     private func dial() {
         dialWork?.cancel()
-        guard World.myRoom != nil else { return }
         let me = World.shared.myID
         let now = Date()
         var next: Date?
@@ -329,7 +324,7 @@ final class Net {
     }
 
     private func accept(_ connection: NWConnection) {
-        guard World.myRoom != nil, links.count < Limits.maxLinks else { connection.cancel(); return }
+        guard links.count < Limits.maxLinks else { connection.cancel(); return }
         add(connection, peerID: nil)
     }
 
@@ -386,7 +381,7 @@ final class Net {
         link.connection.cancel()
     }
 
-    /// 방을 옮기거나 망이 바뀌면 이전 연결은 전부 쓸모없다
+    /// 채널을 옮기거나 망이 바뀌면 이전 연결은 전부 쓸모없다
     private func dropAllLinks() {
         dialWork?.cancel()
         let keys = Array(links.keys)
@@ -484,7 +479,7 @@ final class Net {
         guard data.count <= Limits.maxMessageBytes else { return }
         var line = data; line.append(0x0A)
         queue.async {
-            // hello 를 끝내지 않은 연결은 방과 버전을 증명하지 않았다. 이쪽 좌표와
+            // hello 를 끝내지 않은 연결은 채널과 버전을 증명하지 않았다. 이쪽 좌표와
             // 채팅을 받아 가게 두지 않고, 느린 연결에 송신 버퍼가 쌓이는 것도 막는다.
             for (key, link) in self.links where link.traffic.isIdentified {
                 self.enqueue(line, to: key, fast: fast)

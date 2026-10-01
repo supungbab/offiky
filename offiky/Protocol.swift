@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
 
-let protocolVersion = 11
+let protocolVersion = 12
 let spriteDisplaySize: CGFloat = 40
 /// 바닥을 화면 맨 아래에서 띄우는 높이. Dock 이나 화면 끝에 붙어 보이지 않게 한다
 let floorOffset: CGFloat = 8
@@ -23,8 +23,10 @@ func shouldSend(_ msg: PosMsg, last: PosMsg?) -> Bool {
 
 enum Limits {
     static let maxMessageBytes = 16 * 1024
-    /// 한 방에 들어갈 수 있는 사람 수. 모두 서로 직접 연결하므로 좌표 건수가 인원의 제곱으로 는다
-    static let maxRoomMembers = 15
+    /// 한 채널에 들어갈 수 있는 사람 수. 모두 서로 직접 연결하므로 좌표 건수가 인원의 제곱으로 는다
+    static let maxChannelMembers = 15
+    /// 채널은 1번부터 이 번호까지 있다
+    static let channels = 20
     /// 동시에 유지할 수 있는 소켓 수. 연결을 여는 중인 것까지 정원의 두 배 남짓이다
     static let maxLinks = 32
     /// 한 연결에서 초당 받을 수 있는 줄 수. 정상 좌표 10줄에 채팅 여유를 넉넉히 둔다.
@@ -36,14 +38,10 @@ enum Limits {
     static let maxPendingLines = 16
     static let maxName = 20
     static let maxNameBytes = 256
-    /// 방 이름 길이. 글자 수와 바이트 수 둘 다 막는다
-    static let maxRoom = 20
-    /// Bonjour TXT 는 한 쌍이 255바이트를 넘을 수 없다. 넘으면 광고가 통째로 실패한다
-    static let maxRoomBytes = 60
     /// 말풍선이 보여 줄 만큼. 입력란과 수신 검증이 같은 값을 쓴다
     static let maxChat = 50
     static let maxChatBytes = 2 * 1024
-    /// 방에 있는 동안 들고 있는 채팅 기록 수
+    /// 채널에 있는 동안 들고 있는 채팅 기록 수
     static let maxChatLog = 100
     static let maxX: Double = 10_000
     static let maxY: Double = 4_000
@@ -163,55 +161,28 @@ func overflowing(_ members: [(id: String, since: Int)], limit: Int) -> String? {
     return members.max { ($0.since, $0.id) < ($1.since, $1.id) }?.id
 }
 
-/// 방을 구분하는 값. 만들 때 새로 뽑는다 — 이름이 같아도 다른 방이고,
-/// 이름을 바꿔도 같은 방이다
-func newRoomID() -> String {
-    String(UUID().uuidString.prefix(8))
-}
-
-/// 실제 참여 여부는 room id로 정하고, 이름이 없을 때만 id를 표시용으로 쓴다.
-func roomDisplayName(id: String?, name: String?) -> String? {
-    id.map { name ?? $0 }
-}
-
-/// 참여하기 목록에 쓰는 한 줄
-struct RoomListing: Identifiable, Equatable {
-    let id: String
-    let name: String
-    /// 목록에 보여 줄 글자. 이름이 같은 방이 둘이면 뒤에 짧은 코드가 붙는다
-    let label: String
-    let count: Int
-}
-
-/// Bonjour 광고에서 프로토콜이 같고 같은 방에 있는 피어만 고른다.
-/// 방에 없으면 아무와도 연결하지 않는다 — 혼자다.
+/// Bonjour 광고에서 프로토콜이 같고 같은 채널에 있는 피어를 고르고, 채널마다 인원을 센다.
 /// 버전이 다른 피어와는 연결해도 서로 무시하므로 후보에 넣지 않는다.
-func compatiblePeers(_ entries: [(id: String, pv: String?, room: String?, roomName: String?)],
-                     myRoom: String?)
-    -> (ids: Set<String>, mismatched: Int, rooms: [RoomListing]) {
+func compatiblePeers(_ entries: [(id: String, pv: String?, channel: String?)], myChannel: Int)
+    -> (ids: Set<String>, mismatched: Int, counts: [Int: Int]) {
     var ids: Set<String> = []
     var others: Set<String> = []
-    var members: [String: Set<String>] = [:]
-    var names: [String: String] = [:]
+    var members: [Int: Set<String>] = [:]
     for entry in entries {
         guard Int(entry.pv ?? "") == protocolVersion else { others.insert(entry.id); continue }
-        guard let room = entry.room, !room.isEmpty else { continue }
+        guard let channel = entry.channel.flatMap({ Int($0) }),
+              (1...Limits.channels).contains(channel) else { continue }
         // 같은 사람이 인터페이스마다 따로 보고된다. 줄 수가 아니라 사람 수를 센다
-        members[room, default: []].insert(entry.id)
-        if names[room] == nil, let name = entry.roomName, !name.isEmpty { names[room] = name }
-        if room == myRoom { ids.insert(entry.id) }
+        members[channel, default: []].insert(entry.id)
+        if channel == myChannel { ids.insert(entry.id) }
     }
-    var counts: [String: Int] = [:]
-    for room in members.keys { counts[names[room] ?? room, default: 0] += 1 }
-    let rooms = members
-        .map { room, people -> RoomListing in
-            let name = names[room] ?? room
-            // 이름이 같은 방이 둘이면 목록에서 구분할 수 있어야 한다
-            let label = (counts[name] ?? 0) > 1 ? "\(name) · \(room.prefix(4))" : name
-            return RoomListing(id: room, name: name, label: label, count: people.count)
-        }
-        .sorted { $0.count != $1.count ? $0.count > $1.count : $0.label < $1.label }
-    return (ids, others.subtracting(ids).count, rooms)
+    return (ids, others.subtracting(ids).count, members.mapValues(\.count))
+}
+
+/// 정원이 찬 채널에서 밀려났을 때 옮겨 갈 곳. 다음 번호부터 돌며 자리가 있는 채널을 고른다
+func nextChannel(after current: Int, counts: [Int: Int]) -> Int {
+    let order = (1..<Limits.channels).map { (current - 1 + $0) % Limits.channels + 1 }
+    return order.first { counts[$0, default: 0] < Limits.maxChannelMembers } ?? order[0]
 }
 
 /// ZWJ 는 남긴다 — 이모지를 잇는 글자라 제거하면 🧑‍💻 가 통째로 사라진다
@@ -240,14 +211,6 @@ func sanitizeName(_ raw: String) -> String {
     return out.isEmpty ? "?" : out
 }
 
-/// 이 값은 Bonjour TXT 에 실린다. 이모지는 한 글자가 스물다섯 바이트까지 가므로
-/// 글자 수만 막으면 255바이트 제한을 넘겨 리스너가 실패하고, 아무에게도 보이지 않는다.
-/// 빈 문자열은 방을 만들지 않겠다는 뜻이다
-func sanitizeRoom(_ raw: String) -> String {
-    clamped(stripControls(raw).trimmingCharacters(in: .whitespaces),
-            maxCount: Limits.maxRoom, maxBytes: Limits.maxRoomBytes)
-}
-
 func validChat(_ raw: String) -> String? {
     let cleaned = stripControls(raw)
     guard !cleaned.isEmpty,
@@ -263,8 +226,8 @@ struct HelloMsg: Codable {
     let id: String
     let name: String
     let look: Look
-    let room: String
-    /// 방에 들어온 시각(ms). 정원을 넘으면 늦게 들어온 사람이 나간다
+    let ch: Int
+    /// 채널에 들어온 시각(ms). 정원을 넘으면 늦게 들어온 사람이 나간다
     let since: Int
 }
 
@@ -306,7 +269,7 @@ struct HitMsg: Codable {
     var t = "hit"
 }
 
-/// 정원이 찼다. 받은 쪽은 방에서 나간다
+/// 정원이 찼다. 받은 쪽은 다음 채널로 옮긴다
 struct FullMsg: Codable {
     var t = "full"
 }

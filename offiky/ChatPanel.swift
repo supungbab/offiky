@@ -110,7 +110,7 @@ struct FocusReturn {
     }
 }
 
-/// 방에 있는 동안만 들고 있는 채팅 기록. 디스크에 쓰지 않는다
+/// 채널에 있는 동안만 들고 있는 채팅 기록. 디스크에 쓰지 않는다
 @Observable final class ChatLog {
     static let shared = ChatLog()
 
@@ -121,7 +121,7 @@ struct FocusReturn {
         let text: String
         let at: Date
         let isMe: Bool
-        /// 방·동료 소식. 이름 없이 회색 한 줄로 남는다
+        /// 채널·동료 소식. 이름 없이 회색 한 줄로 남는다
         var isSystem = false
     }
 

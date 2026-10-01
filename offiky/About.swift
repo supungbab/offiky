@@ -35,7 +35,7 @@ struct AboutView: View {
                 }
             }
 
-            Text("같은 방에 있는 동료들의 캐릭터가 화면 바닥을 돌아다닌다.\n바깥 서버 없이 방 안의 기기끼리 직접 주고받는다.")
+            Text("같은 채널에 있는 동료들의 캐릭터가 화면 바닥을 돌아다닌다.\n바깥 서버 없이 채널 안의 기기끼리 직접 주고받는다.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

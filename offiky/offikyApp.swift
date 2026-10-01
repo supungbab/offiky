@@ -30,19 +30,8 @@ struct offikyApp: App {
                 Text("⌥D 를 다른 앱이 쓰고 있습니다")
             }
             Divider()
-            // 방 만들기는 들어가 있을 때 내밀지 않는다. 이름 고치기로 읽힌다
-            if let room = Presence.shared.room {
-                Text("방 · \(room)")
-                // 누가 있는지는 방 이야기다. 방에 없으면 나뿐이라 내밀 것이 없다
-                Button("참가자 \(Presence.shared.count)명…") { openRoster() }
-                Button("방 나가기") { World.leaveRoom() }
-                // 여기까지가 지금 방 이야기다. 다른 방은 그다음이라 두 경우 모두 맨 아래에 온다
-                roomList
-            } else {
-                Text("방에 없습니다 — 나만 보입니다")
-                Button("방 만들기…") { createRoom() }
-                roomList
-            }
+            channelList
+            Button("참가자 \(Presence.shared.count)명…") { openRoster() }
             Divider()
             Button("내 캐릭터…") { openCharacterPicker() }
             Button("내 이름 변경…") { changeName() }
@@ -66,43 +55,20 @@ struct offikyApp: App {
         }
     }
 
-    /// 들어가 있어도 다른 방으로 바로 옮길 수 있어야 한다. 나갔다 다시 들어오게 하지 않는다.
-    /// 이름은 한 가지로 둔다 — 방 만들기 안내문이 이 이름을 그대로 부른다
-    private var roomList: some View {
-        Menu("방 참여하기") {
-            if Presence.shared.rooms.isEmpty {
-                Text("보이는 방이 없습니다")
-            }
-            ForEach(Presence.shared.rooms) { room in
-                let here = room.id == World.myRoom
-                let full = room.count >= Limits.maxRoomMembers
-                let mark = here ? " · 현재 방" : full ? " · 정원" : ""
-                // 현재 방은 참가자 메뉴와 같은 숫자를 쓴다. 광고 수는 연결된 수와 다를 수 있다
-                Button("\(room.label)  \(here ? Presence.shared.count : room.count)명\(mark)") {
-                    World.join(room: room.id, name: room.name)
+    private var channelList: some View {
+        Menu("\(Presence.shared.channel)채널") {
+            ForEach(1...Limits.channels, id: \.self) { channel in
+                let here = channel == Presence.shared.channel
+                // 현재 채널은 참가자 메뉴와 같은 숫자를 쓴다. 광고 수는 연결된 수와 다를 수 있다
+                let count = here ? Presence.shared.count : Presence.shared.channelCounts[channel, default: 0]
+                let full = !here && count >= Limits.maxChannelMembers
+                let mark = here ? " · 현재" : full ? " · 정원" : ""
+                Button("\(channel)채널\(count > 0 ? "  \(count)명" : "")\(mark)") {
+                    World.join(channel: channel)
                 }
                 .disabled(here || full)
             }
         }
-    }
-
-    /// 방은 만들 때마다 새로 생긴다. 이름이 같아도 다른 방이다.
-    /// 방에 없을 때만 메뉴에 나온다
-    private func createRoom() {
-        let alert = NSAlert()
-        alert.messageText = "방 만들기"
-        alert.informativeText = "동료는 메뉴의 방 참여하기에서 이 방을 고르면 됩니다."
-        alert.addButton(withTitle: "만들기")
-        alert.addButton(withTitle: "취소")
-        let field = NSTextField(frame: CGRect(x: 0, y: 0, width: 220, height: 24))
-        // 지금 방 이름을 채워 두면 이름만 고치는 창으로 보인다. 실제로는 새 방이다
-        field.placeholderString = "방 이름"
-        alert.accessoryView = field
-        NSApp.activate(ignoringOtherApps: true)
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
-        let name = sanitizeRoom(field.stringValue)
-        guard !name.isEmpty else { return }
-        World.join(room: newRoomID(), name: name)
     }
 
     private func changeName() {
@@ -120,16 +86,6 @@ struct offikyApp: App {
         UserDefaults.standard.set(name, forKey: "name")
         Session.shared.sendProfile()
     }
-}
-
-/// 들어가려던 방이 찼다고 알려 왔다. 이미 방에서 나온 뒤다
-func tellRoomIsFull() {
-    let alert = NSAlert()
-    alert.messageText = "방이 가득 찼습니다"
-    alert.informativeText = "한 방에는 \(Limits.maxRoomMembers)명까지 들어갈 수 있습니다."
-    alert.addButton(withTitle: "확인")
-    NSApp.activate(ignoringOtherApps: true)
-    alert.runModal()
 }
 
 #if DEBUG
@@ -178,7 +134,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             options: .userInitiatedAllowingIdleSystemSleep, reason: "좌표 생존 신호")
         OverlayController.shared.start()
         Session.shared.start()
-        // 테스트 호스트로 켜지면 망에 나가지 않는다. 실제 방에 참가자로 뜬다
+        // 테스트 호스트로 켜지면 망에 나가지 않는다. 실제 채널에 참가자로 뜬다
         if NSClassFromString("XCTestCase") == nil { Net.shared.start() }
         ChatPanel.shared.install()
         Control.shared.install()

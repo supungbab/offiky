@@ -640,31 +640,27 @@ final class World {
         defaults.set(try? JSONEncoder().encode(Look(design: moved)), forKey: "look")
     }
 
-    /// 방 설정을 두는 곳. 테스트가 켜 둔 앱의 방을 지우지 않도록 교체할 수 있다
+    /// 채널 설정을 두는 곳. 테스트가 켜 둔 앱의 채널을 바꾸지 않도록 교체할 수 있다
     static var store = UserDefaults.standard
 
-    /// 들어가 있는 방의 id. nil 이면 혼자다 — 광고도 연결도 하지 않는다.
-    /// 다음에 켤 때도 그대로 있으려고 저장한다
-    static var myRoom: String? { store.string(forKey: "roomID") }
-    /// 보여 주기만 하는 이름. 짝짓기는 id 로 한다
-    static var myRoomName: String? { store.string(forKey: "roomName") }
-
-    static func join(room id: String, name: String) {
-        ChatLog.shared.clear()
-        ChatLog.shared.note("\(name) 방에 들어왔습니다")
-        store.set(id, forKey: "roomID")
-        store.set(name, forKey: "roomName")
-        Presence.shared.room = name
-        Session.shared.joinedAt = Session.now()
-        Net.shared.roomChanged()
+    /// 들어가 있는 채널. 처음에는 1채널이고, 다음에 켤 때도 그대로 있으려고 저장한다
+    static var myChannel: Int {
+        let stored = store.integer(forKey: "channel")
+        return (1...Limits.channels).contains(stored) ? stored : 1
     }
 
-    static func leaveRoom() {
+    static func join(channel: Int) {
         ChatLog.shared.clear()
-        store.removeObject(forKey: "roomID")
-        store.removeObject(forKey: "roomName")
-        Presence.shared.room = nil
-        Net.shared.roomChanged()
+        ChatLog.shared.note("\(channel)채널에 들어왔습니다")
+        store.set(channel, forKey: "channel")
+        Presence.shared.channel = channel
+        Session.shared.joinedAt = Session.now()
+        Net.shared.channelChanged()
+    }
+
+    /// 정원이 찼다. 자리가 있는 다음 채널로 옮긴다
+    static func moveToNextChannel() {
+        join(channel: nextChannel(after: myChannel, counts: Presence.shared.channelCounts))
     }
 
     static var myLook: Look {
@@ -837,9 +833,8 @@ extension World {
     var count = 1
     /// 프로토콜이 달라 연결하지 않은 피어 수
     var otherVersions = 0
-    /// 지금 들어가 있는 방 이름. nil 이면 혼자다
-    var room = roomDisplayName(id: World.myRoom, name: World.myRoomName)
-    /// 망에 보이는 방들. 참여하기 목록에 쓴다
-    var rooms: [RoomListing] = []
+    var channel = World.myChannel
+    /// 채널마다 광고가 보이는 사람 수. 채널 목록에 쓴다
+    var channelCounts: [Int: Int] = [:]
     private init() {}
 }
