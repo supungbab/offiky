@@ -9,7 +9,8 @@ Rows of every sheet (same order, same frame counts, frames start at the left):
   row 1  idle   4 frames
   row 2  walk   6 frames
   row 3  hurt   4 frames (the 3rd frame is a solid white flash silhouette)
-  row 4  jump   3 frames
+  row 4  jump   3 frames (take-off, legs tucked while rising,
+                         legs stretched down while falling)
   row 5  bow    1 frame
   row 6  dash   6 frames
 Unused cells stay transparent.

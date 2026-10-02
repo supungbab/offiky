@@ -59,6 +59,7 @@ final class CharacterNode: SKNode {
     private var renderedAnimation: Animation?
     private var renderedFrame = -1
     private var previousX: CGFloat = 0
+    private var previousY: CGFloat = 0
     var hurtUntil: TimeInterval = 0
     /// 묘비로 서 있는 동안. 원격은 주인이 좌표에 적어 보낸 값을 따른다
     private(set) var isDead = false
@@ -121,6 +122,9 @@ final class CharacterNode: SKNode {
     static let tombstoneRiseDuration: TimeInterval = 0.6
     /// 부활할 때 바닥에서 튀어 오르는 높이. 제자리 점프보다 높다
     static let reviveApex: CGFloat = 96
+    /// 땅을 떠난 뒤 도약 그림(1열)을 보여 주는 시간
+    static let takeoffDuration: TimeInterval = 0.1
+    private var takeoffUntil: TimeInterval = 0
 
     init(id: String, name: String, isLocal: Bool) {
         self.id = id
@@ -326,6 +330,9 @@ final class CharacterNode: SKNode {
 
         let moved = x - previousX
         previousX = x
+        let goingUp = y > previousY
+        if previousY <= 0, y > 0 { takeoffUntil = now + CharacterNode.takeoffDuration }
+        previousY = y
         // 내 캐릭터는 입력이 방향을 정한다. 원격은 움직임으로 읽는다
         if !isLocal, !facingTold, !isDragging, abs(moved) > 0.1 { face(moved) }
         let speed = abs(moved) / CGFloat(max(dt, 0.001))
@@ -366,7 +373,10 @@ final class CharacterNode: SKNode {
         if let textures = sheet.frames[animation], !textures.isEmpty {
             // 기어갈 때는 달리기 그림을 천천히 넘긴다
             let fps = isBowing && animation == .dash ? CharacterNode.crawlFPS : animation.fps
-            let index = isDragging ? 0 : Int(walkPhase * fps) % textures.count
+            // 점프는 도약 1열, 오르는 동안 2열, 내려오는 동안 3열
+            let index = isDragging ? 0
+                : animation == .jump ? (now < takeoffUntil ? 0 : goingUp ? 1 : 2)
+                : Int(walkPhase * fps) % textures.count
             if animation != renderedAnimation || index != renderedFrame {
                 image.texture = textures[index]
                 renderedAnimation = animation
