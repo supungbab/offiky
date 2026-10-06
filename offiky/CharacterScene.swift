@@ -490,8 +490,8 @@ final class CharacterNode: SKNode {
         shadow.alpha = 0.3 * (1 - 0.75 * lift)
         // 묘비는 늘 다른 캐릭터 뒤에 둔다. 원격은 띠 왼쪽 밖(x < 0)에도 서므로 넉넉히 뺀다
         zPosition = tombstone ? depthBias - 10_000 : x + depthBias
-        // 스프라이트는 오른쪽을 보고 그려져 있다
-        image.xScale = tombstone ? 1 : facing
+        // 스프라이트는 오른쪽을 보고 그려져 있다. 글씨가 있는 업데이트 팻말은 뒤집지 않는다
+        image.xScale = tombstone || look.design == Characters.count ? 1 : facing
         updateNameLabel()
     }
 
@@ -676,7 +676,8 @@ final class World {
     static var myLook: Look {
         get {
             guard let data = UserDefaults.standard.data(forKey: "look"),
-                  let look = try? JSONDecoder().decode(Look.self, from: data)
+                  let look = try? JSONDecoder().decode(Look.self, from: data),
+                  (0..<Characters.count).contains(look.design)
             else { return .fallback(for: installID) }
             return look.sanitized
         }

@@ -105,7 +105,7 @@ enum Characters {
     }
 
     private static func build(_ design: Int) -> Sheet {
-        guard let image = NSImage(named: names[design]),
+        guard let image = NSImage(named: design < names.count ? names[design] : "update"),
               let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil)
         else {
             return Sheet(size: CGSize(width: 16, height: 16), bodyWidth: 16,

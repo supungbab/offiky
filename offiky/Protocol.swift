@@ -386,8 +386,8 @@ struct Look: Codable, Equatable {
         Look(design: Int(stableHash(id) % UInt64(Characters.count)))
     }
 
-    /// 수신값은 신뢰할 수 없으므로 범위 안으로 제한한다
+    /// 모르는 번호는 새 버전의 캐릭터다. 업데이트 팻말(Characters.count)로 표시한다
     var sanitized: Look {
-        Look(design: ((design % Characters.count) + Characters.count) % Characters.count)
+        (0..<Characters.count).contains(design) ? self : Look(design: Characters.count)
     }
 }

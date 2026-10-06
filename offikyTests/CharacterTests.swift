@@ -68,9 +68,10 @@ struct CharacterTests {
         #expect(stableHash("a") == 0xaf63dc4c8601ec8c)
     }
 
-    @Test func 범위를_벗어난_번호는_제한된다() {
-        #expect(Look(design: 999).sanitized.design == 999 % Characters.count)
-        #expect(Look(design: -1).sanitized.design == Characters.count - 1)
+    @Test func 모르는_번호는_업데이트_팻말로_표시된다() {
+        #expect(Look(design: 999).sanitized.design == Characters.count)
+        #expect(Look(design: -1).sanitized.design == Characters.count)
+        #expect(Characters.sheet(Look(design: 999)).frames[.walk]?.count == Animation.walk.frameCount)
     }
 
     @Test func 기본_외형은_id_로_결정되고_결정적이다() {
