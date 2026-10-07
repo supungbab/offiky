@@ -60,6 +60,8 @@ final class CharacterNode: SKNode {
     private var renderedFrame = -1
     private var previousX: CGFloat = 0
     private var previousY: CGFloat = 0
+    /// 직전 프레임의 가로 속도. 원격은 보간 결과다
+    private(set) var velocity: CGFloat = 0
     var hurtUntil: TimeInterval = 0
     /// 묘비로 서 있는 동안. 원격은 주인이 좌표에 적어 보낸 값을 따른다
     private(set) var isDead = false
@@ -108,6 +110,10 @@ final class CharacterNode: SKNode {
     static let maxJumps = 2
     static let airJumpApex: CGFloat = 60
     private var jumpsUsed = 0
+    /// 부딪혀 튕겨 나가는 가로 속도. 착지하면 0 이 된다
+    private var knockback: CGFloat = 0
+    static let knockbackSpeed: CGFloat = 80
+    static let knockbackApex: CGFloat = 14
 
     /// 뛰어서 닿는 최고점. 대시 점프 정점에서 한 번 더 차는 경우다
     static let maxJumpHeight = dashJumpApex + airJumpApex
@@ -216,6 +222,7 @@ final class CharacterNode: SKNode {
         isDragging = true
         verticalSpeed = 0
         jumpsUsed = 0
+        knockback = 0
         hurtUntil = 0
         walkPhase = 0
         isWalking = false
@@ -243,6 +250,24 @@ final class CharacterNode: SKNode {
         isDashing = false
         // 맞으면 올라가던 힘이 사라진다. 떨어지던 중이면 그대로 둔다
         verticalSpeed = min(verticalSpeed, 0)
+    }
+
+    /// 둘 다 서로를 향해 달리다 몸이 닿았다
+    func isRamming(_ other: CharacterNode, now: TimeInterval) -> Bool {
+        guard now >= hurtUntil, y <= 0, other.y <= 0, !isDead, !other.isDead,
+              !isDragging, !other.isDragging else { return false }
+        let gap = other.x - x
+        let threshold = CharacterNode.dashAnimationThreshold
+        return abs(gap) < sheet.bodyWidth + other.sheet.bodyWidth
+            && velocity * gap > 0 && other.velocity * gap < 0
+            && abs(velocity) > threshold && abs(other.velocity) > threshold
+    }
+
+    /// 부딪힌 상대 반대쪽으로 튕겨 나가며 아파한다
+    func bounce(awayFrom other: CharacterNode, now: TimeInterval) {
+        takeHit(now: now)
+        knockback = (x < other.x ? -1 : 1) * CharacterNode.knockbackSpeed
+        verticalSpeed = (2 * CharacterNode.gravity * CharacterNode.knockbackApex).squareRoot()
     }
 
     @discardableResult
@@ -335,7 +360,8 @@ final class CharacterNode: SKNode {
         previousY = y
         // 내 캐릭터는 입력이 방향을 정한다. 원격은 움직임으로 읽는다
         if !isLocal, !facingTold, !isDragging, abs(moved) > 0.1 { face(moved) }
-        let speed = abs(moved) / CGFloat(max(dt, 0.001))
+        velocity = moved / CGFloat(max(dt, 0.001))
+        let speed = abs(velocity)
 
         let running = !isDragging && now >= hurtUntil && y <= 0
             && speed > CharacterNode.dashAnimationThreshold
@@ -401,9 +427,10 @@ final class CharacterNode: SKNode {
         }
 
         if y > 0 || verticalSpeed != 0 {
+            x = strip.clamp(x + knockback * step)
             y += verticalSpeed * step - 0.5 * CharacterNode.gravity * step * step
             verticalSpeed -= CharacterNode.gravity * step
-            if y <= 0 { y = 0; verticalSpeed = 0; jumpsUsed = 0 }
+            if y <= 0 { y = 0; verticalSpeed = 0; jumpsUsed = 0; knockback = 0 }
             return
         }
         isWalking = !hurt && holding != 0
@@ -765,6 +792,10 @@ final class World {
         update(me)
         for node in peers.values { update(node) }
 
+        // 내 캐릭터만 판정한다. 상대는 자기 화면에서 판정해 hit 으로 알린다
+        if let other = peers.values.first(where: { me.isRamming($0, now: now) }) {
+            me.bounce(awayFrom: other, now: now)
+        }
         if me.hurtUntil > reportedHurtUntil {
             reportedHurtUntil = me.hurtUntil
             Session.shared.sendHit()

@@ -165,6 +165,30 @@ struct ControlTests {
         #expect(node.y == 0)
     }
 
+    @MainActor @Test func 서로_달려오다_닿으면_부딪힌다() {
+        let a = node(), b = CharacterNode(id: "you", name: "you", isLocal: true)
+        b.teleport(to: 1000)
+        a.hold(1, dash: true); b.hold(-1, dash: true)
+        var now = 0.0
+        while b.x - a.x > 20 {
+            a.update(dt: 1.0 / 60, now: now, strip: strip)
+            b.update(dt: 1.0 / 60, now: now, strip: strip)
+            now += 1.0 / 60
+        }
+        #expect(a.isRamming(b, now: now))
+
+        let hitX = a.x
+        a.hold(0, dash: false)
+        a.bounce(awayFrom: b, now: now)
+        for _ in 0..<60 { now += 1.0 / 60; a.update(dt: 1.0 / 60, now: now, strip: strip) }
+        #expect(a.x < hitX - 10)
+        #expect(a.y == 0)
+
+        b.hold(0, dash: false)
+        b.update(dt: 1.0 / 60, now: now, strip: strip)
+        #expect(!a.isRamming(b, now: now))
+    }
+
     @MainActor @Test func 방향키를_누르는_동안_걷는다() {
         let node = node()
         node.hold(1, dash: false)
