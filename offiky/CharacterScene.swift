@@ -252,15 +252,15 @@ final class CharacterNode: SKNode {
         verticalSpeed = min(verticalSpeed, 0)
     }
 
-    /// 둘 다 서로를 향해 달리다 몸이 닿았다
+    /// 어느 한쪽이 상대를 향해 달리다 몸이 닿았다. 서 있는 상대도 부딪힌다
     func isRamming(_ other: CharacterNode, now: TimeInterval) -> Bool {
         guard now >= hurtUntil, y <= 0, other.y <= 0, !isDead, !other.isDead,
               !isDragging, !other.isDragging else { return false }
         let gap = other.x - x
         let threshold = CharacterNode.dashAnimationThreshold
         return abs(gap) < sheet.bodyWidth + other.sheet.bodyWidth
-            && velocity * gap > 0 && other.velocity * gap < 0
-            && abs(velocity) > threshold && abs(other.velocity) > threshold
+            && ((velocity * gap > 0 && abs(velocity) > threshold)
+                || (other.velocity * gap < 0 && abs(other.velocity) > threshold))
     }
 
     /// 부딪힌 상대 반대쪽으로 튕겨 나가며 아파한다

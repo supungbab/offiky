@@ -189,6 +189,24 @@ struct ControlTests {
         #expect(!a.isRamming(b, now: now))
     }
 
+    @MainActor @Test func 달려와_서_있는_사람을_치면_둘_다_부딪힌다() {
+        let runner = node(), stander = CharacterNode(id: "you", name: "you", isLocal: true)
+        stander.teleport(to: 1000)
+        runner.hold(1, dash: true)
+        var now = 0.0
+        while stander.x - runner.x > 20 {
+            runner.update(dt: 1.0 / 60, now: now, strip: strip)
+            stander.update(dt: 1.0 / 60, now: now, strip: strip)
+            now += 1.0 / 60
+        }
+        #expect(runner.isRamming(stander, now: now))
+        #expect(stander.isRamming(runner, now: now))
+
+        runner.hold(1, dash: false)
+        runner.update(dt: 1.0 / 60, now: now, strip: strip)
+        #expect(!stander.isRamming(runner, now: now))
+    }
+
     @MainActor @Test func 방향키를_누르는_동안_걷는다() {
         let node = node()
         node.hold(1, dash: false)
