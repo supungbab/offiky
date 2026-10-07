@@ -130,8 +130,8 @@ final class Session {
     }
 
     /// 낙하는 소유자가 자기 캐릭터에 대해 판정한다. 결과만 다른 화면에 알린다.
-    func sendHit() {
-        if let data = encode(HitMsg()) { Net.shared.broadcast(data) }
+    func sendHit(rammed: String? = nil) {
+        if let data = encode(HitMsg(rammed: rammed)) { Net.shared.broadcast(data) }
     }
 
     /// 좌표가 끊겨 없는 것으로 판정했을 때 World 가 호출한다.
@@ -237,8 +237,9 @@ final class Session {
             World.shared.showTyping(id: id)
         case let .profile(msg):
             World.shared.addPeer(id: id, name: sanitizeName(msg.name), look: msg.look.sanitized)
-        case .hit:
+        case let .hit(msg):
             World.shared.peerWasHit(id: id)
+            if msg.rammed == World.shared.myID { World.shared.wasRammed(by: id) }
         case .hello, .full, .udp:
             break
         }

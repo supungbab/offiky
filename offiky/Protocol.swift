@@ -265,8 +265,10 @@ struct TypingMsg: Codable {
 }
 
 /// 높은 곳에서 떨어진 피격은 소유자만 판정하고 다른 화면에 한 번 알린다.
+/// 달리다 부딪혔으면 부딪힌 상대의 id 를 적는다. 그 상대도 튕겨 나간다
 struct HitMsg: Codable {
     var t = "hit"
+    var rammed: String? = nil
 }
 
 /// 정원이 찼다. 받은 쪽은 다음 채널로 옮긴다

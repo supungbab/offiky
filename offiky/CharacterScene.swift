@@ -252,15 +252,18 @@ final class CharacterNode: SKNode {
         verticalSpeed = min(verticalSpeed, 0)
     }
 
-    /// 어느 한쪽이 상대를 향해 달리다 몸이 닿았다. 서 있는 상대도 부딪힌다
+    /// 상대를 향해 달리다 몸이 닿았다. 서 있는 상대도 부딪힌다.
+    /// 달린 쪽만 판정한다. 상대 화면에서는 내가 늦게 보여 닿기 전에 튕겨 나간다
     func isRamming(_ other: CharacterNode, now: TimeInterval) -> Bool {
-        guard now >= hurtUntil, y <= 0, other.y <= 0, !isDead, !other.isDead,
-              !isDragging, !other.isDragging else { return false }
+        guard canBeRammed(now: now), other.y <= 0, !other.isDead, !other.isDragging
+        else { return false }
         let gap = other.x - x
-        let threshold = CharacterNode.dashAnimationThreshold
         return abs(gap) < sheet.bodyWidth + other.sheet.bodyWidth
-            && ((velocity * gap > 0 && abs(velocity) > threshold)
-                || (other.velocity * gap < 0 && abs(other.velocity) > threshold))
+            && velocity * gap > 0 && abs(velocity) > CharacterNode.dashAnimationThreshold
+    }
+
+    func canBeRammed(now: TimeInterval) -> Bool {
+        now >= hurtUntil && y <= 0 && !isDead && !isDragging
     }
 
     /// 부딪힌 상대 반대쪽으로 튕겨 나가며 아파한다
@@ -792,13 +795,15 @@ final class World {
         update(me)
         for node in peers.values { update(node) }
 
-        // 내 캐릭터만 판정한다. 상대는 자기 화면에서 판정해 hit 으로 알린다
+        // 달린 쪽이 판정해 hit 으로 부딪힌 상대를 알린다
+        var rammed: String?
         if let other = peers.values.first(where: { me.isRamming($0, now: now) }) {
             me.bounce(awayFrom: other, now: now)
+            rammed = other.id
         }
         if me.hurtUntil > reportedHurtUntil {
             reportedHurtUntil = me.hurtUntil
-            Session.shared.sendHit()
+            Session.shared.sendHit(rammed: rammed)
         }
 
         for (node, placement) in visible {
@@ -854,6 +859,13 @@ extension World {
 
     func peerWasHit(id: String) {
         peers[id]?.takeHit(now: ProcessInfo.processInfo.systemUptime)
+    }
+
+    /// 달려온 상대가 나와 부딪혔다고 알려 왔다
+    func wasRammed(by id: String) {
+        let now = ProcessInfo.processInfo.systemUptime
+        guard let other = peers[id], me.canBeRammed(now: now) else { return }
+        me.bounce(awayFrom: other, now: now)
     }
 
     func showBubble(id: String, text: String) {

@@ -189,7 +189,7 @@ struct ControlTests {
         #expect(!a.isRamming(b, now: now))
     }
 
-    @MainActor @Test func 달려와_서_있는_사람을_치면_둘_다_부딪힌다() {
+    @MainActor @Test func 달려와_서_있는_사람을_치면_달린_쪽이_판정한다() {
         let runner = node(), stander = CharacterNode(id: "you", name: "you", isLocal: true)
         stander.teleport(to: 1000)
         runner.hold(1, dash: true)
@@ -200,11 +200,12 @@ struct ControlTests {
             now += 1.0 / 60
         }
         #expect(runner.isRamming(stander, now: now))
-        #expect(stander.isRamming(runner, now: now))
+        #expect(!stander.isRamming(runner, now: now))
+        #expect(stander.canBeRammed(now: now))
 
         runner.hold(1, dash: false)
         runner.update(dt: 1.0 / 60, now: now, strip: strip)
-        #expect(!stander.isRamming(runner, now: now))
+        #expect(!runner.isRamming(stander, now: now))
     }
 
     @MainActor @Test func 방향키를_누르는_동안_걷는다() {
