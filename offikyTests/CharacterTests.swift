@@ -8,7 +8,7 @@ import Testing
 struct CharacterTests {
 
     @Test func 모양_여덟에_프리셋이_모양마다_묶인다() {
-        #expect(Characters.count == 36)
+        #expect(Characters.count == 44)
         #expect(Set(Characters.names).count == Characters.count)
         #expect(Characters.groups.map(\.shape) == ["goat", "sheep", "birb", "frog", "pig", "cat", "human", "ghost"])
         // 모든 번호가 제 모양에 한 번씩만 들어간다
@@ -34,6 +34,8 @@ struct CharacterTests {
         #expect(Characters.names[33] == "human_skin")
         #expect(Characters.names[34] == "human_jeans")
         #expect(Characters.names[35] == "ghost_white")
+        #expect(Characters.names[40] == "ghost_sakura")
+        #expect(Characters.names[43] == "human_deep")
     }
 
     @Test func 애니메이션_프레임_수() {
