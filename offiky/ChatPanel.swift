@@ -39,7 +39,7 @@ final class HotKey {
     }
 }
 
-/// 채팅과 조작 안내는 같은 자리에 번갈아 뜬다. 크기가 다르면 바뀔 때 눈에 띈다
+/// 조작 안내 창 크기. 채팅 입력란도 같은 높이를 쓴다
 let panelSize = CGSize(width: 620, height: 48)
 
 /// 시스템 HUD 와 같은 모서리
@@ -163,31 +163,22 @@ struct FocusReturn {
     }
 }
 
-/// 기록 칸 높이. 한 줄짜리 넷이 들어간다
-private let historyHeight: CGFloat = 100
+/// 카카오톡처럼 세로로 긴 창. 처음에는 이 크기로 뜨고 더 줄일 수 없다
+private let chatMinSize = CGSize(width: 300, height: 400)
 
 private struct ChatHistoryView: View {
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 8) {
                 // 입력란이 아래라 최신이 아래여야 한다. 저장은 최신이 앞이다
                 ForEach(ChatLog.shared.entries.reversed()) { entry in
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        if entry.isSystem {
-                            Text(entry.text).foregroundStyle(.tertiary)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        } else {
-                            HStack(alignment: .firstTextBaseline, spacing: 4) {
-                                (Text(entry.name).fontWeight(.semibold)
-                                 + Text(entry.isMe ? " (나) :" : " :").foregroundStyle(.tertiary))
-                                    .fixedSize()
-                                Text(entry.text).textSelection(.enabled)
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                        Text(entry.at.formatted(date: .omitted, time: .shortened))
-                            .font(.system(size: 11).monospacedDigit())
-                            .foregroundStyle(.tertiary)
+                    if entry.isSystem {
+                        Text(entry.text).font(.system(size: 11)).foregroundStyle(.secondary)
+                            .padding(.horizontal, 10).padding(.vertical, 3)
+                            .background(.quaternary, in: Capsule())
+                            .frame(maxWidth: .infinity)
+                    } else {
+                        bubbleRow(entry)
                     }
                 }
             }
@@ -197,10 +188,36 @@ private struct ChatHistoryView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .defaultScrollAnchor(.bottom)
-        .frame(height: historyHeight)
+        .frame(minHeight: 60, maxHeight: .infinity)
         .overlay {
             if ChatLog.shared.entries.isEmpty {
                 Text("지난 대화가 없습니다").font(.system(size: 12)).foregroundStyle(.tertiary)
+            }
+        }
+    }
+
+    /// 내 말은 오른쪽 강조색 말풍선, 동료 말은 이름 아래 왼쪽 말풍선
+    private func bubbleRow(_ entry: ChatLog.Entry) -> some View {
+        let time = Text(entry.at.formatted(date: .omitted, time: .shortened))
+            .font(.system(size: 10).monospacedDigit())
+            .foregroundStyle(.tertiary)
+        let bubble = Text(entry.text)
+            .textSelection(.enabled)
+            .foregroundStyle(entry.isMe ? Color.white : Color.primary)
+            .padding(.horizontal, 9).padding(.vertical, 5)
+            .background(entry.isMe ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.quaternary),
+                        in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        return HStack(alignment: .bottom, spacing: 4) {
+            if entry.isMe {
+                Spacer(minLength: 60)
+                time
+                bubble
+            } else {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(entry.name).font(.system(size: 11)).foregroundStyle(.secondary)
+                    HStack(alignment: .bottom, spacing: 4) { bubble; time }
+                }
+                Spacer(minLength: 60)
             }
         }
     }
@@ -212,10 +229,21 @@ private struct ChatInputView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            // 카카오톡처럼 우측 상단에서 투명도를 정한다. 빈 곳을 끌면 창이 옮겨진다
+            HStack {
+                Spacer()
+                Slider(value: Bindable(ChatPanel.shared).opacity, in: 0.3...1)
+                    .controlSize(.mini)
+                    .frame(width: 80)
+            }
+            .padding(.horizontal, 12)
+            .frame(height: 26)
             ChatHistoryView()
             Divider()
             inputBar.frame(height: panelSize.height)
         }
+        // 테두리 없는 창은 panel.minSize 를 지키지 않는다. 내용의 최소 크기는 지킨다
+        .frame(minWidth: chatMinSize.width, minHeight: chatMinSize.height)
         .panelSurface()
     }
 
@@ -223,7 +251,7 @@ private struct ChatInputView: View {
         HStack(spacing: 10) {
             TextField("", text: $draft, prompt: Text("엔터로 보내기").foregroundStyle(.tertiary))
                 .textFieldStyle(.plain)
-                .font(.system(size: 15))
+                .font(.system(size: 13))
                 .focused($focused)
                 // 넘겨 적으면 전송할 때 조용히 사라진다. 여기서 막고 남은 길이를 보여 준다
                 .onChange(of: draft) {
@@ -256,6 +284,13 @@ private struct ChatInputView: View {
     private var focus = FocusReturn()
 
     private init() {}
+
+    var opacity = UserDefaults.standard.object(forKey: "chatOpacity") as? Double ?? 1 {
+        didSet {
+            UserDefaults.standard.set(opacity, forKey: "chatOpacity")
+            panel?.alphaValue = opacity
+        }
+    }
 
     /// 다른 앱이 같은 조합을 먼저 잡고 있으면 등록에 실패한다.
     /// 알리지 않으면 사용자는 앱이 고장 난 줄 안다.
@@ -298,24 +333,35 @@ private struct ChatInputView: View {
 
     func show() {
         guard let screen = screenUnderMouse() else { return }
-        // 입력란은 있던 자리에 두고 기록 칸이 그 위로 쌓인다
-        let origin = panelOrigin(on: screen, width: panelSize.width)
-        let room = screen.visibleFrame.maxY - origin.y - panelSize.height - 24
-        let above = min(historyHeight + 1, max(0, room))
-        let size = CGSize(width: panelSize.width, height: panelSize.height + above)
+        // 입력란 높이는 조작 안내와 같고, 창은 그 위로 길게 쌓인다
+        let origin = panelOrigin(on: screen, width: chatMinSize.width)
+        let size = chatMinSize
 
         // 스포트라이트처럼 다른 곳을 클릭하면 사라진다
         let panel = self.panel ?? KeyPanel.floating { [weak self] in
             guard let self, !self.presenting else { return }
             self.hide(restoringFocus: false)
         }
+        if self.panel == nil {
+            panel.styleMask.insert(.resizable)
+            panel.isMovableByWindowBackground = true
+        }
         self.panel = panel
+        panel.alphaValue = opacity
 
         // 매번 새 뷰를 넣어 입력란을 비우고 포커스를 다시 잡는다
         presenting = true
         focus.remember()
-        panel.contentView = NSHostingView(rootView: ChatInputView())
-        panel.setFrame(CGRect(origin: origin, size: size), display: true)
+        let hosting = NSHostingView(rootView: ChatInputView())
+        hosting.sizingOptions = [.minSize]
+        panel.contentView = hosting
+        // 옮기거나 크기를 바꾼 적이 있으면 그 자리에 띄운다. 다른 화면에 저장된 자리면 크기만 쓴다
+        if !panel.setFrameUsingName("ChatWindow") {
+            panel.setFrame(CGRect(origin: origin, size: size), display: true)
+        } else if !screen.visibleFrame.intersects(panel.frame) {
+            panel.setFrame(CGRect(origin: origin, size: panel.frame.size), display: true)
+        }
+        panel.setFrameAutosaveName("ChatWindow")
         NSApp.activate(ignoringOtherApps: true)
         panel.makeKeyAndOrderFront(nil)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
