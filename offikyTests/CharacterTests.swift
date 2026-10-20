@@ -191,6 +191,16 @@ struct ControlTests {
         #expect(runner.isDead)
     }
 
+    @MainActor @Test func 똥은_몸과_겹치지_않게_등_뒤에_떨어진다() {
+        let node = node()
+        node.apply(Look(design: 0))
+        let gap = Characters.sheet(Look(design: 0)).bodyWidth + Characters.poop.size().width
+        node.hold(1, dash: false)
+        #expect(node.poopX <= node.x - gap)
+        node.hold(-1, dash: false)
+        #expect(node.poopX >= node.x + gap)
+    }
+
     @MainActor @Test func 웅크린_채_5초를_버티면_한_번만_싼다() {
         let node = node()
         node.isBowing = true

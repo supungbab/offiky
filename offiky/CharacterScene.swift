@@ -216,6 +216,11 @@ final class CharacterNode: SKNode {
         return true
     }
 
+    /// 몸과 겹치지 않는 등 뒤 바닥. 몸 반폭(픽셀 수 = pt)에 똥 반폭과 2pt 를 더한다
+    var poopX: CGFloat {
+        x - facing * (sheet.bodyWidth + Characters.poop.size().width + 2)
+    }
+
     /// 조종 입력을 받는다. 공중에서도 방향을 바꿀 수 있다.
     func hold(_ direction: CGFloat, dash: Bool) {
         holding = direction
@@ -822,8 +827,7 @@ final class World {
         for node in peers.values { update(node) }
 
         if me.poopIfReady(now: now) {
-            // 엉덩이 쪽에 떨어진다
-            let x = me.x - me.facing * 8
+            let x = me.poopX
             dropPoop(x: x, now: now)
             Session.shared.sendPoop(x: x)
         }
