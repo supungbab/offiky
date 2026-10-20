@@ -17,6 +17,9 @@ final class CharacterNode: SKNode {
     private let jetpack = SKSpriteNode(texture: Characters.jetpack)
     private let flame = SKSpriteNode(texture: Characters.flames[0])
     private var flameTick = 0
+    /// 남은 연료. 내 화면에만 그린다
+    private let gauge = SKSpriteNode(color: NSColor(white: 0, alpha: 0.5), size: CGSize(width: 4, height: 16))
+    private let gaugeFill = SKSpriteNode(color: .systemGreen, size: .zero)
     private let label = SKLabelNode(fontNamed: "Helvetica")
     private var nameBackground: SKShapeNode?
     private var bubbleNode: SKShapeNode?
@@ -181,6 +184,15 @@ final class CharacterNode: SKNode {
         flame.position = CGPoint(x: 0, y: -jetpack.size.height / 2)
         jetpack.addChild(flame)
         addChild(jetpack)
+
+        if isLocal {
+            gauge.zPosition = 1
+            gauge.isHidden = true
+            gaugeFill.anchorPoint = CGPoint(x: 0.5, y: 0)
+            gaugeFill.position = CGPoint(x: 0, y: -gauge.size.height / 2)
+            gauge.addChild(gaugeFill)
+            addChild(gauge)
+        }
 
         label.fontSize = 10
         label.fontColor = .white
@@ -593,6 +605,14 @@ final class CharacterNode: SKNode {
             jetpack.position = CGPoint(x: -facing * (sheet.bodyWidth + 3), y: -spriteDisplaySize / 2 + 14)
             flameTick += 1
             flame.texture = Characters.flames[(flameTick / 3) % 2]
+        }
+        // 가득 차 있으면 숨긴다. 2pt 단위로 줄어 픽셀 격자에 맞는다
+        gauge.isHidden = !isLocal || fuel >= CharacterNode.jetFuel || tombstone
+        if !gauge.isHidden {
+            gauge.position = CGPoint(x: -facing * (sheet.bodyWidth + 12), y: -spriteDisplaySize / 2 + 14)
+            let ratio = CGFloat(fuel / CharacterNode.jetFuel)
+            gaugeFill.size = CGSize(width: 4, height: (ratio * gauge.size.height / 2).rounded(.up) * 2)
+            gaugeFill.color = ratio > 0.5 ? .systemGreen : ratio > 0.2 ? .systemYellow : .systemRed
         }
         // 묘비는 늘 다른 캐릭터 뒤에 둔다. 원격은 띠 왼쪽 밖(x < 0)에도 서므로 넉넉히 뺀다
         zPosition = tombstone ? depthBias - 10_000 : x + depthBias
