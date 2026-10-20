@@ -137,7 +137,7 @@ final class CharacterNode: SKNode {
     /// 웅크리기 시작한 시각. 이만큼 버티면 한 번 싸고, 일어나야 다시 쌀 수 있다
     private var crouchedSince: TimeInterval?
     private var pooped = false
-    static let poopHold: TimeInterval = 5
+    static let poopHold: TimeInterval = 3
 
     init(id: String, name: String, isLocal: Bool) {
         self.id = id
