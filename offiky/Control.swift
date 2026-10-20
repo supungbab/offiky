@@ -117,12 +117,12 @@ private final class KeyCatcher: NSHostingView<HintView> {
 }
 
 struct HintView: View {
-    /// 이동·점프·그 외로 묶는다. 같은 간격의 여섯 개는 순서대로 다 읽어야 한다
+    /// 이동·점프·그 외로 묶는다. 같은 간격의 일곱 개는 순서대로 다 읽어야 한다
     var body: some View {
         HStack(spacing: 22) {
             HStack(spacing: 10) { item("← →", "이동"); item("←← →→", "대시") }
             HStack(spacing: 10) { item("↑", "점프"); item("↑↑", "2단 점프") }
-            HStack(spacing: 10) { item("↓", "웅크리기"); item("esc", "끝내기") }
+            HStack(spacing: 10) { item("↓", "웅크리기"); item("⇧↓", "똥"); item("esc", "끝내기") }
         }
         .font(.system(size: 11))
         .frame(maxWidth: .infinity, maxHeight: .infinity)
