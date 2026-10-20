@@ -134,9 +134,10 @@ final class CharacterNode: SKNode {
     /// 땅을 떠난 뒤 도약 그림(1열)을 보여 주는 시간
     static let takeoffDuration: TimeInterval = 0.1
     private var takeoffUntil: TimeInterval = 0
-    private var lastPoop: TimeInterval = -.infinity
-    /// 연타해도 이 간격으로만 싼다
-    static let poopInterval: TimeInterval = 0.5
+    /// Shift 를 누른 채 웅크리기 시작한 시각. 이만큼 버티면 한 번 싸고, 떼야 다시 쌀 수 있다
+    private var strainingSince: TimeInterval?
+    private var pooped = false
+    static let poopHold: TimeInterval = 1
 
     init(id: String, name: String, isLocal: Bool) {
         self.id = id
@@ -201,11 +202,17 @@ final class CharacterNode: SKNode {
         verticalSpeed = (2 * CharacterNode.gravity * apex).squareRoot()
     }
 
-    /// 바닥에 서 있고 직전에 싼 지 `poopInterval` 이 지났으면 true 를 반환한다
-    func canPoop(now: TimeInterval) -> Bool {
-        guard isLocal, y <= 0, !isDragging, !isDead,
-              now - lastPoop >= CharacterNode.poopInterval else { return false }
-        lastPoop = now
+    /// 바닥에서 Shift 를 누른 채 웅크려 `poopHold` 만큼 버텼으면 한 번 true 를 반환한다
+    func poopIfReady(now: TimeInterval, straining: Bool) -> Bool {
+        guard isLocal, isBowing, straining, y <= 0, !isDragging, !isDead else {
+            strainingSince = nil
+            pooped = false
+            return false
+        }
+        let since = strainingSince ?? now
+        strainingSince = since
+        guard !pooped, now - since >= CharacterNode.poopHold else { return false }
+        pooped = true
         return true
     }
 
@@ -819,6 +826,11 @@ final class World {
         update(me)
         for node in peers.values { update(node) }
 
+        if me.poopIfReady(now: now, straining: NSEvent.modifierFlags.contains(.shift)) {
+            let x = me.poopX
+            dropPoop(x: x, now: now)
+            Session.shared.sendPoop(x: x)
+        }
         placePoops(now: now)
 
         // 달린 쪽이 판정해 hit 으로 부딪힌 상대를 알린다
@@ -886,15 +898,6 @@ extension World {
     static let poopLifetime: TimeInterval = 60
     /// 원격이 마구 보내도 이 이상 쌓지 않는다. 오래된 것부터 치운다
     static let maxPoops = 30
-
-    /// Shift + ↓ 로 등 뒤에 싼다
-    func poop() {
-        let now = ProcessInfo.processInfo.systemUptime
-        guard me.canPoop(now: now) else { return }
-        let x = me.poopX
-        dropPoop(x: x, now: now)
-        Session.shared.sendPoop(x: x)
-    }
 
     func dropPoop(x: CGFloat, now: TimeInterval) {
         let sprite = SKSpriteNode(texture: Characters.poop)

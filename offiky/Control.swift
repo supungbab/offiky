@@ -71,8 +71,6 @@ import SwiftUI
             stop()
         case kVK_UpArrow:
             if !event.isARepeat { World.shared.me.jump() }
-        case kVK_DownArrow where event.modifierFlags.contains(.shift):
-            if !event.isARepeat { World.shared.poop() }
         case kVK_DownArrow:
             World.shared.me.isBowing = true
         case kVK_LeftArrow, kVK_RightArrow:
@@ -122,7 +120,7 @@ struct HintView: View {
         HStack(spacing: 22) {
             HStack(spacing: 10) { item("← →", "이동"); item("←← →→", "대시") }
             HStack(spacing: 10) { item("↑", "점프"); item("↑↑", "2단 점프") }
-            HStack(spacing: 10) { item("↓", "웅크리기"); item("⇧↓", "똥"); item("esc", "끝내기") }
+            HStack(spacing: 10) { item("↓", "웅크리기"); item("⇧↓", "1초 똥"); item("esc", "끝내기") }
         }
         .font(.system(size: 11))
         .frame(maxWidth: .infinity, maxHeight: .infinity)
