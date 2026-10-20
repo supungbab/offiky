@@ -160,6 +160,37 @@ struct ControlTests {
         return node
     }
 
+    @MainActor @Test func 다섯_번_맞으면_죽고_살아나면_다시_센다() {
+        let node = node()
+        for n in 1..<CharacterNode.hitsToDie {
+            node.takeHit(now: Double(n))
+            node.update(dt: 1.0 / 60, now: Double(n), strip: strip)
+        }
+        #expect(!node.isDead)
+        node.takeHit(now: 10)
+        node.update(dt: 1.0 / 60, now: 10, strip: strip)
+        #expect(node.isDead)
+        #expect(node.hits == CharacterNode.hitsToDie)
+        node.update(dt: 1.0 / 60, now: 13, strip: strip)
+        node.jump()
+        #expect(!node.isDead)
+        #expect(node.hits == 0)
+    }
+
+    @MainActor @Test func 튕겨_오르다_다섯_번째로_맞으면_내려온_뒤에_죽는다() {
+        let runner = node(), stander = CharacterNode(id: "you", name: "you", isLocal: true)
+        stander.teleport(to: 920)
+        for n in 1..<CharacterNode.hitsToDie { runner.takeHit(now: Double(n)) }
+        runner.bounce(awayFrom: stander, now: 10)
+        var t = 10.0
+        runner.update(dt: 1.0 / 60, now: t, strip: strip)
+        #expect(runner.y > 0)
+        #expect(!runner.isDead)
+        while runner.y > 0, t < 12 { t += 1.0 / 60; runner.update(dt: 1.0 / 60, now: t, strip: strip) }
+        #expect(runner.y == 0)
+        #expect(runner.isDead)
+    }
+
     @MainActor @Test func 웅크린_채_5초를_버티면_한_번만_싼다() {
         let node = node()
         node.isBowing = true

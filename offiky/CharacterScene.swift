@@ -122,6 +122,9 @@ final class CharacterNode: SKNode {
     static let hurtDropHeight = maxJumpHeight * 1.4
     /// 이보다 높은 데서 떨어지면 묘비가 된다. 화면 절반쯤까지 들어 올려야 닿는다
     static let deathDropHeight = hurtDropHeight * 2.5
+    /// 낙하·충돌을 합쳐 이만큼 맞으면 묘비가 된다. 살아나면 다시 센다
+    static let hitsToDie = 5
+    private(set) var hits = 0
     /// 묘비가 올라오기 전에 아파하는 시간
     static let deathHurtDuration: TimeInterval = 1
     /// 묘비가 땅에서 다 올라오는 데 걸리는 시간
@@ -185,6 +188,7 @@ final class CharacterNode: SKNode {
             // 묘비가 다 올라온 뒤에만 살아난다
             guard tombstoneRows == Characters.tombstoneRows.count - 1 else { return }
             isDead = false
+            hits = 0
             verticalSpeed = (2 * CharacterNode.gravity * CharacterNode.reviveApex).squareRoot()
             jumpsUsed = CharacterNode.maxJumps
             return
@@ -263,6 +267,7 @@ final class CharacterNode: SKNode {
     }
 
     func takeHit(now: TimeInterval) {
+        if isLocal { hits += 1 }
         hurtUntil = now + 0.6
         walkPhase = 0
         isDashing = false
@@ -371,6 +376,8 @@ final class CharacterNode: SKNode {
         if isLocal {
             peakY = max(peakY, y)
             detectLanding(now: now)
+            // 튕겨 오르는 중에 죽으면 simulate 가 중력을 멈춰 공중에 남는다. 내려온 뒤에 죽는다
+            if hits >= CharacterNode.hitsToDie, y <= 0, !isDragging { isDead = true }
         }
         expireBubble(now: now)
 
