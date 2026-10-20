@@ -131,6 +131,10 @@ final class CharacterNode: SKNode {
     /// 땅을 떠난 뒤 도약 그림(1열)을 보여 주는 시간
     static let takeoffDuration: TimeInterval = 0.1
     private var takeoffUntil: TimeInterval = 0
+    /// 웅크리기 시작한 시각. 이만큼 버티면 한 번 싸고, 일어나야 다시 쌀 수 있다
+    private var crouchedSince: TimeInterval?
+    private var pooped = false
+    static let poopHold: TimeInterval = 5
 
     init(id: String, name: String, isLocal: Bool) {
         self.id = id
@@ -192,6 +196,20 @@ final class CharacterNode: SKNode {
             : (holding == 0 ? CharacterNode.jumpApex
                : (isDashing ? CharacterNode.dashJumpApex : CharacterNode.walkJumpApex))
         verticalSpeed = (2 * CharacterNode.gravity * apex).squareRoot()
+    }
+
+    /// 바닥에서 웅크린 채 `poopHold` 만큼 버텼으면 한 번 true 를 반환한다
+    func poopIfReady(now: TimeInterval) -> Bool {
+        guard isLocal, isBowing, y <= 0, !isDragging, !isDead else {
+            crouchedSince = nil
+            pooped = false
+            return false
+        }
+        let since = crouchedSince ?? now
+        crouchedSince = since
+        guard !pooped, now - since >= CharacterNode.poopHold else { return false }
+        pooped = true
+        return true
     }
 
     /// 조종 입력을 받는다. 공중에서도 방향을 바꿀 수 있다.
@@ -652,6 +670,7 @@ final class World {
     private(set) var strip = FloorStrip(visibleFrames: [], main: nil)
 
     private var scenes: [SKScene] = []
+    private(set) var poops: [(sprite: SKSpriteNode, x: CGFloat, until: TimeInterval)] = []
     private(set) var lastTick: TimeInterval = 0
     private var lastSweep: TimeInterval = 0
     private var reportedHurtUntil: TimeInterval = 0
@@ -795,6 +814,14 @@ final class World {
         update(me)
         for node in peers.values { update(node) }
 
+        if me.poopIfReady(now: now) {
+            // 엉덩이 쪽에 떨어진다
+            let x = me.x - me.facing * 8
+            dropPoop(x: x, now: now)
+            Session.shared.sendPoop(x: x)
+        }
+        placePoops(now: now)
+
         // 달린 쪽이 판정해 hit 으로 부딪힌 상대를 알린다
         var rammed: String?
         if let other = peers.values.first(where: { me.isRamming($0, now: now) }) {
@@ -855,6 +882,42 @@ extension World {
         node.applyRemoteSnapshot(x: x, y: y, bowing: bowing, dragging: dragging, dead: dead,
                                  facing: facing, sent: sent,
                                  at: ProcessInfo.processInfo.systemUptime)
+    }
+
+    static let poopLifetime: TimeInterval = 60
+    /// 원격이 마구 보내도 이 이상 쌓지 않는다. 오래된 것부터 치운다
+    static let maxPoops = 30
+
+    func dropPoop(x: CGFloat, now: TimeInterval) {
+        let sprite = SKSpriteNode(texture: Characters.poop)
+        sprite.size = CGSize(width: Characters.poop.size().width * 2,
+                             height: Characters.poop.size().height * 2)
+        sprite.anchorPoint = CGPoint(x: 0.5, y: 0)
+        // 묘비보다도 뒤에 둔다
+        sprite.zPosition = -20_000
+        poops.append((sprite, x, now + World.poopLifetime))
+        if poops.count > World.maxPoops { poops.removeFirst().sprite.removeFromParent() }
+    }
+
+    fileprivate func placePoops(now: TimeInterval) {
+        poops.removeAll { poop in
+            guard now >= poop.until else { return false }
+            poop.sprite.removeFromParent()
+            return true
+        }
+        for poop in poops {
+            guard let placement = strip.place(x: poop.x, y: 0) else {
+                poop.sprite.removeFromParent()
+                continue
+            }
+            let scene = scenes[placement.screenIndex]
+            if poop.sprite.parent !== scene {
+                poop.sprite.removeFromParent()
+                scene.addChild(poop.sprite)
+            }
+            poop.sprite.position = CGPoint(x: (placement.point.x / 2).rounded() * 2,
+                                           y: (placement.point.y / 2).rounded() * 2 - spriteDisplaySize / 2)
+        }
     }
 
     func peerWasHit(id: String) {

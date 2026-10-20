@@ -271,6 +271,12 @@ struct HitMsg: Codable {
     var rammed: String? = nil
 }
 
+/// 웅크린 채 버텨 바닥에 똥을 쌌다. 옛 버전은 모르는 종류라 무시한다
+struct PoopMsg: Codable {
+    var t = "poop"
+    let x: Double
+}
+
 /// 정원이 찼다. 받은 쪽은 다음 채널로 옮긴다
 struct FullMsg: Codable {
     var t = "full"
@@ -353,6 +359,7 @@ enum IncomingMessage: Decodable {
     case typing(TypingMsg)
     case profile(ProfileMsg)
     case hit(HitMsg)
+    case poop(PoopMsg)
     case full(FullMsg)
     case udp(UDPMsg)
 
@@ -367,6 +374,7 @@ enum IncomingMessage: Decodable {
         case "typing":  self = .typing(try TypingMsg(from: decoder))
         case "profile": self = .profile(try ProfileMsg(from: decoder))
         case "hit":     self = .hit(try HitMsg(from: decoder))
+        case "poop":    self = .poop(try PoopMsg(from: decoder))
         case "full":    self = .full(try FullMsg(from: decoder))
         case "udp":     self = .udp(try UDPMsg(from: decoder))
         default:

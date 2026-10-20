@@ -160,6 +160,20 @@ struct ControlTests {
         return node
     }
 
+    @MainActor @Test func 웅크린_채_5초를_버티면_한_번만_싼다() {
+        let node = node()
+        node.isBowing = true
+        #expect(!node.poopIfReady(now: 10))
+        #expect(!node.poopIfReady(now: 14.9))
+        #expect(node.poopIfReady(now: 15))
+        #expect(!node.poopIfReady(now: 30))
+        node.isBowing = false
+        #expect(!node.poopIfReady(now: 31))
+        node.isBowing = true
+        #expect(!node.poopIfReady(now: 32))
+        #expect(node.poopIfReady(now: 37))
+    }
+
     @MainActor @Test func 입력이_없으면_제자리에_선다() {
         let node = node()
         for _ in 0..<60 { node.update(dt: 1.0 / 60, now: 0, strip: strip) }

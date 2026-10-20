@@ -170,6 +170,16 @@ enum Characters {
         }
     }()
 
+    /// 웅크린 채 버티면 바닥에 남는 똥. 모든 모양이 같이 쓴다
+    static let poop: SKTexture = {
+        guard let cg = NSImage(named: "poop")?
+            .cgImage(forProposedRect: nil, context: nil, hints: nil)
+        else { return SKTexture() }
+        let texture = SKTexture(cgImage: cg)
+        texture.filteringMode = .nearest
+        return texture
+    }()
+
     private static var thumbCache: [Int: NSImage] = [:]
 
     /// 메뉴바 아이콘. 개구리 머리를 스프라이트에서 잘라 쓴다 — 그림을 고치면 같이 바뀐다.

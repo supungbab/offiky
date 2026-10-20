@@ -134,6 +134,10 @@ final class Session {
         if let data = encode(HitMsg(rammed: rammed)) { Net.shared.broadcast(data) }
     }
 
+    func sendPoop(x: CGFloat) {
+        if let data = encode(PoopMsg(x: Double(x))) { Net.shared.broadcast(data) }
+    }
+
     /// 좌표가 끊겨 없는 것으로 판정했을 때 World 가 호출한다.
     /// 연결을 끊어 두면 다시 연결하면서 hello 가 오가고 그때 되살아난다
     func peerGone(_ id: String) {
@@ -240,6 +244,9 @@ final class Session {
         case let .hit(msg):
             World.shared.peerWasHit(id: id)
             if msg.rammed == World.shared.myID { World.shared.wasRammed(by: id) }
+        case let .poop(msg):
+            guard abs(msg.x) <= Limits.maxX else { return }
+            World.shared.dropPoop(x: CGFloat(msg.x), now: ProcessInfo.processInfo.systemUptime)
         case .hello, .full, .udp:
             break
         }
