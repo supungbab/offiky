@@ -180,6 +180,29 @@ enum Characters {
         return texture
     }()
 
+    /// 분사하는 동안 등에 보이는 제트팩
+    static let jetpack: SKTexture = {
+        guard let cg = NSImage(named: "jetpack")?
+            .cgImage(forProposedRect: nil, context: nil, hints: nil)
+        else { return SKTexture() }
+        let texture = SKTexture(cgImage: cg)
+        texture.filteringMode = .nearest
+        return texture
+    }()
+
+    /// 제트팩 불꽃 두 장. 가로로 붙어 있고 번갈아 그린다
+    static let flames: [SKTexture] = {
+        guard let cg = NSImage(named: "flame")?
+            .cgImage(forProposedRect: nil, context: nil, hints: nil)
+        else { return [SKTexture(), SKTexture()] }
+        let whole = SKTexture(cgImage: cg)
+        return (0..<2).map { n in
+            let texture = SKTexture(rect: CGRect(x: CGFloat(n) / 2, y: 0, width: 0.5, height: 1), in: whole)
+            texture.filteringMode = .nearest
+            return texture
+        }
+    }()
+
     private static var thumbCache: [Int: NSImage] = [:]
 
     /// 메뉴바 아이콘. 개구리 머리를 스프라이트에서 잘라 쓴다 — 그림을 고치면 같이 바뀐다.

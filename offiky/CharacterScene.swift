@@ -14,6 +14,9 @@ final class CharacterNode: SKNode {
 
     private let image = SKSpriteNode()
     private let shadow = SKSpriteNode()
+    private let jetpack = SKSpriteNode(texture: Characters.jetpack)
+    private let flame = SKSpriteNode(texture: Characters.flames[0])
+    private var flameTick = 0
     private let label = SKLabelNode(fontNamed: "Helvetica")
     private var nameBackground: SKShapeNode?
     private var bubbleNode: SKShapeNode?
@@ -134,6 +137,21 @@ final class CharacterNode: SKNode {
     /// 땅을 떠난 뒤 도약 그림(1열)을 보여 주는 시간
     static let takeoffDuration: TimeInterval = 0.1
     private var takeoffUntil: TimeInterval = 0
+    /// Space 를 누르고 있는지. 연료가 남아 있어야 분사한다
+    var isThrusting = false
+    private(set) var fuel = CharacterNode.jetFuel
+    private var remoteJetting = false
+    /// 중력보다 이만큼 세게 밀어 천천히 떠오른다
+    static let jetThrust: CGFloat = gravity * 1.5
+    /// 오르는 속도 상한. 넘으면 로켓처럼 솟는다
+    static let jetMaxRise: CGFloat = 200
+    /// 분사할 수 있는 시간. 바닥에 내려와 Space 를 떼면 다시 채워진다
+    static let jetFuel: TimeInterval = 3
+
+    var isJetting: Bool {
+        isLocal ? isThrusting && fuel > 0 && !isDragging && !isDead : remoteJetting
+    }
+
     /// Shift 를 누른 채 웅크리기 시작한 시각. 이만큼 버티면 한 번 싸고, 떼야 다시 쌀 수 있다
     private var strainingSince: TimeInterval?
     private var pooped = false
@@ -151,6 +169,18 @@ final class CharacterNode: SKNode {
 
         image.anchorPoint = CGPoint(x: 0.5, y: 0)
         addChild(image)
+
+        // 몸 뒤에 메고, 불꽃은 그 아래로 뿜는다
+        jetpack.zPosition = -1
+        jetpack.size = CGSize(width: Characters.jetpack.size().width * 2,
+                              height: Characters.jetpack.size().height * 2)
+        jetpack.isHidden = true
+        flame.anchorPoint = CGPoint(x: 0.5, y: 1)
+        flame.size = CGSize(width: Characters.flames[0].size().width * 2,
+                            height: Characters.flames[0].size().height * 2)
+        flame.position = CGPoint(x: 0, y: -jetpack.size.height / 2)
+        jetpack.addChild(flame)
+        addChild(jetpack)
 
         label.fontSize = 10
         label.fontColor = .white
@@ -360,9 +390,11 @@ final class CharacterNode: SKNode {
     /// 전부 버려 위치와 행동이 서로 다른 패킷에서 섞이지 않게 한다.
     @discardableResult
     func applyRemoteSnapshot(x: CGFloat, y: CGFloat, bowing: Bool, dragging: Bool, dead: Bool = false,
+                             jetting: Bool = false,
                              facing direction: Int?, sent: TimeInterval?, at now: TimeInterval) -> Bool {
         guard setRemoteTarget(x: x, y: y, sent: sent, at: now) else { return false }
         isBowing = bowing
+        remoteJetting = jetting
         isDead = dead
         if let direction { faceAsTold(CGFloat(direction)) }
         if dragging { isDragging = true }
@@ -379,7 +411,8 @@ final class CharacterNode: SKNode {
         // 낙하 피격은 소유자만 판정해 hit 메시지로 알린다. 원격 노드의 높이는
         // 보간 결과라 실제 궤적과 다르고, 여기서 다시 판정하면 화면마다 결과가 갈린다.
         if isLocal {
-            peakY = max(peakY, y)
+            // 분사하는 동안은 떨어지는 중이 아니다. 분사가 끝난 높이부터 잰다
+            peakY = isJetting ? y : max(peakY, y)
             detectLanding(now: now)
             // 튕겨 오르는 중에 죽으면 simulate 가 중력을 멈춰 공중에 남는다. 내려온 뒤에 죽는다
             if hits >= CharacterNode.hitsToDie, y <= 0, !isDragging { isDead = true }
@@ -457,6 +490,13 @@ final class CharacterNode: SKNode {
             let speed = crouching ? CharacterNode.crawlSpeed
                 : (isDashing ? CharacterNode.dashSpeed : CharacterNode.walkSpeed)
             x = strip.clamp(x + holding * speed * step)
+        }
+
+        if isJetting {
+            fuel = max(0, fuel - dt)
+            verticalSpeed = min(CharacterNode.jetMaxRise, verticalSpeed + CharacterNode.jetThrust * step)
+        } else if y <= 0, verticalSpeed == 0, !isThrusting {
+            fuel = CharacterNode.jetFuel
         }
 
         if y > 0 || verticalSpeed != 0 {
@@ -548,6 +588,12 @@ final class CharacterNode: SKNode {
         applyShadow(step: min(CharacterNode.shadowSteps.count - 1,
                               Int(lift * CGFloat(CharacterNode.shadowSteps.count))))
         shadow.alpha = 0.3 * (1 - 0.75 * lift)
+        jetpack.isHidden = !isJetting || tombstone
+        if !jetpack.isHidden {
+            jetpack.position = CGPoint(x: -facing * (sheet.bodyWidth + 3), y: -spriteDisplaySize / 2 + 14)
+            flameTick += 1
+            flame.texture = Characters.flames[(flameTick / 3) % 2]
+        }
         // 묘비는 늘 다른 캐릭터 뒤에 둔다. 원격은 띠 왼쪽 밖(x < 0)에도 서므로 넉넉히 뺀다
         zPosition = tombstone ? depthBias - 10_000 : x + depthBias
         // 스프라이트는 오른쪽을 보고 그려져 있다. 글씨가 있는 업데이트 팻말은 뒤집지 않는다
@@ -887,10 +933,10 @@ extension World {
         return [mine] + others
     }
 
-    func setPeerTarget(id: String, x: CGFloat, y: CGFloat,
-                       bowing: Bool, dragging: Bool, dead: Bool, facing: Int?, sent: TimeInterval?) {
+    func setPeerTarget(id: String, x: CGFloat, y: CGFloat, bowing: Bool, dragging: Bool, dead: Bool,
+                       jetting: Bool = false, facing: Int?, sent: TimeInterval?) {
         guard let node = peers[id] else { return }
-        node.applyRemoteSnapshot(x: x, y: y, bowing: bowing, dragging: dragging, dead: dead,
+        node.applyRemoteSnapshot(x: x, y: y, bowing: bowing, dragging: dragging, dead: dead, jetting: jetting,
                                  facing: facing, sent: sent,
                                  at: ProcessInfo.processInfo.systemUptime)
     }

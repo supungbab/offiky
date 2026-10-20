@@ -40,7 +40,7 @@ final class HotKey {
 }
 
 /// 조작 안내 창 크기. 채팅 입력란도 같은 높이를 쓴다
-let panelSize = CGSize(width: 620, height: 48)
+let panelSize = CGSize(width: 680, height: 48)
 
 /// 시스템 HUD 와 같은 모서리
 private let panelShape = RoundedRectangle(cornerRadius: 16, style: .continuous)

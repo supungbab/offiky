@@ -215,6 +215,43 @@ struct ControlTests {
         #expect(node.poopIfReady(now: 33, straining: true))
     }
 
+    @MainActor @Test func 제트팩은_연료가_떨어질_때까지_떠오르고_바닥에서_떼야_다시_채워진다() {
+        let node = node()
+        let dt = 1.0 / 60
+        var t = 0.0
+        func run(_ seconds: Double) {
+            for _ in 0..<Int(seconds / dt) { t += dt; node.update(dt: dt, now: t, strip: strip) }
+        }
+        node.isThrusting = true
+        run(1)
+        #expect(node.y > 0)
+        #expect(node.isJetting)
+        let afterOne = node.y
+        run(2.1)
+        #expect(node.fuel == 0)
+        #expect(!node.isJetting)
+        #expect(node.y > afterOne)
+        // 연료가 없으면 점프와 같은 중력으로 떨어진다. 공중에서는 채워지지 않는다
+        run(3)
+        #expect(node.y == 0)
+        #expect(node.fuel == 0)
+        node.isThrusting = false
+        run(0.1)
+        #expect(node.fuel == CharacterNode.jetFuel)
+    }
+
+    @MainActor @Test func 제트팩으로_높이_올랐다가_연료가_떨어지면_낙하_피해를_입는다() {
+        let node = node()
+        let dt = 1.0 / 60
+        var t = 0.0
+        node.isThrusting = true
+        while node.isJetting { t += dt; node.update(dt: dt, now: t, strip: strip) }
+        #expect(node.y > CharacterNode.hurtDropHeight)
+        while node.y > 0 { t += dt; node.update(dt: dt, now: t, strip: strip) }
+        t += dt; node.update(dt: dt, now: t, strip: strip)
+        #expect(node.hurtUntil > t || node.isDead)
+    }
+
     @MainActor @Test func 기어가는_중에는_싸지_않고_멈춘_뒤부터_센다() {
         let node = node()
         node.isBowing = true
