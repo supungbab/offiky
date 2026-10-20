@@ -215,6 +215,17 @@ struct ControlTests {
         #expect(node.poopIfReady(now: 33, straining: true))
     }
 
+    @MainActor @Test func 기어가는_중에는_싸지_않고_멈춘_뒤부터_센다() {
+        let node = node()
+        node.isBowing = true
+        node.hold(1, dash: false)
+        #expect(!node.poopIfReady(now: 10, straining: true))
+        #expect(!node.poopIfReady(now: 12, straining: true))
+        node.hold(0, dash: false)
+        #expect(!node.poopIfReady(now: 12, straining: true))
+        #expect(node.poopIfReady(now: 13, straining: true))
+    }
+
     @MainActor @Test func 입력이_없으면_제자리에_선다() {
         let node = node()
         for _ in 0..<60 { node.update(dt: 1.0 / 60, now: 0, strip: strip) }

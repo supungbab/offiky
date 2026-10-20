@@ -202,9 +202,9 @@ final class CharacterNode: SKNode {
         verticalSpeed = (2 * CharacterNode.gravity * apex).squareRoot()
     }
 
-    /// 바닥에서 Shift 를 누른 채 웅크려 `poopHold` 만큼 버텼으면 한 번 true 를 반환한다
+    /// 바닥에 멈춰 Shift 를 누른 채 웅크려 `poopHold` 만큼 버텼으면 한 번 true 를 반환한다
     func poopIfReady(now: TimeInterval, straining: Bool) -> Bool {
-        guard isLocal, isBowing, straining, y <= 0, !isDragging, !isDead else {
+        guard isLocal, isBowing, straining, holding == 0, y <= 0, !isDragging, !isDead else {
             strainingSince = nil
             pooped = false
             return false
