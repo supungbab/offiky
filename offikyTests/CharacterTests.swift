@@ -201,18 +201,14 @@ struct ControlTests {
         #expect(node.poopX >= node.x + gap)
     }
 
-    @MainActor @Test func 웅크린_채_3초를_버티면_한_번만_싼다() {
+    @MainActor @Test func 연타해도_간격을_두고_싸고_공중에서는_싸지_않는다() {
         let node = node()
-        node.isBowing = true
-        #expect(!node.poopIfReady(now: 10))
-        #expect(!node.poopIfReady(now: 12.9))
-        #expect(node.poopIfReady(now: 13))
-        #expect(!node.poopIfReady(now: 30))
-        node.isBowing = false
-        #expect(!node.poopIfReady(now: 31))
-        node.isBowing = true
-        #expect(!node.poopIfReady(now: 32))
-        #expect(node.poopIfReady(now: 35))
+        #expect(node.canPoop(now: 10))
+        #expect(!node.canPoop(now: 10.4))
+        #expect(node.canPoop(now: 10.5))
+        node.jump()
+        node.update(dt: 1.0 / 60, now: 20, strip: strip)
+        #expect(!node.canPoop(now: 20))
     }
 
     @MainActor @Test func 입력이_없으면_제자리에_선다() {

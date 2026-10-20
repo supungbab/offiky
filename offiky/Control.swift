@@ -71,6 +71,8 @@ import SwiftUI
             stop()
         case kVK_UpArrow:
             if !event.isARepeat { World.shared.me.jump() }
+        case kVK_DownArrow where event.modifierFlags.contains(.shift):
+            if !event.isARepeat { World.shared.poop() }
         case kVK_DownArrow:
             World.shared.me.isBowing = true
         case kVK_LeftArrow, kVK_RightArrow:
