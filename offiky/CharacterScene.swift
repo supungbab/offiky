@@ -144,6 +144,8 @@ final class CharacterNode: SKNode {
     var isThrusting = false
     private(set) var fuel = CharacterNode.jetFuel
     private var remoteJetting = false
+    /// 분사한 뒤 바닥에 닿을 때까지 메고 있다. 원격도 받은 분사 여부와 높이로 같은 판단을 한다
+    private(set) var wearsJetpack = false
     /// 중력보다 이만큼 세게 밀어 천천히 떠오른다
     static let jetThrust: CGFloat = gravity * 1.5
     /// 오르는 속도 상한. 넘으면 로켓처럼 솟는다
@@ -431,6 +433,9 @@ final class CharacterNode: SKNode {
         }
         expireBubble(now: now)
 
+        if isJetting { wearsJetpack = true }
+        else if y <= 0 || isDead || isDragging { wearsJetpack = false }
+
         let moved = x - previousX
         previousX = x
         let goingUp = y > previousY
@@ -600,7 +605,8 @@ final class CharacterNode: SKNode {
         applyShadow(step: min(CharacterNode.shadowSteps.count - 1,
                               Int(lift * CGFloat(CharacterNode.shadowSteps.count))))
         shadow.alpha = 0.3 * (1 - 0.75 * lift)
-        jetpack.isHidden = !isJetting || tombstone
+        jetpack.isHidden = !wearsJetpack || tombstone
+        flame.isHidden = !isJetting
         if !jetpack.isHidden {
             jetpack.position = CGPoint(x: -facing * (sheet.bodyWidth + 3), y: -spriteDisplaySize / 2 + 14)
             flameTick += 1

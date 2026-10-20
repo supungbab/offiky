@@ -226,6 +226,10 @@ struct ControlTests {
         run(1)
         #expect(node.y > 0)
         #expect(node.isJetting)
+        node.isThrusting = false
+        run(0.1)
+        #expect(node.wearsJetpack)
+        node.isThrusting = true
         let afterOne = node.y
         run(2.1)
         #expect(node.fuel == 0)
@@ -234,6 +238,7 @@ struct ControlTests {
         // 연료가 없으면 점프와 같은 중력으로 떨어진다. 공중에서는 채워지지 않는다
         run(3)
         #expect(node.y == 0)
+        #expect(!node.wearsJetpack)
         #expect(node.fuel == 0)
         node.isThrusting = false
         run(0.1)
