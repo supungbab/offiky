@@ -904,8 +904,8 @@ extension World {
         sprite.size = CGSize(width: Characters.poop.size().width * 2,
                              height: Characters.poop.size().height * 2)
         sprite.anchorPoint = CGPoint(x: 0.5, y: 0)
-        // 묘비보다도 뒤에 둔다
-        sprite.zPosition = -20_000
+        // 밟고 선 것처럼 보이게 모든 캐릭터 앞에 둔다. 캐릭터는 띠 좌표(x)를 깊이로 쓴다
+        sprite.zPosition = 20_000
         poops.append((sprite, x, now + World.poopLifetime))
         if poops.count > World.maxPoops { poops.removeFirst().sprite.removeFromParent() }
     }
