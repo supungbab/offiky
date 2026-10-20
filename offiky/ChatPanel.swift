@@ -355,10 +355,10 @@ private struct ChatInputView: View {
         let hosting = NSHostingView(rootView: ChatInputView())
         hosting.sizingOptions = [.minSize]
         panel.contentView = hosting
-        // 옮기거나 크기를 바꾼 적이 있으면 그 자리에 띄운다. 다른 화면에 저장된 자리면 크기만 쓴다
+        // 옮기거나 크기를 바꾼 적이 있으면 그 자리에 띄운다. 그 화면이 빠졌으면 크기만 쓴다
         if !panel.setFrameUsingName("ChatWindow") {
             panel.setFrame(CGRect(origin: origin, size: size), display: true)
-        } else if !screen.visibleFrame.intersects(panel.frame) {
+        } else if !NSScreen.screens.contains(where: { $0.visibleFrame.intersects(panel.frame) }) {
             panel.setFrame(CGRect(origin: origin, size: panel.frame.size), display: true)
         }
         panel.setFrameAutosaveName("ChatWindow")
