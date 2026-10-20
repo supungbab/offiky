@@ -1037,6 +1037,19 @@ struct OverlayWindowTests {
         overlay.rebuild(frames: frames)
         #expect(overlay.windows.first === first)
     }
+
+    @MainActor @Test func 화면_구성이_바뀌어도_만든_창을_재사용한다() {
+        let overlay = OverlayController.shared
+        let two = [CGRect(x: 0, y: 0, width: 1500, height: 900), CGRect(x: 1500, y: 0, width: 1200, height: 800)]
+        overlay.rebuild(frames: two)
+        let before = overlay.windows
+        overlay.rebuild(frames: [CGRect(x: 0, y: 0, width: 1400, height: 900)])
+        #expect(overlay.windows.count == 1)
+        #expect(overlay.windows[0] === before[0])
+        overlay.rebuild(frames: two)
+        #expect(overlay.windows.elementsEqual(before, by: ===))
+        #expect(overlay.scenes.count == 2)
+    }
 }
 
 /// 다른 테스트가 같은 기록을 쓰므로 이름으로 가려 확인한다

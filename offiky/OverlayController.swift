@@ -6,7 +6,7 @@ import SpriteKit
 
     private(set) var windows: [NSWindow] = []
     private(set) var scenes: [SKScene] = []
-    private var links: [CADisplayLink] = []
+    private var pool: [NSWindow] = []
     private(set) var strip = FloorStrip(visibleFrames: [], main: nil)
     private var handle: NSWindow?
     private var handleMovedAt: TimeInterval = 0
@@ -68,51 +68,50 @@ import SpriteKit
     func rebuild(frames: [CGRect] = NSScreen.screens.map(\.visibleFrame)) {
         guard !frames.isEmpty else { return }
         let built = FloorStrip(visibleFrames: frames, main: frames.first)
-        // 깨어날 때 연달아 호출될 때마다 SKView 를 해제하면 SpriteKit display link 큐가 해제된 뷰를 release 해 크래시한다
         guard built.frames != strip.frames || windows.isEmpty else { return }
-        for window in windows {
-            (window.contentView as? SKView)?.isPaused = true
-            (window.contentView as? SKView)?.presentScene(nil)
-            window.orderOut(nil)
+        // SKView 를 해제하면 SpriteKit display link 큐가 해제된 뷰를 release 해 크래시하므로 만든 창은 재사용한다
+        while pool.count < built.frames.count { pool.append(makeWindow()) }
+        for (index, window) in pool.enumerated() {
+            let active = index < built.frames.count
+            (window.contentView as? SKView)?.isPaused = !active
+            if active {
+                window.setFrame(built.frames[index], display: true)
+                if !isHidden { window.orderFrontRegardless() }
+            } else {
+                window.orderOut(nil)
+            }
         }
-        windows.removeAll()
-        scenes.removeAll()
-        links.forEach { $0.invalidate() }
-        links.removeAll()
-
-        for frame in built.frames {
-            let window = NSWindow(contentRect: frame, styleMask: .borderless,
-                                  backing: .buffered, defer: false)
-            window.isOpaque = false
-            window.backgroundColor = .clear
-            window.hasShadow = false
-            window.level = .floating
-            window.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
-            window.ignoresMouseEvents = true   // 표시 전용. 드래그는 별도 윈도우가 받는다
-
-            let view = SKView(frame: CGRect(origin: .zero, size: frame.size))
-            view.allowsTransparency = true
-            view.preferredFramesPerSecond = 30
-            let scene = SKScene(size: frame.size)
-            scene.backgroundColor = .clear
-            scene.scaleMode = .resizeFill
-            view.presentScene(scene)
-
-            window.contentView = view
-            window.setFrame(frame, display: true)
-            if !isHidden { window.orderFrontRegardless() }
-
-            let link = view.displayLink(target: self, selector: #selector(displayFrame))
-            link.preferredFrameRateRange = CAFrameRateRange(minimum: 30, maximum: 30, preferred: 30)
-            link.add(to: .main, forMode: .common)
-
-            windows.append(window)
-            scenes.append(scene)
-            links.append(link)
-        }
+        windows = Array(pool.prefix(built.frames.count))
+        scenes = windows.compactMap { ($0.contentView as? SKView)?.scene }
 
         strip = built
         World.shared.attach(scenes: scenes, strip: strip)
+    }
+
+    private func makeWindow() -> NSWindow {
+        let frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+        let window = NSWindow(contentRect: frame, styleMask: .borderless,
+                              backing: .buffered, defer: false)
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.hasShadow = false
+        window.level = .floating
+        window.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
+        window.ignoresMouseEvents = true   // 표시 전용. 드래그는 별도 윈도우가 받는다
+
+        let view = SKView(frame: frame)
+        view.allowsTransparency = true
+        view.preferredFramesPerSecond = 30
+        let scene = SKScene(size: frame.size)
+        scene.backgroundColor = .clear
+        scene.scaleMode = .resizeFill
+        view.presentScene(scene)
+        window.contentView = view
+
+        let link = view.displayLink(target: self, selector: #selector(displayFrame))
+        link.preferredFrameRateRange = CAFrameRateRange(minimum: 30, maximum: 30, preferred: 30)
+        link.add(to: .main, forMode: .common)
+        return window
     }
 }
 
