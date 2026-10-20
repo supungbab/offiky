@@ -17,9 +17,6 @@ final class CharacterNode: SKNode {
     private let jetpack = SKSpriteNode(texture: Characters.jetpack)
     private let flame = SKSpriteNode(texture: Characters.flames[0])
     private var flameTick = 0
-    /// 남은 연료. 내 화면에만 그린다
-    private let gauge = SKSpriteNode(color: NSColor(white: 0, alpha: 0.5), size: CGSize(width: 4, height: 16))
-    private let gaugeFill = SKSpriteNode(color: .systemGreen, size: .zero)
     private let label = SKLabelNode(fontNamed: "Helvetica")
     private var nameBackground: SKShapeNode?
     private var bubbleNode: SKShapeNode?
@@ -140,9 +137,8 @@ final class CharacterNode: SKNode {
     /// 땅을 떠난 뒤 도약 그림(1열)을 보여 주는 시간
     static let takeoffDuration: TimeInterval = 0.1
     private var takeoffUntil: TimeInterval = 0
-    /// Space 를 누르고 있는지. 연료가 남아 있어야 분사한다
+    /// Space 를 누르고 있는지. 누르는 동안 계속 분사한다
     var isThrusting = false
-    private(set) var fuel = CharacterNode.jetFuel
     private var remoteJetting = false
     /// 분사한 뒤 바닥에 닿을 때까지 메고 있다. 원격도 받은 분사 여부와 높이로 같은 판단을 한다
     private(set) var wearsJetpack = false
@@ -150,11 +146,8 @@ final class CharacterNode: SKNode {
     static let jetThrust: CGFloat = gravity * 1.5
     /// 오르는 속도 상한. 넘으면 로켓처럼 솟는다
     static let jetMaxRise: CGFloat = 200
-    /// 분사할 수 있는 시간. 바닥에 내려와 Space 를 떼면 다시 채워진다
-    static let jetFuel: TimeInterval = 3
-
     var isJetting: Bool {
-        isLocal ? isThrusting && fuel > 0 && !isDragging && !isDead : remoteJetting
+        isLocal ? isThrusting && !isDragging && !isDead : remoteJetting
     }
 
     /// Shift 를 누른 채 웅크리기 시작한 시각. 이만큼 버티면 한 번 싸고, 떼야 다시 쌀 수 있다
@@ -186,15 +179,6 @@ final class CharacterNode: SKNode {
         flame.position = CGPoint(x: 0, y: -jetpack.size.height / 2)
         jetpack.addChild(flame)
         addChild(jetpack)
-
-        if isLocal {
-            gauge.zPosition = 1
-            gauge.isHidden = true
-            gaugeFill.anchorPoint = CGPoint(x: 0.5, y: 0)
-            gaugeFill.position = CGPoint(x: 0, y: -gauge.size.height / 2)
-            gauge.addChild(gaugeFill)
-            addChild(gauge)
-        }
 
         label.fontSize = 10
         label.fontColor = .white
@@ -510,10 +494,7 @@ final class CharacterNode: SKNode {
         }
 
         if isJetting {
-            fuel = max(0, fuel - dt)
             verticalSpeed = min(CharacterNode.jetMaxRise, verticalSpeed + CharacterNode.jetThrust * step)
-        } else if y <= 0, verticalSpeed == 0, !isThrusting {
-            fuel = CharacterNode.jetFuel
         }
 
         if y > 0 || verticalSpeed != 0 {
@@ -521,6 +502,9 @@ final class CharacterNode: SKNode {
             y += verticalSpeed * step - 0.5 * CharacterNode.gravity * step * step
             verticalSpeed -= CharacterNode.gravity * step
             if y <= 0 { y = 0; verticalSpeed = 0; jumpsUsed = 0; knockback = 0 }
+            // 화면 위로 나가면 보이지 않는 높이에서 맴돌고, 동료는 범위 밖 좌표라 받지 않는다
+            let ceiling = strip.ceiling(x: x)
+            if y > ceiling { y = ceiling; verticalSpeed = min(verticalSpeed, 0) }
             return
         }
         isWalking = !hurt && holding != 0
@@ -611,14 +595,6 @@ final class CharacterNode: SKNode {
             jetpack.position = CGPoint(x: -facing * (sheet.bodyWidth + 3), y: -spriteDisplaySize / 2 + 14)
             flameTick += 1
             flame.texture = Characters.flames[(flameTick / 3) % 2]
-        }
-        // 가득 차 있으면 숨긴다. 2pt 단위로 줄어 픽셀 격자에 맞는다
-        gauge.isHidden = !isLocal || fuel >= CharacterNode.jetFuel || tombstone
-        if !gauge.isHidden {
-            gauge.position = CGPoint(x: -facing * (sheet.bodyWidth + 12), y: -spriteDisplaySize / 2 + 14)
-            let ratio = CGFloat(fuel / CharacterNode.jetFuel)
-            gaugeFill.size = CGSize(width: 4, height: (ratio * gauge.size.height / 2).rounded(.up) * 2)
-            gaugeFill.color = ratio > 0.5 ? .systemGreen : ratio > 0.2 ? .systemYellow : .systemRed
         }
         // 묘비는 늘 다른 캐릭터 뒤에 둔다. 원격은 띠 왼쪽 밖(x < 0)에도 서므로 넉넉히 뺀다
         zPosition = tombstone ? depthBias - 10_000 : x + depthBias

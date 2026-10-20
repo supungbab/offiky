@@ -119,6 +119,12 @@ struct FloorStrip {
         return nil
     }
 
+    /// 캐릭터가 화면 위로 나가지 않는 가장 높은 `y`. `place` 가 그리는 한도와 같다
+    func ceiling(x: CGFloat) -> CGFloat {
+        guard let top = place(x: x, y: .greatestFiniteMagnitude) else { return 0 }
+        return top.point.y - floorOffset - spriteDisplaySize / 2
+    }
+
     /// `place` 의 역변환. 전역 커서 좌표를 띠 좌표로 바꾼다.
     /// 두 함수가 같은 기준에서 누적해야 한다 — 어긋나면 잡아 끈 위치가 통째로 밀린다.
     func locate(global point: CGPoint) -> (x: CGFloat, y: CGFloat)? {
