@@ -1052,6 +1052,15 @@ struct OverlayWindowTests {
     }
 }
 
+struct ChatFrameTests {
+
+    @Test func 저장된_문자열에서_창_frame_만_읽는다() {
+        #expect(savedChatFrame("1512 1771 300 400 -407 1169 2560 1410 ") == CGRect(x: 1512, y: 1771, width: 300, height: 400))
+        #expect(savedChatFrame(nil) == nil)
+        #expect(savedChatFrame("1 2 3") == nil)
+    }
+}
+
 /// 다른 테스트가 같은 기록을 쓰므로 이름으로 가려 확인한다
 struct ChatLogTests {
 

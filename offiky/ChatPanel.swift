@@ -81,6 +81,13 @@ func screenUnderMouse() -> NSScreen? {
     NSScreen.screens.first { $0.frame.contains(NSEvent.mouseLocation) } ?? NSScreen.main
 }
 
+/// AppKit 이 저장한 "x y w h 화면x 화면y 화면w 화면h" 에서 창 frame 만 읽는다
+func savedChatFrame(_ value: String? = UserDefaults.standard.string(forKey: "NSWindow Frame ChatWindow")) -> CGRect? {
+    let n = (value ?? "").split(separator: " ").compactMap { Double($0) }
+    guard n.count >= 4 else { return nil }
+    return CGRect(x: n[0], y: n[1], width: n[2], height: n[3])
+}
+
 /// 채팅 입력란과 조작 안내가 같은 높이에 뜬다
 func panelOrigin(on screen: NSScreen, width: CGFloat) -> CGPoint {
     CGPoint(x: screen.visibleFrame.midX - width / 2,
@@ -345,6 +352,7 @@ private struct ChatInputView: View {
         if self.panel == nil {
             panel.styleMask.insert(.resizable)
             panel.isMovableByWindowBackground = true
+            panel.setFrameAutosaveName("ChatWindow")
         }
         self.panel = panel
         panel.alphaValue = opacity
@@ -355,13 +363,14 @@ private struct ChatInputView: View {
         let hosting = NSHostingView(rootView: ChatInputView())
         hosting.sizingOptions = [.minSize]
         panel.contentView = hosting
-        // 옮기거나 크기를 바꾼 적이 있으면 그 자리에 띄운다. 그 화면이 빠졌으면 크기만 쓴다
-        if !panel.setFrameUsingName("ChatWindow") {
+        // 옮기거나 크기를 바꾼 적이 있으면 그 자리에 띄운다. 그 화면이 빠졌으면 크기만 쓴다.
+        // setFrameUsingName 은 주 화면이 아닌 화면에 저장된 자리를 주 화면으로 옮기므로 직접 읽는다
+        if let saved = savedChatFrame() {
+            let onScreen = NSScreen.screens.contains { $0.visibleFrame.intersects(saved) }
+            panel.setFrame(onScreen ? saved : CGRect(origin: origin, size: saved.size), display: true)
+        } else {
             panel.setFrame(CGRect(origin: origin, size: size), display: true)
-        } else if !NSScreen.screens.contains(where: { $0.visibleFrame.intersects(panel.frame) }) {
-            panel.setFrame(CGRect(origin: origin, size: panel.frame.size), display: true)
         }
-        panel.setFrameAutosaveName("ChatWindow")
         NSApp.activate(ignoringOtherApps: true)
         panel.makeKeyAndOrderFront(nil)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
