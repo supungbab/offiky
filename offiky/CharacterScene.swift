@@ -17,6 +17,7 @@ final class CharacterNode: SKNode {
     private let jetpack = SKSpriteNode(texture: Characters.jetpack)
     private let flame = SKSpriteNode(texture: Characters.flames[0])
     private var flameTick = 0
+    private let parachute = SKSpriteNode(texture: Characters.parachute)
     private let label = SKLabelNode(fontNamed: "Helvetica")
     private var nameBackground: SKShapeNode?
     private var bubbleNode: SKShapeNode?
@@ -150,6 +151,13 @@ final class CharacterNode: SKNode {
         isLocal ? isThrusting && !isDragging && !isDead : remoteJetting
     }
 
+    /// 떨어지는 중에 ↓ 를 누르면 펴고 바닥에 닿을 때까지 유지한다. 원격은 주인이 적어 보낸 값을 따른다
+    private var parachuteOpen = false
+    private var remoteParachuting = false
+    var isParachuting: Bool { isLocal ? parachuteOpen : remoteParachuting }
+    /// 펴고 내려오는 최고 속도
+    static let parachuteFallSpeed: CGFloat = 70
+
     /// Shift 를 누른 채 웅크리기 시작한 시각. 이만큼 버티면 한 번 싸고, 떼야 다시 쌀 수 있다
     private var strainingSince: TimeInterval?
     private var pooped = false
@@ -179,6 +187,15 @@ final class CharacterNode: SKNode {
         flame.position = CGPoint(x: 0, y: -jetpack.size.height / 2)
         jetpack.addChild(flame)
         addChild(jetpack)
+
+        // 줄 끝이 어깨에 닿고, 지붕은 이름표 위에 오며 줄은 이름표 뒤로 지나간다
+        parachute.anchorPoint = CGPoint(x: 0.5, y: 0)
+        parachute.size = CGSize(width: Characters.parachute.size().width * 2,
+                                height: Characters.parachute.size().height * 2)
+        parachute.position = CGPoint(x: 0, y: 12)
+        parachute.zPosition = -1
+        parachute.isHidden = true
+        addChild(parachute)
 
         label.fontSize = 10
         label.fontColor = .white
@@ -275,6 +292,7 @@ final class CharacterNode: SKNode {
     func beginDrag() {
         guard !isDead else { return }
         isDragging = true
+        parachuteOpen = false
         verticalSpeed = 0
         jumpsUsed = 0
         knockback = 0
@@ -388,11 +406,12 @@ final class CharacterNode: SKNode {
     /// 전부 버려 위치와 행동이 서로 다른 패킷에서 섞이지 않게 한다.
     @discardableResult
     func applyRemoteSnapshot(x: CGFloat, y: CGFloat, bowing: Bool, dragging: Bool, dead: Bool = false,
-                             jetting: Bool = false,
+                             jetting: Bool = false, parachuting: Bool = false,
                              facing direction: Int?, sent: TimeInterval?, at now: TimeInterval) -> Bool {
         guard setRemoteTarget(x: x, y: y, sent: sent, at: now) else { return false }
         isBowing = bowing
         remoteJetting = jetting
+        remoteParachuting = parachuting
         isDead = dead
         if let direction { faceAsTold(CGFloat(direction)) }
         if dragging { isDragging = true }
@@ -409,8 +428,8 @@ final class CharacterNode: SKNode {
         // 낙하 피격은 소유자만 판정해 hit 메시지로 알린다. 원격 노드의 높이는
         // 보간 결과라 실제 궤적과 다르고, 여기서 다시 판정하면 화면마다 결과가 갈린다.
         if isLocal {
-            // 분사하는 동안은 떨어지는 중이 아니다. 분사가 끝난 높이부터 잰다
-            peakY = isJetting ? y : max(peakY, y)
+            // 분사하거나 낙하산을 편 동안은 떨어지는 중이 아니다. 그 높이부터 잰다
+            peakY = isJetting || isParachuting ? y : max(peakY, y)
             detectLanding(now: now)
             // 튕겨 오르는 중에 죽으면 simulate 가 중력을 멈춰 공중에 남는다. 내려온 뒤에 죽는다
             if hits >= CharacterNode.hitsToDie, y <= 0, !isDragging { isDead = true }
@@ -494,14 +513,23 @@ final class CharacterNode: SKNode {
         }
 
         if isJetting {
+            parachuteOpen = false
             verticalSpeed = min(CharacterNode.jetMaxRise, verticalSpeed + CharacterNode.jetThrust * step)
+        } else if isBowing, y > 0, verticalSpeed < 0 {
+            parachuteOpen = true
         }
 
         if y > 0 || verticalSpeed != 0 {
             x = strip.clamp(x + knockback * step)
-            y += verticalSpeed * step - 0.5 * CharacterNode.gravity * step * step
-            verticalSpeed -= CharacterNode.gravity * step
-            if y <= 0 { y = 0; verticalSpeed = 0; jumpsUsed = 0; knockback = 0 }
+            if parachuteOpen {
+                // 속도를 먼저 묶어야 중력항이 한도를 넘겨 더해지지 않는다
+                verticalSpeed = max(verticalSpeed - CharacterNode.gravity * step, -CharacterNode.parachuteFallSpeed)
+                y += verticalSpeed * step
+            } else {
+                y += verticalSpeed * step - 0.5 * CharacterNode.gravity * step * step
+                verticalSpeed -= CharacterNode.gravity * step
+            }
+            if y <= 0 { y = 0; verticalSpeed = 0; jumpsUsed = 0; knockback = 0; parachuteOpen = false }
             // 화면 위로 나가면 보이지 않는 높이에서 맴돌고, 동료는 범위 밖 좌표라 받지 않는다
             let ceiling = strip.ceiling(x: x)
             if y > ceiling { y = ceiling; verticalSpeed = min(verticalSpeed, 0) }
@@ -589,6 +617,7 @@ final class CharacterNode: SKNode {
         applyShadow(step: min(CharacterNode.shadowSteps.count - 1,
                               Int(lift * CGFloat(CharacterNode.shadowSteps.count))))
         shadow.alpha = 0.3 * (1 - 0.75 * lift)
+        parachute.isHidden = !isParachuting || tombstone
         jetpack.isHidden = !wearsJetpack || tombstone
         flame.isHidden = !isJetting
         if !jetpack.isHidden {
@@ -936,9 +965,10 @@ extension World {
     }
 
     func setPeerTarget(id: String, x: CGFloat, y: CGFloat, bowing: Bool, dragging: Bool, dead: Bool,
-                       jetting: Bool = false, facing: Int?, sent: TimeInterval?) {
+                       jetting: Bool = false, parachuting: Bool = false, facing: Int?, sent: TimeInterval?) {
         guard let node = peers[id] else { return }
-        node.applyRemoteSnapshot(x: x, y: y, bowing: bowing, dragging: dragging, dead: dead, jetting: jetting,
+        node.applyRemoteSnapshot(x: x, y: y, bowing: bowing, dragging: dragging, dead: dead,
+                                 jetting: jetting, parachuting: parachuting,
                                  facing: facing, sent: sent,
                                  at: ProcessInfo.processInfo.systemUptime)
     }

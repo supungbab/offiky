@@ -190,6 +190,16 @@ enum Characters {
         return texture
     }()
 
+    /// 떨어지는 중에 펴는 낙하산
+    static let parachute: SKTexture = {
+        guard let cg = NSImage(named: "parachute")?
+            .cgImage(forProposedRect: nil, context: nil, hints: nil)
+        else { return SKTexture() }
+        let texture = SKTexture(cgImage: cg)
+        texture.filteringMode = .nearest
+        return texture
+    }()
+
     /// 제트팩 불꽃 두 장. 가로로 붙어 있고 번갈아 그린다
     static let flames: [SKTexture] = {
         guard let cg = NSImage(named: "flame")?

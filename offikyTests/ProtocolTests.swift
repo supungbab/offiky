@@ -414,10 +414,13 @@ struct MessageTests {
     @Test func 제트팩_분사는_좌표에_적고_옛_메시지는_분사하지_않는_것으로_읽는다() throws {
         var msg = PosMsg(x: 1, y: 2, f: 1)
         msg.j = true
+        msg.c = true
         let back = try JSONDecoder().decode(PosMsg.self, from: JSONEncoder().encode(msg))
         #expect(back.j == true)
+        #expect(back.c == true)
         let old = try JSONDecoder().decode(PosMsg.self, from: Data(#"{"t":"pos","x":1}"#.utf8))
         #expect(old.j == nil)
+        #expect(old.c == nil)
     }
 
     @Test func 똥_메시지를_구분한다() throws {
