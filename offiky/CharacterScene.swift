@@ -138,8 +138,11 @@ final class CharacterNode: SKNode {
     /// 땅을 떠난 뒤 도약 그림(1열)을 보여 주는 시간
     static let takeoffDuration: TimeInterval = 0.1
     private var takeoffUntil: TimeInterval = 0
-    /// Space 를 누르고 있는지. 누르는 동안 계속 분사한다
+    /// ↑ 를 누르고 있는지. 2단 점프를 다 쓴 뒤 정점부터 누르는 동안 분사한다
     var isThrusting = false
+    private var jetLit = false
+    /// Space 를 누르고 있는지. 떨어지는 중이면 낙하산을 편다
+    var wantsParachute = false
     private var remoteJetting = false
     /// 분사한 뒤 바닥에 닿을 때까지 메고 있다. 원격도 받은 분사 여부와 높이로 같은 판단을 한다
     private(set) var wearsJetpack = false
@@ -147,11 +150,9 @@ final class CharacterNode: SKNode {
     static let jetThrust: CGFloat = gravity * 1.5
     /// 오르는 속도 상한. 넘으면 로켓처럼 솟는다
     static let jetMaxRise: CGFloat = 200
-    var isJetting: Bool {
-        isLocal ? isThrusting && !isDragging && !isDead : remoteJetting
-    }
+    var isJetting: Bool { isLocal ? jetLit : remoteJetting }
 
-    /// 떨어지는 중에 ↓ 를 누르면 펴고 바닥에 닿을 때까지 유지한다. 원격은 주인이 적어 보낸 값을 따른다
+    /// 떨어지는 중에 Space 를 누르면 펴고 바닥에 닿을 때까지 유지한다. 원격은 주인이 적어 보낸 값을 따른다
     private var parachuteOpen = false
     private var remoteParachuting = false
     var isParachuting: Bool { isLocal ? parachuteOpen : remoteParachuting }
@@ -293,6 +294,7 @@ final class CharacterNode: SKNode {
         guard !isDead else { return }
         isDragging = true
         parachuteOpen = false
+        jetLit = false
         verticalSpeed = 0
         jumpsUsed = 0
         knockback = 0
@@ -512,10 +514,15 @@ final class CharacterNode: SKNode {
             x = strip.clamp(x + holding * speed * step)
         }
 
-        if isJetting {
+        if !isThrusting || y <= 0 {
+            jetLit = false
+        } else if !jetLit, jumpsUsed >= CharacterNode.maxJumps, verticalSpeed <= 0 {
+            jetLit = true
+        }
+        if jetLit {
             parachuteOpen = false
             verticalSpeed = min(CharacterNode.jetMaxRise, verticalSpeed + CharacterNode.jetThrust * step)
-        } else if isBowing, y > 0, verticalSpeed < 0 {
+        } else if wantsParachute, y > 0, verticalSpeed < 0 {
             parachuteOpen = true
         }
 
