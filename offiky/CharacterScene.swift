@@ -160,9 +160,9 @@ final class CharacterNode: SKNode {
     static let parachuteBob: CGFloat = 12
     /// 초당 목표 속도에 다가가는 비율. 펴는 순간 0.4초쯤 걸려 감속한다
     static let parachuteDrag: CGFloat = 6
-    /// 매달려 미끄러지는 가로 속도. 걷기보다 느리고 관성이 있다
-    static let parachuteGlideSpeed: CGFloat = 45
-    static let parachuteGlideAccel: CGFloat = 1.5
+    /// 매달려 미끄러지는 가로 속도. 걷기와 대시 사이이고, 0.3초 만에 붙고 떼면 0.3초쯤 흘러간다
+    static let parachuteGlideSpeed: CGFloat = 90
+    static let parachuteGlideAccel: CGFloat = 10
     private var glide: CGFloat = 0
     private var parachutePhase: TimeInterval = 0
 
