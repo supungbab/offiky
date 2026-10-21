@@ -151,7 +151,7 @@ final class CharacterNode: SKNode {
         isLocal ? isThrusting && !isDragging && !isDead : remoteJetting
     }
 
-    /// 떨어지는 중에 ↓ 를 누르면 펴고 바닥에 닿을 때까지 유지한다. 원격은 주인이 적어 보낸 값을 따른다
+    /// 떨어지는 중에 ↓ 를 누르고 있는 동안만 편다. 원격은 주인이 적어 보낸 값을 따른다
     private var parachuteOpen = false
     private var remoteParachuting = false
     var isParachuting: Bool { isLocal ? parachuteOpen : remoteParachuting }
@@ -530,7 +530,9 @@ final class CharacterNode: SKNode {
         if isJetting {
             parachuteOpen = false
             verticalSpeed = min(CharacterNode.jetMaxRise, verticalSpeed + CharacterNode.jetThrust * step)
-        } else if isBowing, y > 0, verticalSpeed < 0 {
+        } else if !isBowing {
+            if parachuteOpen { parachuteOpen = false; glide = 0; parachutePhase = 0 }
+        } else if y > 0, verticalSpeed < 0 {
             parachuteOpen = true
         }
 

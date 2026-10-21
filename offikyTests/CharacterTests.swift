@@ -261,8 +261,6 @@ struct ControlTests {
             node.isBowing = opening
             for _ in 0..<5 { t += dt; node.update(dt: dt, now: t, strip: strip) }
             #expect(node.isParachuting == opening)
-            // 펴고 나면 ↓ 를 떼도 유지한다
-            node.isBowing = false
             // 펴는 순간에는 서서히 감속한다. 다 줄어든 뒤의 속도를 잰다
             let settled = t + 1
             var fastest: CGFloat = 0
@@ -285,14 +283,32 @@ struct ControlTests {
         #expect(drop(opening: false).isDead)
     }
 
-    @MainActor @Test func 낙하산은_관성이_있어_키를_떼도_조금_더_흘러간다() {
+    @MainActor @Test func 낙하산은_아래를_누르는_동안만_펴고_떼면_접혀_떨어진다() {
+        let node = node()
+        let dt = 1.0 / 60
+        var t = 0.0
+        node.beginDrag(); node.y = 900; node.endDrag()
+        node.isBowing = true
+        for _ in 0..<60 { t += dt; node.update(dt: dt, now: t, strip: strip) }
+        #expect(node.isParachuting)
+        node.isBowing = false
+        t += dt; node.update(dt: dt, now: t, strip: strip)
+        #expect(!node.isParachuting)
+        let closedAt = node.y
+        while node.y > 0 { t += dt; node.update(dt: dt, now: t, strip: strip) }
+        t += dt; node.update(dt: dt, now: t, strip: strip)
+        // 접은 높이부터 떨어진 것으로 잰다
+        #expect(closedAt > CharacterNode.deathDropHeight)
+        #expect(node.isDead)
+    }
+
+    @MainActor @Test func 낙하산은_관성이_있어_방향키를_떼도_조금_더_흘러간다() {
         let node = node()
         let dt = 1.0 / 60
         var t = 0.0
         node.beginDrag(); node.y = 900; node.endDrag()
         node.isBowing = true
         for _ in 0..<10 { t += dt; node.update(dt: dt, now: t, strip: strip) }
-        node.isBowing = false
         node.hold(1, dash: false)
         let start = node.x
         t += dt; node.update(dt: dt, now: t, strip: strip)
