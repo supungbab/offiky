@@ -155,8 +155,16 @@ final class CharacterNode: SKNode {
     private var parachuteOpen = false
     private var remoteParachuting = false
     var isParachuting: Bool { isLocal ? parachuteOpen : remoteParachuting }
-    /// 펴고 내려오는 최고 속도
+    /// 펴고 내려오는 속도. 이 둘레로 출렁인다
     static let parachuteFallSpeed: CGFloat = 70
+    static let parachuteBob: CGFloat = 12
+    /// 초당 목표 속도에 다가가는 비율. 펴는 순간 0.4초쯤 걸려 감속한다
+    static let parachuteDrag: CGFloat = 6
+    /// 매달려 미끄러지는 가로 속도. 걷기보다 느리고 관성이 있다
+    static let parachuteGlideSpeed: CGFloat = 45
+    static let parachuteGlideAccel: CGFloat = 1.5
+    private var glide: CGFloat = 0
+    private var parachutePhase: TimeInterval = 0
 
     /// Shift 를 누른 채 웅크리기 시작한 시각. 이만큼 버티면 한 번 싸고, 떼야 다시 쌀 수 있다
     private var strainingSince: TimeInterval?
@@ -475,6 +483,7 @@ final class CharacterNode: SKNode {
         let animation: Animation
         if isDragging { animation = .idle }          // 들려 있는 동안은 가만히 서 있는다
         else if now < hurtUntil || deadSince != nil { animation = .hurt }
+        else if isParachuting { animation = .idle }   // 매달려 있다
         else if y > 0 { animation = .jump }
         else if isBowing { animation = isWalking ? .dash : .bow }
         else if running { animation = .dash }
@@ -509,7 +518,13 @@ final class CharacterNode: SKNode {
             let crouching = isBowing && y <= 0 && verticalSpeed == 0
             let speed = crouching ? CharacterNode.crawlSpeed
                 : (isDashing ? CharacterNode.dashSpeed : CharacterNode.walkSpeed)
-            x = strip.clamp(x + holding * speed * step)
+            if parachuteOpen {
+                let target = holding * CharacterNode.parachuteGlideSpeed
+                glide += (target - glide) * min(1, CharacterNode.parachuteGlideAccel * step)
+                x = strip.clamp(x + glide * step)
+            } else {
+                x = strip.clamp(x + holding * speed * step)
+            }
         }
 
         if isJetting {
@@ -522,14 +537,19 @@ final class CharacterNode: SKNode {
         if y > 0 || verticalSpeed != 0 {
             x = strip.clamp(x + knockback * step)
             if parachuteOpen {
-                // 속도를 먼저 묶어야 중력항이 한도를 넘겨 더해지지 않는다
-                verticalSpeed = max(verticalSpeed - CharacterNode.gravity * step, -CharacterNode.parachuteFallSpeed)
+                parachutePhase += dt
+                let target = -(CharacterNode.parachuteFallSpeed
+                               + CharacterNode.parachuteBob * CGFloat(sin(parachutePhase * 2.2)))
+                verticalSpeed += (target - verticalSpeed) * min(1, CharacterNode.parachuteDrag * step)
                 y += verticalSpeed * step
             } else {
                 y += verticalSpeed * step - 0.5 * CharacterNode.gravity * step * step
                 verticalSpeed -= CharacterNode.gravity * step
             }
-            if y <= 0 { y = 0; verticalSpeed = 0; jumpsUsed = 0; knockback = 0; parachuteOpen = false }
+            if y <= 0 {
+                y = 0; verticalSpeed = 0; jumpsUsed = 0; knockback = 0
+                parachuteOpen = false; glide = 0; parachutePhase = 0
+            }
             // 화면 위로 나가면 보이지 않는 높이에서 맴돌고, 동료는 범위 밖 좌표라 받지 않는다
             let ceiling = strip.ceiling(x: x)
             if y > ceiling { y = ceiling; verticalSpeed = min(verticalSpeed, 0) }
@@ -618,6 +638,12 @@ final class CharacterNode: SKNode {
                               Int(lift * CGFloat(CharacterNode.shadowSteps.count))))
         shadow.alpha = 0.3 * (1 - 0.75 * lift)
         parachute.isHidden = !isParachuting || tombstone
+        if !parachute.isHidden {
+            // 어깨를 축으로 흔들리고, 가는 쪽 반대로 기운다
+            let tilt = max(-0.2, min(0.2, velocity / CharacterNode.parachuteGlideSpeed * 0.12))
+            let sway = 0.06 * sin(ProcessInfo.processInfo.systemUptime * 2.2)
+            parachute.zRotation = tilt + CGFloat(sway)
+        }
         jetpack.isHidden = !wearsJetpack || tombstone
         flame.isHidden = !isJetting
         if !jetpack.isHidden {

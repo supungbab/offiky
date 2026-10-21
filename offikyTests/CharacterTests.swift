@@ -263,15 +263,19 @@ struct ControlTests {
             #expect(node.isParachuting == opening)
             // 펴고 나면 ↓ 를 떼도 유지한다
             node.isBowing = false
+            // 펴는 순간에는 서서히 감속한다. 다 줄어든 뒤의 속도를 잰다
+            let settled = t + 1
             var fastest: CGFloat = 0
             var last = node.y
             while node.y > 0, t < 60 {
                 t += dt; node.update(dt: dt, now: t, strip: strip)
-                fastest = max(fastest, (last - node.y) / CGFloat(dt))
+                if t > settled { fastest = max(fastest, (last - node.y) / CGFloat(dt)) }
                 last = node.y
             }
             t += dt; node.update(dt: dt, now: t, strip: strip)
-            if opening { #expect(fastest <= CharacterNode.parachuteFallSpeed + 1) }
+            if opening {
+                #expect(fastest <= CharacterNode.parachuteFallSpeed + CharacterNode.parachuteBob + 1)
+            }
             #expect(!node.isParachuting)
             return node
         }
@@ -279,6 +283,26 @@ struct ControlTests {
         #expect(!safe.isDead)
         #expect(safe.hurtUntil == 0)
         #expect(drop(opening: false).isDead)
+    }
+
+    @MainActor @Test func 낙하산은_관성이_있어_키를_떼도_조금_더_흘러간다() {
+        let node = node()
+        let dt = 1.0 / 60
+        var t = 0.0
+        node.beginDrag(); node.y = 900; node.endDrag()
+        node.isBowing = true
+        for _ in 0..<10 { t += dt; node.update(dt: dt, now: t, strip: strip) }
+        node.isBowing = false
+        node.hold(1, dash: false)
+        let start = node.x
+        t += dt; node.update(dt: dt, now: t, strip: strip)
+        // 걷기처럼 바로 최고 속도로 가지 않는다
+        #expect(node.x - start < CharacterNode.walkSpeed * CGFloat(dt))
+        for _ in 0..<120 { t += dt; node.update(dt: dt, now: t, strip: strip) }
+        node.hold(0, dash: false)
+        let released = node.x
+        for _ in 0..<30 { t += dt; node.update(dt: dt, now: t, strip: strip) }
+        #expect(node.x > released + 5)
     }
 
     @MainActor @Test func 제트팩을_켜면_낙하산을_접는다() {
