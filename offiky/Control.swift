@@ -57,7 +57,6 @@ import SwiftUI
         dashing = false
         World.shared.me.isBowing = false
         World.shared.me.isThrusting = false
-        World.shared.me.wantsParachute = false
         World.shared.me.hold(0, dash: false)
         panel?.orderOut(nil)
         focus.restore(restoringFocus)
@@ -73,9 +72,8 @@ import SwiftUI
             stop()
         case kVK_UpArrow:
             if !event.isARepeat { World.shared.me.jump() }
-            World.shared.me.isThrusting = true
         case kVK_Space:
-            World.shared.me.wantsParachute = true
+            World.shared.me.isThrusting = true
         case kVK_DownArrow:
             World.shared.me.isBowing = true
         case kVK_LeftArrow, kVK_RightArrow:
@@ -94,8 +92,7 @@ import SwiftUI
     fileprivate func keyUp(_ event: NSEvent) {
         let code = Int(event.keyCode)
         if code == kVK_DownArrow { World.shared.me.isBowing = false; return }
-        if code == kVK_UpArrow { World.shared.me.isThrusting = false; return }
-        if code == kVK_Space { World.shared.me.wantsParachute = false; return }
+        if code == kVK_Space { World.shared.me.isThrusting = false; return }
         guard code == kVK_LeftArrow || code == kVK_RightArrow else { return }
         pressed.removeAll { $0 == code }
         if pressed.isEmpty { dashing = false }
@@ -122,12 +119,12 @@ private final class KeyCatcher: NSHostingView<HintView> {
 }
 
 struct HintView: View {
-    /// 이동·점프·그 외로 묶는다. 같은 간격의 아홉 개는 순서대로 다 읽어야 한다
+    /// 이동·점프·그 외로 묶는다. 같은 간격의 여덟 개는 순서대로 다 읽어야 한다
     var body: some View {
         HStack(spacing: 16) {
             HStack(spacing: 10) { item("← →", "이동"); item("←← →→", "대시") }
-            HStack(spacing: 10) { item("↑", "점프"); item("↑↑", "2단 점프"); item("↑↑ 꾹", "제트팩"); item("space", "낙하산") }
-            HStack(spacing: 10) { item("↓", "웅크리기"); item("⇧↓", "1초 똥"); item("esc", "끝내기") }
+            HStack(spacing: 10) { item("↑", "점프"); item("↑↑", "2단 점프"); item("space", "제트팩") }
+            HStack(spacing: 10) { item("↓", "웅크리기·낙하산"); item("⇧↓", "1초 똥"); item("esc", "끝내기") }
         }
         .font(.system(size: 11))
         .frame(maxWidth: .infinity, maxHeight: .infinity)

@@ -215,24 +215,14 @@ struct ControlTests {
         #expect(node.poopIfReady(now: 33, straining: true))
     }
 
-    @MainActor @Test func 제트팩은_2단_점프_정점부터_누르는_동안_날고_화면_꼭대기에서_멈춘다() {
+    @MainActor @Test func 제트팩은_누르는_동안_계속_날고_화면_꼭대기에서_멈춘다() {
         let node = node()
         let dt = 1.0 / 60
         var t = 0.0
         func run(_ seconds: Double) {
             for _ in 0..<Int(seconds / dt) { t += dt; node.update(dt: dt, now: t, strip: strip) }
         }
-        // 바닥에서는 ↑ 를 누르고 있어도 켜지지 않는다
         node.isThrusting = true
-        run(0.5)
-        #expect(!node.isJetting)
-        #expect(node.y == 0)
-        node.jump()
-        run(0.1)
-        node.jump()
-        run(0.1)
-        // 2단 점프로 올라가는 동안은 아직이다
-        #expect(!node.isJetting)
         run(10)
         #expect(node.isJetting)
         #expect(node.y == strip.ceiling(x: node.x))
@@ -252,7 +242,6 @@ struct ControlTests {
         let node = node()
         let dt = 1.0 / 60
         var t = 0.0
-        node.jump(); node.jump()
         node.isThrusting = true
         while node.y < CharacterNode.hurtDropHeight + 20 { t += dt; node.update(dt: dt, now: t, strip: strip) }
         node.isThrusting = false
@@ -262,18 +251,18 @@ struct ControlTests {
         #expect(!node.isDead)
     }
 
-    @MainActor @Test func 떨어지다_Space_로_낙하산을_펴면_천천히_내려와_다치지_않는다() {
+    @MainActor @Test func 떨어지다_낙하산을_펴면_천천히_내려와_다치지_않는다() {
         let dt = 1.0 / 60
         func drop(opening: Bool) -> CharacterNode {
             let node = node()
             var t = 0.0
             node.beginDrag(); node.y = 900; node.endDrag()
             for _ in 0..<10 { t += dt; node.update(dt: dt, now: t, strip: strip) }
-            node.wantsParachute = opening
+            node.isBowing = opening
             for _ in 0..<5 { t += dt; node.update(dt: dt, now: t, strip: strip) }
             #expect(node.isParachuting == opening)
-            // 펴고 나면 떼도 유지한다
-            node.wantsParachute = false
+            // 펴고 나면 ↓ 를 떼도 유지한다
+            node.isBowing = false
             var fastest: CGFloat = 0
             var last = node.y
             while node.y > 0, t < 60 {
@@ -292,18 +281,16 @@ struct ControlTests {
         #expect(drop(opening: false).isDead)
     }
 
-    @MainActor @Test func 제트팩에_불이_붙으면_낙하산을_접는다() {
+    @MainActor @Test func 제트팩을_켜면_낙하산을_접는다() {
         let node = node()
         let dt = 1.0 / 60
         var t = 0.0
         node.beginDrag(); node.y = 500; node.endDrag()
-        node.wantsParachute = true
+        node.isBowing = true
         for _ in 0..<10 { t += dt; node.update(dt: dt, now: t, strip: strip) }
         #expect(node.isParachuting)
-        node.jump(); node.jump()
         node.isThrusting = true
-        while !node.isJetting, t < 5 { t += dt; node.update(dt: dt, now: t, strip: strip) }
-        #expect(node.isJetting)
+        t += dt; node.update(dt: dt, now: t, strip: strip)
         #expect(!node.isParachuting)
     }
 
