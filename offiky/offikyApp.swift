@@ -175,7 +175,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-/// 화면이 꺼지거나 잠기면 AWAY 팻말을 세우고 30분이 지나면 나갔다가 돌아오면 저장된 채널로 들어간다
+/// 화면이 꺼지거나 잠기면 ZZZ 팻말을 세우고 30분이 지나면 나갔다가 돌아오면 저장된 채널로 들어간다
 final class Away {
     static let shared = Away()
     static var leaveAfter: TimeInterval {
