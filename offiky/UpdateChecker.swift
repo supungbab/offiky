@@ -116,7 +116,8 @@ final class UpdateChecker {
     /// 앱은 명령을 넘기고 스스로 종료한다. brew 가 종료하려면 터미널에 자동화 권한이 있어야 하고,
     /// 없으면 다시 실행하지도 않는다. 업그레이드가 실패해도 옛 버전을 다시 실행한다
     private var command: String {
-        "brew update && HOMEBREW_NO_ASK=1 brew upgrade --cask \(cask); open -b com.offiky.app"
+        // 터미널이 막 뜬 창은 셸이 준비되기 전에 들어온 첫 글자를 먹는다(rew update). 공백이 대신 먹히게 한다
+        "  brew update && HOMEBREW_NO_ASK=1 brew upgrade --cask \(cask); open -b com.offiky.app"
     }
 
     /// 자동화 권한을 거부하면 붙여 넣을 수 있게 클립보드에 넣고 터미널만 연다
