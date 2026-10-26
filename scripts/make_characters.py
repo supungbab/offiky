@@ -12,7 +12,7 @@ from PIL import Image
 SHEET = "offiky/Assets.xcassets/characters/%s.imageset/%s.png"
 BAR = "=" * 60
 # Characters.swift 와 같은 값
-ROWS = [("대기", 4), ("걷기", 6), ("피격", 4), ("점프", 3), ("인사", 1), ("달리기", 6)]
+ROWS = [("대기", 4), ("걷기", 6), ("피격", 4), ("점프", 3), ("숙이기", 1), ("달리기", 6)]
 CELL = 24
 SCALE = 4                      # 대조 이미지에서 한 픽셀이 몇 점인가
 MARGIN, GAP = 8, 8
