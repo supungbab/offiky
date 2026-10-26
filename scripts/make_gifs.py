@@ -4,6 +4,7 @@
 앱이 실제로 쓰는 값을 그대로 쓴다 — 걷기 60pt/s, 대시 180pt/s, 중력 1100,
 동작마다 다른 재생 속도. 따로 흉내 내면 앱과 다른 것을 보여 주게 된다.
 """
+import math
 import pathlib
 from PIL import Image
 
@@ -220,5 +221,120 @@ def save(path, images):
     print("%s  %d장  %.0fKB" % (path, len(images), path.stat().st_size / 1024))
 
 
+# CharacterScene.swift 와 같은 값
+JET_THRUST, JET_MAX_RISE = GRAVITY * 1.5, 200.0
+CHUTE_FALL, CHUTE_BOB, CHUTE_DRAG = 70.0, 12.0, 6.0
+GLIDE, GLIDE_ACCEL = 90.0, 10.0
+ASSET = "offiky/Assets.xcassets/%s.imageset/%s.png"
+
+
+def asset(name, scale):
+    image = Image.open(ASSET % (name, name)).convert("RGBA")
+    return image.resize((image.width * scale, image.height * scale), Image.NEAREST)
+
+
+def fly(scale=3, width=342, height=340):
+    """제트팩으로 날아올라 낙하산을 펴고, 흔들리며 제자리로 내려와 선다.
+
+    앱처럼 2pt 가 스프라이트 한 칸이므로 1pt 는 scale/2 픽셀이다."""
+    ppt = scale / 2
+    ground_h = 12
+    floor_y = height - ground_h
+    cut = frames("frog_green")
+    idle = cut["idle"][0]
+    left, _, right, _ = idle.getbbox()
+    body = right - left                      # 몸 반폭(pt) = 몸 너비(픽셀)
+    jetpack, chute = asset("jetpack", scale), asset("parachute", scale)
+    flame_sheet = asset("flame", scale)
+    flames = [flame_sheet.crop((n * flame_sheet.width // 2, 0, (n + 1) * flame_sheet.width // 2,
+                                flame_sheet.height)) for n in range(2)]
+    # 낙하산은 줄 끝(아래 가운데)을 축으로 돌린다. 돌려도 잘리지 않게 정사각형 가운데에 둔다
+    side = max(chute.size) * 2
+    pivot = Image.new("RGBA", (side, side))
+    pivot.alpha_composite(chute, (side // 2 - chute.width // 2, side // 2 - chute.height))
+
+    x, lift, vy, glide, facing = 0.0, 0.0, 0.0, 0.0, +1
+    t, chute_t = 0.0, 0.0
+    worn = False
+    out = []
+
+    def render(pose, jet, worn, open_, velocity):
+        canvas = Image.new("RGBA", (width, height), SKY)
+        for y in range(floor_y, height):
+            color = GROUND_TOP if y < floor_y + 2 else GROUND
+            for px in range(width):
+                canvas.putpixel((px, y), color)
+            if floor_y + 2 <= y < floor_y + 5:
+                for px in range(width):
+                    if (px // 10) % 3 == 0:
+                        canvas.putpixel((px, y), GROUND_DARK)
+        cx = width / 2 + x * ppt
+        feet = floor_y - lift * ppt
+        if open_:
+            tilt = max(-0.2, min(0.2, velocity / GLIDE * 0.12)) + 0.06 * math.sin(t * 2.2)
+            turned = pivot.rotate(math.degrees(tilt), resample=Image.NEAREST)
+            canvas.alpha_composite(turned, (round(cx - side / 2), round(feet - 32 * ppt - side / 2)))
+        if worn:
+            # 앱처럼 분사를 멈춰도 바닥에 닿을 때까지 메고 있고 불꽃만 끈다
+            jx, jy = cx - facing * (body + 3) * ppt, feet - 14 * ppt
+            canvas.alpha_composite(jetpack, (round(jx - jetpack.width / 2), round(jy - jetpack.height / 2)))
+            if jet:
+                flame = flames[int(t * 10) % 2]
+                canvas.alpha_composite(flame, (round(jx - flame.width / 2), round(jy + jetpack.height / 2)))
+        cell = pose.transpose(Image.FLIP_LEFT_RIGHT) if facing < 0 else pose
+        cell = cell.resize((24 * scale, 24 * scale), Image.NEAREST)
+        canvas.alpha_composite(cell, (round(cx - 12 * scale), round(feet - 24 * scale + 4)))
+        out.append(canvas)
+
+    dt, sub = 1.0 / STEP, 4
+    # (초, 분사, 낙하산, 가로 입력). 낙하산 구간은 착지할 때까지 이어진다
+    for seconds, thrust, open_, hold in [(0.6, False, False, 0), (0.7, True, False, +1),
+                                         (0.25, False, False, +1), (99, False, True, -1)]:
+        for _ in range(round(seconds * STEP)):
+            if open_ and lift <= 0:
+                break
+            before = x
+            for _ in range(sub):
+                h = dt / sub
+                if open_ and hold < 0 and x <= GLIDE / GLIDE_ACCEL:
+                    hold = 0              # 관성으로 흘러가 제자리에 닿는다
+                if hold:
+                    facing = hold
+                if open_:
+                    glide += (hold * GLIDE - glide) * min(1, GLIDE_ACCEL * h)
+                    x += glide * h
+                    chute_t += h
+                    target = -(CHUTE_FALL + CHUTE_BOB * math.sin(chute_t * 2.2))
+                    vy += (target - vy) * min(1, CHUTE_DRAG * h)
+                    lift += vy * h
+                else:
+                    x += hold * WALK * h
+                    if thrust:
+                        vy = min(JET_MAX_RISE, vy + JET_THRUST * h)
+                    if lift > 0 or vy != 0:
+                        lift += vy * h - 0.5 * GRAVITY * h * h
+                        vy -= GRAVITY * h
+                lift = max(0.0, lift)
+            t += dt
+            airborne = lift > 0
+            pose = (cut["idle"][int(t * FPS["idle"]) % COUNT["idle"]] if open_ or not airborne
+                    else cut["jump"][1 if vy > 0 else 2])
+            worn = thrust or (worn and airborne)
+            render(pose, thrust, worn, open_ and airborne, (x - before) / dt)
+
+    # 남은 몇 pt 를 걸어 제자리로 돌아와 오른쪽을 보고 선다. 첫 장면과 맞물린다
+    facing = +1 if x < 0 else -1
+    while abs(x) > 0.01:
+        x -= math.copysign(min(abs(x), WALK * dt), x)
+        t += dt
+        render(cut["walk"][int(t * FPS["walk"]) % COUNT["walk"]], False, False, False, 0)
+    facing = +1
+    for _ in range(round(0.4 * STEP)):
+        t += dt
+        render(cut["idle"][int(t * FPS["idle"]) % COUNT["idle"]], False, False, False, 0)
+    return out
+
+
 OUT.mkdir(exist_ok=True)
 save(OUT / "demo.gif", scene())
+save(OUT / "fly.gif", fly())
