@@ -135,7 +135,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         OverlayController.shared.start()
         Session.shared.start()
         // 테스트 호스트로 켜지면 망에 나가지 않는다. 실제 채널에 참가자로 뜬다
-        if NSClassFromString("XCTestCase") == nil { Net.shared.start() }
+        if NSClassFromString("XCTestCase") == nil {
+            Net.shared.start()
+            Away.shared.install()
+        }
         ChatPanel.shared.install()
         Control.shared.install()
         Task { await UpdateChecker.shared.check() }
@@ -152,7 +155,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { _ in
             let overlay = OverlayController.shared
             let age = ProcessInfo.processInfo.systemUptime - World.shared.lastTick
-            watch.info("me=\(World.shared.myID, privacy: .public) screens=\(NSScreen.screens.count) windows=\(overlay.windows.count) visible=\(overlay.windows.filter(\.isVisible).count) scenes=\(overlay.scenes.count) tickAge=\(age, format: .fixed(precision: 1)) peers=\(World.shared.peers.count) count=\(Presence.shared.count)")
+            watch.info("me=\(World.shared.myID, privacy: .public) screens=\(NSScreen.screens.count) windows=\(overlay.windows.count) visible=\(overlay.windows.filter(\.isVisible).count) scenes=\(overlay.scenes.count) tickAge=\(age, format: .fixed(precision: 1)) peers=\(World.shared.peers.count) count=\(Presence.shared.count) away=\(World.shared.me.isAway) left=\(Away.shared.leftRoom) ch=\(World.myChannel)")
         }
         #endif
 
@@ -161,12 +164,88 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                            object: nil, queue: .main) { _ in Net.shared.stop() }
         center.addObserver(forName: NSWorkspace.didWakeNotification,
                            object: nil, queue: .main) { _ in
-            Net.shared.start()
+            Away.shared.wake()
             OverlayController.shared.rebuild()
             // 밤새 나온 버전을 맥을 열자마자 알린다. 깨어난 직후에는 Wi-Fi 가 아직 연결되지 않았다
             Task {
                 try? await Task.sleep(for: .seconds(10))
                 await UpdateChecker.shared.check()
+            }
+        }
+    }
+}
+
+/// 화면이 꺼지거나 잠기면 AWAY 팻말을 세우고 30분이 지나면 나갔다가 돌아오면 저장된 채널로 들어간다
+final class Away {
+    static let shared = Away()
+    static var leaveAfter: TimeInterval {
+        #if DEBUG
+        // 시험할 때 30분을 기다리지 않도록 줄인다
+        let override = UserDefaults.standard.double(forKey: "awayLeaveAfter")
+        if override > 0 { return override }
+        #endif
+        return 30 * 60
+    }
+
+    private var screensAsleep = false
+    private var locked = false
+    /// 실제 시각으로 잰다. 타이머는 잠자는 동안 멈춰 깨어난 뒤에야 30분을 채운다
+    private var awaySince: Date?
+    private var checkTimer: Timer?
+    private(set) var leftRoom = false
+
+    private init() {}
+
+    func install() {
+        let workspace = NSWorkspace.shared.notificationCenter
+        workspace.addObserver(forName: NSWorkspace.screensDidSleepNotification, object: nil, queue: .main) { [weak self] _ in
+            self?.screensAsleep = true; self?.changed()
+        }
+        workspace.addObserver(forName: NSWorkspace.screensDidWakeNotification, object: nil, queue: .main) { [weak self] _ in
+            self?.screensAsleep = false; self?.changed()
+        }
+        let distributed = DistributedNotificationCenter.default()
+        distributed.addObserver(forName: .init("com.apple.screenIsLocked"), object: nil, queue: .main) { [weak self] _ in
+            self?.locked = true; self?.changed()
+        }
+        distributed.addObserver(forName: .init("com.apple.screenIsUnlocked"), object: nil, queue: .main) { [weak self] _ in
+            self?.locked = false; self?.changed()
+        }
+    }
+
+    /// 잠자는 사이 30분이 지났으면 들어가지 않는다. 들어갔다가 바로 나가면 동료 기록에 두 줄이 남는다
+    func wake() {
+        if !leaveIfOverdue() { Net.shared.start() }
+    }
+
+    /// 나간 상태면 true
+    @discardableResult
+    private func leaveIfOverdue() -> Bool {
+        guard !leftRoom, let since = awaySince, Date().timeIntervalSince(since) >= Away.leaveAfter
+        else { return leftRoom }
+        leftRoom = true
+        Net.shared.stop()
+        return true
+    }
+
+    private func changed() {
+        let away = screensAsleep || locked
+        World.shared.me.isAway = away
+        if away {
+            // 잠기면 키를 뗀 신호가 오지 않는다. 누르던 Space 로 계속 날지 않게 조종을 끝낸다
+            Control.shared.stop(restoringFocus: false)
+            guard awaySince == nil else { return }
+            awaySince = Date()
+            checkTimer = Timer.scheduledTimer(withTimeInterval: min(10, Away.leaveAfter), repeats: true) { [weak self] _ in
+                self?.leaveIfOverdue()
+            }
+        } else {
+            checkTimer?.invalidate()
+            checkTimer = nil
+            awaySince = nil
+            if leftRoom {
+                leftRoom = false
+                Net.shared.start()
             }
         }
     }

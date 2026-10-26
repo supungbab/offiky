@@ -321,6 +321,16 @@ struct ControlTests {
         #expect(node.x > released + 5)
     }
 
+    @MainActor @Test func 동료가_자리를_비우면_받은_값을_따르고_돌아오면_풀린다() {
+        let peer = CharacterNode(id: "you", name: "you", isLocal: false)
+        peer.applyRemoteSnapshot(x: 100, y: 0, bowing: false, dragging: false, away: true,
+                                 facing: 1, sent: 1, at: 1)
+        #expect(peer.isAway)
+        peer.applyRemoteSnapshot(x: 100, y: 0, bowing: false, dragging: false,
+                                 facing: 1, sent: 2, at: 2)
+        #expect(!peer.isAway)
+    }
+
     @MainActor @Test func 제트팩을_켜면_낙하산을_접는다() {
         let node = node()
         let dt = 1.0 / 60
@@ -350,6 +360,30 @@ struct ControlTests {
         for _ in 0..<60 { node.update(dt: 1.0 / 60, now: 0, strip: strip) }
         #expect(node.x == 900)
         #expect(node.y == 0)
+    }
+
+    @MainActor @Test func 자리를_비운_팻말은_묘비처럼_들거나_뛸_수_없다() {
+        let node = node()
+        node.isAway = true
+        node.beginDrag()
+        #expect(!node.isDragging)
+        node.jump()
+        node.update(dt: 1.0 / 60, now: 1, strip: strip)
+        #expect(node.y == 0)
+    }
+
+    @MainActor @Test func 자리를_비운_팻말에는_달려와도_부딪히지_않는다() {
+        let runner = node(), sign = CharacterNode(id: "you", name: "you", isLocal: true)
+        sign.teleport(to: 915)
+        sign.isAway = true
+        runner.hold(1, dash: true)
+        var t = 0.0
+        for _ in 0..<10 {
+            t += 1.0 / 60
+            runner.update(dt: 1.0 / 60, now: t, strip: strip)
+            #expect(!runner.isRamming(sign, now: t))
+        }
+        #expect(!sign.canBeRammed(now: t))
     }
 
     @MainActor @Test func 서로_달려오다_닿으면_부딪힌다() {

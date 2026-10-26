@@ -83,7 +83,8 @@ final class Session {
                k: node.isDead ? true : nil,
                f: Int(node.facing),
                j: node.isJetting ? true : nil,
-               c: node.isParachuting ? true : nil)
+               c: node.isParachuting ? true : nil,
+               a: node.isAway ? true : nil)
     }
 
     /// 받는 쪽이 도착 시각 대신 이걸로 표본을 놓는다. 망이 흔들려도 걸음이 고르다
@@ -235,7 +236,7 @@ final class Session {
             World.shared.setPeerTarget(id: id, x: CGFloat(msg.x), y: CGFloat(msg.y ?? 0),
                                        bowing: msg.b == true, dragging: msg.d == true,
                                        dead: msg.k == true, jetting: msg.j == true,
-                                       parachuting: msg.c == true,
+                                       parachuting: msg.c == true, away: msg.a == true,
                                        facing: msg.f, sent: msg.m.map { Double($0) / 1000 })
         case let .say(msg):
             guard let body = validChat(msg.msg) else { return }

@@ -190,6 +190,16 @@ enum Characters {
         return texture
     }()
 
+    /// 자리를 비운 동안 캐릭터 대신 서 있는 "자리 비움" 팻말. 다리 끝이 칸 맨 아랫줄에 닿는다
+    static let awaySign: SKTexture = {
+        guard let cg = NSImage(named: "away")?
+            .cgImage(forProposedRect: nil, context: nil, hints: nil)
+        else { return SKTexture() }
+        let texture = SKTexture(cgImage: cg)
+        texture.filteringMode = .nearest
+        return texture
+    }()
+
     /// 떨어지는 중에 펴는 낙하산
     static let parachute: SKTexture = {
         guard let cg = NSImage(named: "parachute")?

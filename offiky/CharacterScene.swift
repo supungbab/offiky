@@ -18,6 +18,8 @@ final class CharacterNode: SKNode {
     private let flame = SKSpriteNode(texture: Characters.flames[0])
     private var flameTick = 0
     private let parachute = SKSpriteNode(texture: Characters.parachute)
+    /// 화면이 꺼지거나 잠긴 동안. 원격은 주인이 적어 보낸 값을 따른다
+    var isAway = false
     private let label = SKLabelNode(fontNamed: "Helvetica")
     private var nameBackground: SKShapeNode?
     private var bubbleNode: SKShapeNode?
@@ -236,7 +238,7 @@ final class CharacterNode: SKNode {
     /// 방향키를 누르고 있는 정도에 따라 제자리·걷기·대시 순으로 높이 뛴다.
     /// 두 번째는 떨어지던 속도를 지우고 다시 차오른다
     func jump() {
-        guard isLocal, !isDragging else { return }
+        guard isLocal, !isDragging, !isAway else { return }
         if isDead {
             // 묘비가 다 올라온 뒤에만 살아난다
             guard tombstoneRows == Characters.tombstoneRows.count - 1 else { return }
@@ -298,7 +300,7 @@ final class CharacterNode: SKNode {
     }
 
     func beginDrag() {
-        guard !isDead else { return }
+        guard !isDead, !isAway else { return }
         isDragging = true
         parachuteOpen = false
         verticalSpeed = 0
@@ -337,7 +339,7 @@ final class CharacterNode: SKNode {
     /// 상대를 향해 달리다 몸이 닿았다. 서 있는 상대도 부딪힌다.
     /// 달린 쪽만 판정한다. 상대 화면에서는 내가 늦게 보여 닿기 전에 튕겨 나간다
     func isRamming(_ other: CharacterNode, now: TimeInterval) -> Bool {
-        guard canBeRammed(now: now), other.y <= 0, !other.isDead, !other.isDragging
+        guard canBeRammed(now: now), other.y <= 0, !other.isDead, !other.isDragging, !other.isAway
         else { return false }
         let gap = other.x - x
         return abs(gap) < sheet.bodyWidth + other.sheet.bodyWidth
@@ -345,7 +347,7 @@ final class CharacterNode: SKNode {
     }
 
     func canBeRammed(now: TimeInterval) -> Bool {
-        now >= hurtUntil && y <= 0 && !isDead && !isDragging
+        now >= hurtUntil && y <= 0 && !isDead && !isDragging && !isAway
     }
 
     /// 부딪힌 상대 반대쪽으로 튕겨 나가며 아파한다
@@ -414,10 +416,11 @@ final class CharacterNode: SKNode {
     /// 전부 버려 위치와 행동이 서로 다른 패킷에서 섞이지 않게 한다.
     @discardableResult
     func applyRemoteSnapshot(x: CGFloat, y: CGFloat, bowing: Bool, dragging: Bool, dead: Bool = false,
-                             jetting: Bool = false, parachuting: Bool = false,
+                             jetting: Bool = false, parachuting: Bool = false, away: Bool = false,
                              facing direction: Int?, sent: TimeInterval?, at now: TimeInterval) -> Bool {
         guard setRemoteTarget(x: x, y: y, sent: sent, at: now) else { return false }
         isBowing = bowing
+        isAway = away
         remoteJetting = jetting
         remoteParachuting = parachuting
         isDead = dead
@@ -478,7 +481,14 @@ final class CharacterNode: SKNode {
             renderedAnimation = nil
             return
         }
-        image.size.height = sheet.size.height * 2
+        if isAway {
+            image.texture = Characters.awaySign
+            image.size = CGSize(width: Characters.awaySign.size().width * 2,
+                                height: Characters.awaySign.size().height * 2)
+            renderedAnimation = nil
+            return
+        }
+        image.size = CGSize(width: sheet.size.width * 2, height: sheet.size.height * 2)
 
         let animation: Animation
         if isDragging { animation = .idle }          // 들려 있는 동안은 가만히 서 있는다
@@ -627,10 +637,11 @@ final class CharacterNode: SKNode {
         position = CGPoint(x: (placement.point.x / 2).rounded() * 2,
                            y: (placement.point.y / 2).rounded() * 2)
 
-        // 묘비는 그림자 없이 맨 아랫줄이 바닥에 닿게 그려져 있고, 뒤집지 않는다
+        // 묘비와 자리 비움 팻말은 그림자 없이 맨 아랫줄이 바닥에 닿게 그려져 있고, 뒤집지 않는다
         let tombstone = tombstoneRows != nil
-        shadow.isHidden = tombstone
-        image.position.y = -spriteDisplaySize / 2 - (tombstone ? 0 : sheet.footPadding * 2)
+        let standing = tombstone || isAway
+        shadow.isHidden = standing
+        image.position.y = -spriteDisplaySize / 2 - (standing ? 0 : sheet.footPadding * 2)
 
         // 그림자는 캐릭터를 따라 뜨지 않고 바닥에 남는다
         // 발 위치보다 2pt 아래에 두어 캐릭터가 그림자를 밟고 선 것처럼 보이게 한다
@@ -639,24 +650,24 @@ final class CharacterNode: SKNode {
         applyShadow(step: min(CharacterNode.shadowSteps.count - 1,
                               Int(lift * CGFloat(CharacterNode.shadowSteps.count))))
         shadow.alpha = 0.3 * (1 - 0.75 * lift)
-        parachute.isHidden = !isParachuting || tombstone
+        parachute.isHidden = !isParachuting || standing
         if !parachute.isHidden {
             // 어깨를 축으로 흔들리고, 가는 쪽 반대로 기운다
             let tilt = max(-0.2, min(0.2, velocity / CharacterNode.parachuteGlideSpeed * 0.12))
             let sway = 0.06 * sin(ProcessInfo.processInfo.systemUptime * 2.2)
             parachute.zRotation = tilt + CGFloat(sway)
         }
-        jetpack.isHidden = !wearsJetpack || tombstone
+        jetpack.isHidden = !wearsJetpack || standing
         flame.isHidden = !isJetting
         if !jetpack.isHidden {
             jetpack.position = CGPoint(x: -facing * (sheet.bodyWidth + 3), y: -spriteDisplaySize / 2 + 14)
             flameTick += 1
             flame.texture = Characters.flames[(flameTick / 3) % 2]
         }
-        // 묘비는 늘 다른 캐릭터 뒤에 둔다. 원격은 띠 왼쪽 밖(x < 0)에도 서므로 넉넉히 뺀다
-        zPosition = tombstone ? depthBias - 10_000 : x + depthBias
+        // 묘비와 팻말은 늘 다른 캐릭터 뒤에 둔다. 원격은 띠 왼쪽 밖(x < 0)에도 서므로 넉넉히 뺀다
+        zPosition = standing ? depthBias - 10_000 : x + depthBias
         // 스프라이트는 오른쪽을 보고 그려져 있다. 글씨가 있는 업데이트 팻말은 뒤집지 않는다
-        image.xScale = tombstone || look.design == Characters.count ? 1 : facing
+        image.xScale = standing || look.design == Characters.count ? 1 : facing
         updateNameLabel()
     }
 
@@ -993,10 +1004,11 @@ extension World {
     }
 
     func setPeerTarget(id: String, x: CGFloat, y: CGFloat, bowing: Bool, dragging: Bool, dead: Bool,
-                       jetting: Bool = false, parachuting: Bool = false, facing: Int?, sent: TimeInterval?) {
+                       jetting: Bool = false, parachuting: Bool = false, away: Bool = false,
+                       facing: Int?, sent: TimeInterval?) {
         guard let node = peers[id] else { return }
         node.applyRemoteSnapshot(x: x, y: y, bowing: bowing, dragging: dragging, dead: dead,
-                                 jetting: jetting, parachuting: parachuting,
+                                 jetting: jetting, parachuting: parachuting, away: away,
                                  facing: facing, sent: sent,
                                  at: ProcessInfo.processInfo.systemUptime)
     }
