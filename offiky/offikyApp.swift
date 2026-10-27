@@ -138,10 +138,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if NSClassFromString("XCTestCase") == nil {
             Net.shared.start()
             Away.shared.install()
+            UpdateChecker.shared.checkAndTell(onlyNew: true)
         }
         ChatPanel.shared.install()
         Control.shared.install()
-        Task { await UpdateChecker.shared.check() }
         Timer.scheduledTimer(withTimeInterval: 3600, repeats: true) { _ in
             Task { await UpdateChecker.shared.check() }
         }
@@ -237,9 +237,12 @@ final class Away {
             Control.shared.stop(restoringFocus: false)
             guard awaySince == nil else { return }
             awaySince = Date()
-            checkTimer = Timer.scheduledTimer(withTimeInterval: min(10, Away.leaveAfter), repeats: true) { [weak self] _ in
+            // 기본 모드 타이머는 업데이트 대화상자가 열려 있는 동안 실행되지 않는다
+            let timer = Timer(timeInterval: min(10, Away.leaveAfter), repeats: true) { [weak self] _ in
                 self?.leaveIfOverdue()
             }
+            RunLoop.main.add(timer, forMode: .common)
+            checkTimer = timer
         } else {
             checkTimer?.invalidate()
             checkTimer = nil

@@ -38,10 +38,12 @@ final class UpdateChecker {
         }
     }
 
-    /// 메뉴는 누르는 순간 닫히므로 결과를 대화상자로 알린다
-    func checkAndTell() {
+    /// 메뉴는 누르는 순간 닫히므로 결과를 대화상자로 알린다. 앱을 실행할 때는 새 버전만 알린다
+    func checkAndTell(onlyNew: Bool = false) {
         Task {
             let result = await check(force: true)
+            let found = if case .found = result { true } else { false }
+            if onlyNew, !found { return }
             let alert = NSAlert()
             switch result {
             case .upToDate:
