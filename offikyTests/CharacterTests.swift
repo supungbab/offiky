@@ -446,6 +446,13 @@ struct ControlTests {
         #expect(node.workRows == 1)
     }
 
+    @MainActor @Test func 캐릭터를_숨긴_동안_동료에게_ZZZ_팻말을_보낸다() {
+        OverlayController.shared.toggleHidden()
+        #expect(World.shared.me.isAway)
+        OverlayController.shared.toggleHidden()
+        #expect(!World.shared.me.isAway)
+    }
+
     @MainActor @Test func 서로_달려오다_닿으면_부딪힌다() {
         let a = node(), b = CharacterNode(id: "you", name: "you", isLocal: true)
         b.teleport(to: 1000)

@@ -175,7 +175,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-/// 화면이 꺼지거나 잠기면 ZZZ 팻말을 세우고 30분이 지나면 나갔다가 돌아오면 저장된 채널로 들어간다
+/// 화면이 꺼지거나 잠기면 ZZZ 팻말을 표시하고 30분이 지나면 나갔다가 돌아오면 저장된 채널로 들어간다
 final class Away {
     static let shared = Away()
     static var leaveAfter: TimeInterval {
@@ -228,9 +228,10 @@ final class Away {
         return true
     }
 
-    private func changed() {
+    /// 캐릭터를 숨긴 동안에도 ZZZ 팻말을 표시한다. 자리에 있으므로 30분이 지나도 나가지 않는다
+    func changed() {
         let away = screensAsleep || locked
-        World.shared.me.isAway = away
+        World.shared.me.isAway = away || OverlayController.shared.isHidden
         if away {
             // 잠기면 키를 뗀 신호가 오지 않는다. 누르던 Space 로 계속 날지 않게 조종을 끝낸다
             Control.shared.stop(restoringFocus: false)

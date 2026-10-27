@@ -10,7 +10,7 @@ import SpriteKit
     private(set) var strip = FloorStrip(visibleFrames: [], main: nil)
     private var handle: NSWindow?
     private var handleMovedAt: TimeInterval = 0
-    /// 내 화면에서만 숨긴다. 좌표는 계속 보내므로 동료 화면에는 그대로 보인다
+    /// 내 화면에서는 숨기고 동료 화면에는 ZZZ 팻말을 표시한다
     private(set) var isHidden = false
 
     private init() {}
@@ -57,6 +57,7 @@ import SpriteKit
     func toggleHidden() {
         isHidden.toggle()
         if isHidden { Control.shared.stop() }
+        Away.shared.changed()
         for window in windows + [handle].compactMap({ $0 }) {
             if isHidden { window.orderOut(nil) } else { window.orderFrontRegardless() }
         }
