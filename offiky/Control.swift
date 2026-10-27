@@ -26,6 +26,12 @@ import SwiftUI
             self?.toggle()
         }
         hotKeyWorks = hotKey?.registered ?? false
+        // ⌘ 를 누른 채 뗀 키는 AppKit 이 창에 keyUp 을 보내지 않는다
+        _ = NSEvent.addLocalMonitorForEvents(matching: .keyUp) { [weak self] event in
+            guard let self, event.window === self.panel else { return event }
+            self.keyUp(event)
+            return nil
+        }
     }
 
     func toggle() { isOn ? stop() : start() }
@@ -115,7 +121,6 @@ private final class KeyCatcher: NSHostingView<HintView> {
 
     override var acceptsFirstResponder: Bool { true }
     override func keyDown(with event: NSEvent) { Control.shared.keyDown(event) }
-    override func keyUp(with event: NSEvent) { Control.shared.keyUp(event) }
 }
 
 struct HintView: View {
