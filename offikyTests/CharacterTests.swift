@@ -402,6 +402,27 @@ struct ControlTests {
         #expect(node.y > 0)
     }
 
+    @MainActor @Test func 걷는_중에는_노트북으로_바꾸지_않는다() {
+        let node = node()
+        node.hold(1, dash: false)
+        node.startWorking()
+        #expect(!node.isWorking)
+        node.hold(0, dash: false)
+        node.startWorking()
+        #expect(node.isWorking)
+    }
+
+    @MainActor @Test func 화면이_꺼진_사이_update_가_없어도_켜지면_노트북이_다시_올라온다() {
+        let node = node()
+        node.startWorking()
+        node.update(dt: 1.0 / 60, now: 1, strip: strip)
+        node.update(dt: 1.0 / 60, now: 2, strip: strip)
+        node.isAway = true
+        node.isAway = false
+        node.update(dt: 1.0 / 60, now: 3, strip: strip)
+        #expect(node.workRows == 1)
+    }
+
     @MainActor @Test func 노트북은_걷지_않고_들거나_부딪힐_수_없다() {
         let node = node()
         node.startWorking()

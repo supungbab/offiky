@@ -19,7 +19,9 @@ final class CharacterNode: SKNode {
     private var flameTick = 0
     private let parachute = SKSpriteNode(texture: Characters.parachute)
     /// 화면이 꺼지거나 잠긴 동안. 원격은 주인이 적어 보낸 값을 따른다
-    var isAway = false
+    var isAway = false {
+        didSet { if isAway { workingSince = nil } }   // 화면이 꺼지면 update 가 실행되지 않아 여기서 지운다
+    }
     private let label = SKLabelNode(fontNamed: "Helvetica")
     private var nameBackground: SKShapeNode?
     private var bubbleNode: SKShapeNode?
@@ -276,7 +278,8 @@ final class CharacterNode: SKNode {
 
     /// 바닥에 멈춰 있을 때만 노트북으로 바꾼다. 묘비와 달리 아파하지 않고 바로 올라온다
     func startWorking() {
-        guard isLocal, y <= 0, verticalSpeed == 0, knockback == 0, !isDead, !isDragging else { return }
+        guard isLocal, y <= 0, verticalSpeed == 0, knockback == 0, holding == 0, !isDead, !isDragging
+        else { return }
         isWorking = true
     }
 
