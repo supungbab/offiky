@@ -49,8 +49,8 @@ import SwiftUI
 
         focus.remember()
         isOn = true
-        panel.setFrame(CGRect(origin: panelOrigin(on: screen, width: panelSize.width),
-                              size: panelSize), display: true)
+        panel.setFrame(CGRect(origin: panelOrigin(on: screen, width: hintSize.width),
+                              size: hintSize), display: true)
         NSApp.activate(ignoringOtherApps: true)
         panel.makeKeyAndOrderFront(nil)
         panel.makeFirstResponder(panel.contentView)
@@ -78,6 +78,8 @@ import SwiftUI
             stop()
         case kVK_UpArrow:
             if !event.isARepeat { World.shared.me.jump() }
+        case kVK_ANSI_W:
+            World.shared.me.startWorking()
         case kVK_Space:
             World.shared.me.isThrusting = true
         case kVK_DownArrow:
@@ -114,6 +116,9 @@ import SwiftUI
     }
 }
 
+/// 안내 항목이 아홉 개라 채팅창보다 넓다
+private let hintSize = CGSize(width: 760, height: panelSize.height)
+
 /// 처리하지 않은 키는 경고음이 나므로 방향키 외에도 모두 받는다
 private final class KeyCatcher: NSHostingView<HintView> {
     required init(rootView: HintView) { super.init(rootView: rootView) }
@@ -124,12 +129,14 @@ private final class KeyCatcher: NSHostingView<HintView> {
 }
 
 struct HintView: View {
-    /// 이동·점프·그 외로 묶는다. 같은 간격의 여덟 개는 순서대로 다 읽어야 한다
+    /// 이동·점프·그 외로 묶는다. 같은 간격의 아홉 개는 순서대로 다 읽어야 한다
     var body: some View {
         HStack(spacing: 16) {
             HStack(spacing: 10) { item("← →", "이동"); item("←← →→", "대시") }
             HStack(spacing: 10) { item("↑", "점프"); item("↑↑", "2단 점프"); item("space", "제트팩") }
-            HStack(spacing: 10) { item("↓", "웅크리기·낙하산"); item("⇧↓", "1초 똥"); item("esc", "끝내기") }
+            HStack(spacing: 10) {
+                item("↓", "웅크리기·낙하산"); item("⇧↓", "1초 똥"); item("w", "WORK"); item("esc", "끝내기")
+            }
         }
         .font(.system(size: 11))
         .frame(maxWidth: .infinity, maxHeight: .infinity)

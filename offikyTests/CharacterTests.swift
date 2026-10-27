@@ -386,6 +386,45 @@ struct ControlTests {
         #expect(!sign.canBeRammed(now: t))
     }
 
+    @MainActor @Test func 노트북은_아파하지_않고_바로_올라오고_다_올라온_뒤_위_키로_돌아온다() {
+        let node = node()
+        node.startWorking()
+        node.update(dt: 1.0 / 60, now: 1, strip: strip)
+        #expect(node.workRows == 1)
+        node.jump()
+        #expect(node.isWorking)                        // 다 올라오기 전에는 돌아오지 않는다
+
+        node.update(dt: 1.0 / 60, now: 1 + CharacterNode.tombstoneRiseDuration, strip: strip)
+        #expect(node.workRows == Characters.workRows.count - 1)
+        node.jump()
+        #expect(!node.isWorking)
+        node.update(dt: 1.0 / 60, now: 2, strip: strip)
+        #expect(node.y > 0)
+    }
+
+    @MainActor @Test func 노트북은_걷지_않고_들거나_부딪힐_수_없다() {
+        let node = node()
+        node.startWorking()
+        node.hold(1, dash: true)
+        for i in 1...30 { node.update(dt: 1.0 / 60, now: Double(i) / 60, strip: strip) }
+        #expect(node.x == 900)
+        node.beginDrag()
+        #expect(!node.isDragging)
+        #expect(!node.canBeRammed(now: 1))
+    }
+
+    @MainActor @Test func 화면이_잠기면_자리_비움이_우선하고_풀리면_노트북이_다시_올라온다() {
+        let node = node()
+        node.startWorking()
+        node.update(dt: 1.0 / 60, now: 1, strip: strip)
+        node.isAway = true
+        node.update(dt: 1.0 / 60, now: 2, strip: strip)
+        #expect(node.workRows == nil)
+        node.isAway = false
+        node.update(dt: 1.0 / 60, now: 3, strip: strip)
+        #expect(node.workRows == 1)
+    }
+
     @MainActor @Test func 서로_달려오다_닿으면_부딪힌다() {
         let a = node(), b = CharacterNode(id: "you", name: "you", isLocal: true)
         b.teleport(to: 1000)

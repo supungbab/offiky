@@ -153,10 +153,15 @@ enum Characters {
         return (CGFloat(last - first + 1), CGFloat(height - 1 - bottom))
     }
 
-    /// 높은 데서 떨어진 캐릭터가 1분 동안 서 있는 묘비. 모든 모양이 같이 쓴다.
+    /// 높은 데서 떨어진 캐릭터가 1분 동안 서 있는 묘비. 모든 모양이 같이 쓴다
+    static let tombstoneRows = risingRows("tombstone")
+
+    /// 일하는 동안 캐릭터 대신 서 있는 노트북. 묘비처럼 땅에서 올라온다
+    static let workRows = risingRows("work")
+
     /// n 번째는 윗부분 n 줄이다. 땅에서 올라오는 동안 차례로 쓴다
-    static let tombstoneRows: [SKTexture] = {
-        guard let cg = NSImage(named: "tombstone")?
+    private static func risingRows(_ name: String) -> [SKTexture] {
+        guard let cg = NSImage(named: name)?
             .cgImage(forProposedRect: nil, context: nil, hints: nil)
         else { return [SKTexture()] }
         let whole = SKTexture(cgImage: cg)
@@ -168,7 +173,7 @@ enum Characters {
             texture.filteringMode = .nearest
             return texture
         }
-    }()
+    }
 
     /// 웅크린 채 버티면 바닥에 남는 똥. 모든 모양이 같이 쓴다
     static let poop: SKTexture = {

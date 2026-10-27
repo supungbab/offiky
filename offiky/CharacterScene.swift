@@ -75,6 +75,16 @@ final class CharacterNode: SKNode {
     private var deadSince: TimeInterval?
     /// 땅 위로 올라온 묘비의 줄 수. nil 이면 묘비를 그리지 않는다
     private(set) var tombstoneRows: Int?
+    /// 노트북을 표시하고 일하는 동안. 원격은 주인이 적어 보낸 값을 따른다
+    private(set) var isWorking = false {
+        didSet { if isWorking != oldValue { workingChanged?(isWorking) } }
+    }
+    /// 내 캐릭터에만 연결해 다음 실행에도 노트북으로 시작하게 저장한다
+    var workingChanged: ((Bool) -> Void)?
+    /// 노트북이 올라오기 시작한 시각. 화면이 잠긴 동안은 지우고, 풀리면 다시 올라온다
+    private var workingSince: TimeInterval?
+    /// 땅 위로 올라온 노트북의 줄 수. nil 이면 노트북을 그리지 않는다
+    private(set) var workRows: Int?
     private var bubbleUntil: TimeInterval = 0
     private var bubbleIsTyping = false
     private var pendingTypingUntil: TimeInterval = 0
@@ -135,6 +145,11 @@ final class CharacterNode: SKNode {
     static let deathHurtDuration: TimeInterval = 1
     /// 묘비가 땅에서 다 올라오는 데 걸리는 시간
     static let tombstoneRiseDuration: TimeInterval = 0.6
+    /// 올라오기 시작한 지 `rising` 초 지났을 때 땅 위로 나온 줄 수. 노트북도 같은 빠르기로 올라온다
+    private static func risenRows(_ rising: TimeInterval, of rows: [SKTexture]) -> Int {
+        let full = rows.count - 1
+        return min(full, Int(max(0, rising) / tombstoneRiseDuration * Double(full)) + 1)
+    }
     /// 부활할 때 바닥에서 튀어 오르는 높이. 제자리 점프보다 높다
     static let reviveApex: CGFloat = 96
     /// 땅을 떠난 뒤 도약 그림(1열)을 보여 주는 시간
@@ -150,7 +165,7 @@ final class CharacterNode: SKNode {
     /// 오르는 속도 상한. 넘으면 로켓처럼 솟는다
     static let jetMaxRise: CGFloat = 200
     var isJetting: Bool {
-        isLocal ? isThrusting && !isDragging && !isDead : remoteJetting
+        isLocal ? isThrusting && !isDragging && !isDead && !isWorking : remoteJetting
     }
 
     /// 떨어지는 중에 ↓ 를 누르고 있는 동안만 편다. 원격은 주인이 적어 보낸 값을 따른다
@@ -239,11 +254,13 @@ final class CharacterNode: SKNode {
     /// 두 번째는 떨어지던 속도를 지우고 다시 차오른다
     func jump() {
         guard isLocal, !isDragging, !isAway else { return }
-        if isDead {
-            // 묘비가 다 올라온 뒤에만 살아난다
-            guard tombstoneRows == Characters.tombstoneRows.count - 1 else { return }
+        if isDead || isWorking {
+            // 묘비나 노트북이 다 올라온 뒤에만 살아난다
+            guard isDead ? tombstoneRows == Characters.tombstoneRows.count - 1
+                : workRows == Characters.workRows.count - 1 else { return }
+            if isDead { hits = 0 }
             isDead = false
-            hits = 0
+            isWorking = false
             verticalSpeed = (2 * CharacterNode.gravity * CharacterNode.reviveApex).squareRoot()
             jumpsUsed = CharacterNode.maxJumps
             return
@@ -257,9 +274,15 @@ final class CharacterNode: SKNode {
         verticalSpeed = (2 * CharacterNode.gravity * apex).squareRoot()
     }
 
+    /// 바닥에 멈춰 있을 때만 노트북으로 바꾼다. 묘비와 달리 아파하지 않고 바로 올라온다
+    func startWorking() {
+        guard isLocal, y <= 0, verticalSpeed == 0, knockback == 0, !isDead, !isDragging else { return }
+        isWorking = true
+    }
+
     /// 바닥에 멈춰 Shift 를 누른 채 웅크려 `poopHold` 만큼 버텼으면 한 번 true 를 반환한다
     func poopIfReady(now: TimeInterval, straining: Bool) -> Bool {
-        guard isLocal, isBowing, straining, holding == 0, y <= 0, !isDragging, !isDead else {
+        guard isLocal, isBowing, straining, holding == 0, y <= 0, !isDragging, !isDead, !isWorking else {
             strainingSince = nil
             pooped = false
             return false
@@ -300,7 +323,7 @@ final class CharacterNode: SKNode {
     }
 
     func beginDrag() {
-        guard !isDead, !isAway else { return }
+        guard !isDead, !isAway, !isWorking else { return }
         isDragging = true
         parachuteOpen = false
         verticalSpeed = 0
@@ -339,7 +362,8 @@ final class CharacterNode: SKNode {
     /// 상대를 향해 달리다 몸이 닿았다. 서 있는 상대도 부딪힌다.
     /// 달린 쪽만 판정한다. 상대 화면에서는 내가 늦게 보여 닿기 전에 튕겨 나간다
     func isRamming(_ other: CharacterNode, now: TimeInterval) -> Bool {
-        guard canBeRammed(now: now), other.y <= 0, !other.isDead, !other.isDragging, !other.isAway
+        guard canBeRammed(now: now), other.y <= 0, !other.isDead, !other.isDragging, !other.isAway,
+              !other.isWorking
         else { return false }
         let gap = other.x - x
         return abs(gap) < sheet.bodyWidth + other.sheet.bodyWidth
@@ -347,7 +371,7 @@ final class CharacterNode: SKNode {
     }
 
     func canBeRammed(now: TimeInterval) -> Bool {
-        now >= hurtUntil && y <= 0 && !isDead && !isDragging && !isAway
+        now >= hurtUntil && y <= 0 && !isDead && !isDragging && !isAway && !isWorking
     }
 
     /// 부딪힌 상대 반대쪽으로 튕겨 나가며 아파한다
@@ -417,10 +441,12 @@ final class CharacterNode: SKNode {
     @discardableResult
     func applyRemoteSnapshot(x: CGFloat, y: CGFloat, bowing: Bool, dragging: Bool, dead: Bool = false,
                              jetting: Bool = false, parachuting: Bool = false, away: Bool = false,
+                             working: Bool = false,
                              facing direction: Int?, sent: TimeInterval?, at now: TimeInterval) -> Bool {
         guard setRemoteTarget(x: x, y: y, sent: sent, at: now) else { return false }
         isBowing = bowing
         isAway = away
+        isWorking = working
         remoteJetting = jetting
         remoteParachuting = parachuting
         isDead = dead
@@ -472,9 +498,14 @@ final class CharacterNode: SKNode {
         tombstoneRows = deadSince.flatMap { since in
             let rising = now - since - CharacterNode.deathHurtDuration
             guard rising >= 0 else { return nil }
-            let full = Characters.tombstoneRows.count - 1
-            return min(full, Int(rising / CharacterNode.tombstoneRiseDuration * Double(full)) + 1)
+            return CharacterNode.risenRows(rising, of: Characters.tombstoneRows)
         }
+        if isWorking, y <= 0, !isAway {
+            if workingSince == nil { workingSince = now }
+        } else {
+            workingSince = nil
+        }
+        workRows = workingSince.map { CharacterNode.risenRows(now - $0, of: Characters.workRows) }
         if let rows = tombstoneRows {
             image.texture = Characters.tombstoneRows[rows]
             image.size.height = CGFloat(rows) * 2
@@ -485,6 +516,13 @@ final class CharacterNode: SKNode {
             image.texture = Characters.awaySign
             image.size = CGSize(width: Characters.awaySign.size().width * 2,
                                 height: Characters.awaySign.size().height * 2)
+            renderedAnimation = nil
+            return
+        }
+        if let rows = workRows {
+            let texture = Characters.workRows[rows]
+            image.texture = texture
+            image.size = CGSize(width: texture.size().width * 2, height: texture.size().height * 2)
             renderedAnimation = nil
             return
         }
@@ -519,7 +557,7 @@ final class CharacterNode: SKNode {
     private func simulate(dt: TimeInterval, now: TimeInterval, strip: FloorStrip) {
         isWalking = false
         guard !isDragging else { return }
-        guard !isDead else { return }
+        guard !isDead, !isWorking else { return }
         let step = CGFloat(dt)
         // 맞은 동안에는 조종만 막는다. 중력까지 멈추면 공중에 떠 있는다
         let hurt = now < hurtUntil
@@ -637,9 +675,9 @@ final class CharacterNode: SKNode {
         position = CGPoint(x: (placement.point.x / 2).rounded() * 2,
                            y: (placement.point.y / 2).rounded() * 2)
 
-        // 묘비와 자리 비움 팻말은 그림자 없이 맨 아랫줄이 바닥에 닿게 그려져 있고, 뒤집지 않는다
+        // 묘비·자리 비움 팻말·노트북은 그림자 없이 맨 아랫줄이 바닥에 닿게 그려져 있고, 뒤집지 않는다
         let tombstone = tombstoneRows != nil
-        let standing = tombstone || isAway
+        let standing = tombstone || isAway || workRows != nil
         shadow.isHidden = standing
         image.position.y = -spriteDisplaySize / 2 - (standing ? 0 : sheet.footPadding * 2)
 
@@ -664,7 +702,7 @@ final class CharacterNode: SKNode {
             flameTick += 1
             flame.texture = Characters.flames[(flameTick / 3) % 2]
         }
-        // 묘비와 팻말은 늘 다른 캐릭터 뒤에 둔다. 원격은 띠 왼쪽 밖(x < 0)에도 서므로 넉넉히 뺀다
+        // 묘비·팻말·노트북은 늘 다른 캐릭터 뒤에 둔다. 원격은 띠 왼쪽 밖(x < 0)에도 서므로 넉넉히 뺀다
         zPosition = standing ? depthBias - 10_000 : x + depthBias
         // 스프라이트는 오른쪽을 보고 그려져 있다. 글씨가 있는 업데이트 팻말은 뒤집지 않는다
         image.xScale = standing || look.design == Characters.count ? 1 : facing
@@ -812,6 +850,8 @@ final class World {
         let stored = UserDefaults.standard.string(forKey: "name") ?? NSFullUserName()
         me = CharacterNode(id: myID, name: sanitizeName(stored), isLocal: true)
         me.apply(World.myLook)
+        if World.store.bool(forKey: "working") { me.startWorking() }
+        me.workingChanged = { World.store.set($0, forKey: "working") }
     }
 
     /// 10종이던 시절의 번호를 지금 배치로 옮긴다. 염소 5색은 자리가 같아 그대로다.
@@ -1005,10 +1045,10 @@ extension World {
 
     func setPeerTarget(id: String, x: CGFloat, y: CGFloat, bowing: Bool, dragging: Bool, dead: Bool,
                        jetting: Bool = false, parachuting: Bool = false, away: Bool = false,
-                       facing: Int?, sent: TimeInterval?) {
+                       working: Bool = false, facing: Int?, sent: TimeInterval?) {
         guard let node = peers[id] else { return }
         node.applyRemoteSnapshot(x: x, y: y, bowing: bowing, dragging: dragging, dead: dead,
-                                 jetting: jetting, parachuting: parachuting, away: away,
+                                 jetting: jetting, parachuting: parachuting, away: away, working: working,
                                  facing: facing, sent: sent,
                                  at: ProcessInfo.processInfo.systemUptime)
     }

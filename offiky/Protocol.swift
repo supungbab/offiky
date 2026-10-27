@@ -256,6 +256,8 @@ struct PosMsg: Codable, Equatable {
     var c: Bool? = nil
     /// 화면이 꺼지거나 잠긴 동안만 적는다. 옛 버전은 이 값을 무시한다
     var a: Bool? = nil
+    /// 노트북을 표시하는 동안만 적는다. 옛 버전은 이 값을 무시하고 캐릭터로 본다
+    var w: Bool? = nil
     /// 보낸 시각(ms, 보낸 기계 기준). 받는 쪽은 도착 시각 대신 이걸로 표본을 놓는다
     var m: Int?
 }
