@@ -417,16 +417,19 @@ struct MessageTests {
         msg.c = true
         msg.a = true
         msg.w = true
+        msg.h = true
         let back = try JSONDecoder().decode(PosMsg.self, from: JSONEncoder().encode(msg))
         #expect(back.j == true)
         #expect(back.c == true)
         #expect(back.a == true)
         #expect(back.w == true)
+        #expect(back.h == true)
         let old = try JSONDecoder().decode(PosMsg.self, from: Data(#"{"t":"pos","x":1}"#.utf8))
         #expect(old.j == nil)
         #expect(old.c == nil)
         #expect(old.a == nil)
         #expect(old.w == nil)
+        #expect(old.h == nil)
     }
 
     @Test func 똥_메시지를_구분한다() throws {

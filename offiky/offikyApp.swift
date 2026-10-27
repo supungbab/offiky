@@ -228,10 +228,11 @@ final class Away {
         return true
     }
 
-    /// 캐릭터를 숨긴 동안에도 ZZZ 팻말을 표시한다. 자리에 있으므로 30분이 지나도 나가지 않는다
+    /// 캐릭터를 숨긴 동안에는 꺼진 스위치를 표시한다. 자리에 있으므로 30분이 지나도 나가지 않는다
     func changed() {
         let away = screensAsleep || locked
         World.shared.me.isAway = away || OverlayController.shared.isHidden
+        World.shared.me.isHiding = !away && OverlayController.shared.isHidden
         if away {
             // 잠기면 키를 뗀 신호가 오지 않는다. 누르던 Space 로 계속 날지 않게 조종을 끝낸다
             Control.shared.stop(restoringFocus: false)

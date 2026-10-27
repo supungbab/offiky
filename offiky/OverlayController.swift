@@ -10,7 +10,7 @@ import SpriteKit
     private(set) var strip = FloorStrip(visibleFrames: [], main: nil)
     private var handle: NSWindow?
     private var handleMovedAt: TimeInterval = 0
-    /// 내 화면에서는 숨기고 동료 화면에는 ZZZ 팻말을 표시한다
+    /// 내 화면에서는 숨기고 동료 화면에는 꺼진 스위치를 표시한다
     private(set) var isHidden = false
 
     private init() {}

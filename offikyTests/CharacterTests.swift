@@ -324,11 +324,11 @@ struct ControlTests {
     @MainActor @Test func 동료가_자리를_비우면_받은_값을_따르고_돌아오면_풀린다() {
         let peer = CharacterNode(id: "you", name: "you", isLocal: false)
         peer.applyRemoteSnapshot(x: 100, y: 0, bowing: false, dragging: false, away: true,
-                                 facing: 1, sent: 1, at: 1)
-        #expect(peer.isAway)
+                                 hiding: true, facing: 1, sent: 1, at: 1)
+        #expect(peer.isAway && peer.isHiding)
         peer.applyRemoteSnapshot(x: 100, y: 0, bowing: false, dragging: false,
                                  facing: 1, sent: 2, at: 2)
-        #expect(!peer.isAway)
+        #expect(!peer.isAway && !peer.isHiding)
     }
 
     @MainActor @Test func 제트팩을_켜면_낙하산을_접는다() {
@@ -446,11 +446,11 @@ struct ControlTests {
         #expect(node.workRows == 1)
     }
 
-    @MainActor @Test func 캐릭터를_숨긴_동안_동료에게_ZZZ_팻말을_보낸다() {
+    @MainActor @Test func 캐릭터를_숨긴_동안_동료에게_꺼진_스위치를_보낸다() {
         OverlayController.shared.toggleHidden()
-        #expect(World.shared.me.isAway)
+        #expect(World.shared.me.isAway && World.shared.me.isHiding)
         OverlayController.shared.toggleHidden()
-        #expect(!World.shared.me.isAway)
+        #expect(!World.shared.me.isAway && !World.shared.me.isHiding)
     }
 
     @MainActor @Test func 서로_달려오다_닿으면_부딪힌다() {

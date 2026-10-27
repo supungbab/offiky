@@ -18,10 +18,12 @@ final class CharacterNode: SKNode {
     private let flame = SKSpriteNode(texture: Characters.flames[0])
     private var flameTick = 0
     private let parachute = SKSpriteNode(texture: Characters.parachute)
-    /// 화면이 꺼지거나 잠긴 동안. 원격은 주인이 적어 보낸 값을 따른다
+    /// 화면이 꺼지거나 잠기거나 캐릭터를 숨긴 동안. 원격은 주인이 적어 보낸 값을 따른다
     var isAway = false {
         didSet { if isAway { workingSince = nil } }   // 화면이 꺼지면 update 가 실행되지 않아 여기서 지운다
     }
+    /// 캐릭터를 숨긴 동안. ZZZ 팻말 대신 꺼진 스위치를 표시한다
+    var isHiding = false
     private let label = SKLabelNode(fontNamed: "Helvetica")
     private var nameBackground: SKShapeNode?
     private var bubbleNode: SKShapeNode?
@@ -444,11 +446,12 @@ final class CharacterNode: SKNode {
     @discardableResult
     func applyRemoteSnapshot(x: CGFloat, y: CGFloat, bowing: Bool, dragging: Bool, dead: Bool = false,
                              jetting: Bool = false, parachuting: Bool = false, away: Bool = false,
-                             working: Bool = false,
+                             working: Bool = false, hiding: Bool = false,
                              facing direction: Int?, sent: TimeInterval?, at now: TimeInterval) -> Bool {
         guard setRemoteTarget(x: x, y: y, sent: sent, at: now) else { return false }
         isBowing = bowing
         isAway = away
+        isHiding = hiding
         isWorking = working
         remoteJetting = jetting
         remoteParachuting = parachuting
@@ -516,9 +519,9 @@ final class CharacterNode: SKNode {
             return
         }
         if isAway {
-            image.texture = Characters.awaySign
-            image.size = CGSize(width: Characters.awaySign.size().width * 2,
-                                height: Characters.awaySign.size().height * 2)
+            let sign = isHiding ? Characters.offSwitch : Characters.awaySign
+            image.texture = sign
+            image.size = CGSize(width: sign.size().width * 2, height: sign.size().height * 2)
             renderedAnimation = nil
             return
         }
@@ -1048,11 +1051,11 @@ extension World {
 
     func setPeerTarget(id: String, x: CGFloat, y: CGFloat, bowing: Bool, dragging: Bool, dead: Bool,
                        jetting: Bool = false, parachuting: Bool = false, away: Bool = false,
-                       working: Bool = false, facing: Int?, sent: TimeInterval?) {
+                       working: Bool = false, hiding: Bool = false, facing: Int?, sent: TimeInterval?) {
         guard let node = peers[id] else { return }
         node.applyRemoteSnapshot(x: x, y: y, bowing: bowing, dragging: dragging, dead: dead,
                                  jetting: jetting, parachuting: parachuting, away: away, working: working,
-                                 facing: facing, sent: sent,
+                                 hiding: hiding, facing: facing, sent: sent,
                                  at: ProcessInfo.processInfo.systemUptime)
     }
 
