@@ -18,6 +18,10 @@ final class CharacterNode: SKNode {
     private let flame = SKSpriteNode(texture: Characters.flames[0])
     private var flameTick = 0
     private let parachute = SKSpriteNode(texture: Characters.parachute)
+    private let bike = SKSpriteNode(texture: Characters.motorcycles[0])
+    private let exhaust = SKSpriteNode(texture: Characters.exhaust[0])
+    /// 이름표·말풍선·화살표. 오토바이에 탄 동안 캐릭터와 함께 올라간다
+    private let overhead = SKNode()
     /// 화면이 꺼지거나 잠기거나 캐릭터를 숨긴 동안. 원격은 주인이 적어 보낸 값을 따른다
     var isAway = false {
         didSet { if isAway { workingSince = nil } }   // 화면이 꺼지면 update 가 실행되지 않아 여기서 지운다
@@ -37,12 +41,15 @@ final class CharacterNode: SKNode {
     /// 고개를 숙이고 있는지. 웅크림 자세를 그대로 쓴다
     var isBowing = false
     private(set) var isDashing = false
-    /// 세 속도 모두 30fps 에서 한 프레임에 정수 픽셀만큼 간다. 표시 위치가 2pt
+    /// 모든 속도가 30fps 에서 한 프레임에 정수 픽셀만큼 간다. 표시 위치가 2pt
     /// 격자에 맞춰지므로, 나누어떨어지지 않으면 한 칸씩 더 갔다 덜 갔다 한다
     static let walkSpeed: CGFloat = 60
     static let dashSpeed: CGFloat = 180
     /// 웅크린 채로 기어갈 때. 걷기보다 느리다
     static let crawlSpeed: CGFloat = 30
+    /// 오토바이를 탄 동안. 대시의 두 배이고, 탄 채로 대시하면 다시 두 배가 된다
+    static let rideSpeed: CGFloat = 360
+    static let rideDashSpeed: CGFloat = 720
     /// 기어갈 때는 달리기 그림을 쓰되 천천히 넘긴다.
     /// 걷기가 한 장에 5pt 가므로 같은 비율이 되는 값이다
     static let crawlFPS: Double = 6
@@ -92,6 +99,24 @@ final class CharacterNode: SKNode {
     /// 내 캐릭터에만 연결해 다음 실행에도 고른 물건이 올라오게 저장한다
     var propChanged: ((Int) -> Void)?
     private let arrows = [SKSpriteNode(texture: Characters.propArrow), SKSpriteNode(texture: Characters.propArrow)]
+    /// 탄 오토바이. `Characters.motorcycles` 의 번호이고 nil 이면 걷는다. 원격은 주인이 적어 보낸 값을 따른다
+    private(set) var ride: Int? {
+        didSet {
+            if let ride { bike.texture = Characters.motorcycles[ride] }
+            if (ride == nil) != (oldValue == nil) { hop = (ride != nil, nil, 0) }
+        }
+    }
+    var isRiding: Bool { ride != nil }
+    /// 타고 내릴 때 바닥과 시트 사이를 뛰는 동작. 시작 시각은 바뀐 뒤 첫 update 에서 적는다
+    private(set) var hop: (mounting: Bool, since: TimeInterval?, progress: Double)?
+    static let hopDuration: TimeInterval = 0.3
+    /// 바닥과 시트를 잇는 직선보다 이만큼 높이 뜬다
+    static let hopApex: CGFloat = 20
+    /// 탄 캐릭터가 앉는 시트 높이와, 뒤쪽 시트에 앉도록 오토바이를 앞으로 내미는 거리
+    static let seatHeight: CGFloat = 16
+    static let bikeLead: CGFloat = 8
+    /// 탄 채로 움직이는 동안. 원격은 보간한 속도로 판정한다
+    var isExhausting: Bool { isRiding && abs(velocity) > 1 }
     /// 물건이 올라오기 시작한 시각. 화면이 잠긴 동안은 지우고, 풀리면 다시 올라온다
     private var workingSince: TimeInterval?
     /// 땅 위로 올라온 물건의 줄 수. nil 이면 물건을 그리지 않는다
@@ -102,6 +127,7 @@ final class CharacterNode: SKNode {
     private var wasAirborne = false
     private var peakY: CGFloat = 0
     private var shadowStep = -1
+    private var shadowRiding = false
 
     /// 마지막으로 좌표를 받은 시각. 끊김을 놓쳐도 이걸로 정리한다
     var lastSeen: TimeInterval = ProcessInfo.processInfo.systemUptime
@@ -176,7 +202,7 @@ final class CharacterNode: SKNode {
     /// 오르는 속도 상한. 넘으면 로켓처럼 솟는다
     static let jetMaxRise: CGFloat = 200
     var isJetting: Bool {
-        isLocal ? isThrusting && !isDragging && !isDead && !isWorking : remoteJetting
+        isLocal ? isThrusting && !isDragging && !isDead && !isWorking && !isRiding : remoteJetting
     }
 
     /// 떨어지는 중에 ↓ 를 누르고 있는 동안만 편다. 원격은 주인이 적어 보낸 값을 따른다
@@ -233,19 +259,36 @@ final class CharacterNode: SKNode {
         parachute.isHidden = true
         addChild(parachute)
 
+        // 캐릭터 앞에 두어 시트 아래로 내려온 다리를 가린다
+        bike.anchorPoint = CGPoint(x: 0.5, y: 0)
+        bike.size = CGSize(width: Characters.motorcycles[0].size().width * 2,
+                           height: Characters.motorcycles[0].size().height * 2)
+        bike.position.y = -spriteDisplaySize / 2
+        bike.zPosition = 0.5
+        bike.isHidden = true
+        // 연기 그림의 오른쪽 끝이 머플러 끝(3열)에, 다섯째 줄이 머플러 줄(15행)에 닿는다
+        exhaust.anchorPoint = CGPoint(x: 1, y: 0)
+        exhaust.size = CGSize(width: Characters.exhaust[0].size().width * 2,
+                              height: Characters.exhaust[0].size().height * 2)
+        exhaust.position = CGPoint(x: 3 * 2 - bike.size.width / 2, y: (18 - 15 - 2) * 2)
+        exhaust.isHidden = true
+        bike.addChild(exhaust)
+        addChild(bike)
+
         label.fontSize = 10
         label.fontColor = .white
         label.verticalAlignmentMode = .bottom
         label.position = CGPoint(x: 0, y: spriteDisplaySize / 2 + 2)
-        addChild(label)
+        overhead.addChild(label)
 
         for (arrow, side) in zip(arrows, [-1.0, 1.0]) {
             arrow.size = CGSize(width: Characters.propArrow.size().width * 2,
                                 height: Characters.propArrow.size().height * 2)
             arrow.xScale = side
             arrow.isHidden = true
-            addChild(arrow)
+            overhead.addChild(arrow)
         }
+        addChild(overhead)
 
         isUserInteractionEnabled = false
     }
@@ -293,11 +336,20 @@ final class CharacterNode: SKNode {
         verticalSpeed = (2 * CharacterNode.gravity * apex).squareRoot()
     }
 
-    /// 바닥에 멈춰 있을 때만 물건으로 바꾼다. 묘비와 달리 아파하지 않고 바로 올라온다
+    /// 바닥에 멈춰 있을 때만 물건으로 바꾼다. 묘비와 달리 아파하지 않고 바로 올라온다. 오토바이에서는 내린다
     func startWorking() {
         guard isLocal, y <= 0, verticalSpeed == 0, knockback == 0, holding == 0, !isDead, !isDragging
         else { return }
+        ride = nil
         isWorking = true
+    }
+
+    /// 바닥에서 타고 어디서든 내린다. 탈 때마다 색을 무작위로 고른다
+    func toggleRide() {
+        guard isLocal else { return }
+        guard !isRiding else { ride = nil; return }
+        guard y <= 0, !isDead, !isWorking, !isAway, !isDragging else { return }
+        ride = Characters.motorcycles.indices.randomElement()
     }
 
     /// 다시 올라오지 않고 바로 바뀐다. 빠르게 넘기면 반쯤 올라온 그림만 보이기 때문이다
@@ -308,7 +360,7 @@ final class CharacterNode: SKNode {
 
     /// 바닥에 멈춰 Shift 를 누른 채 웅크려 `poopHold` 만큼 버텼으면 한 번 true 를 반환한다
     func poopIfReady(now: TimeInterval, straining: Bool) -> Bool {
-        guard isLocal, isBowing, straining, holding == 0, y <= 0, !isDragging, !isDead, !isWorking else {
+        guard isLocal, isBowing, straining, holding == 0, y <= 0, !isDragging, !isDead, !isWorking, !isRiding else {
             strainingSince = nil
             pooped = false
             return false
@@ -364,10 +416,12 @@ final class CharacterNode: SKNode {
     /// 단계마다 그 크기의 타원을 따로 만든다.
     static let shadowSteps: [CGFloat] = [1, 0.85, 0.7, 0.55]
 
-    private func applyShadow(step: Int) {
-        guard step != shadowStep else { return }
+    private func applyShadow(step: Int, riding: Bool) {
+        guard step != shadowStep || riding != shadowRiding else { return }
         shadowStep = step
-        let base = Characters.shadowSize(bodyWidth: sheet.bodyWidth)
+        shadowRiding = riding
+        // 오토바이는 두 바퀴 끝까지 납작하게 깔린다
+        let base = riding ? (width: 28, height: 6) : Characters.shadowSize(bodyWidth: sheet.bodyWidth)
         let factor = CharacterNode.shadowSteps[step]
         let size = (width: max(4, Int((CGFloat(base.width) * factor).rounded())),
                     height: max(3, Int((CGFloat(base.height) * factor).rounded())))
@@ -467,7 +521,7 @@ final class CharacterNode: SKNode {
     @discardableResult
     func applyRemoteSnapshot(x: CGFloat, y: CGFloat, bowing: Bool, dragging: Bool, dead: Bool = false,
                              jetting: Bool = false, parachuting: Bool = false, away: Bool = false,
-                             working: Bool = false, hiding: Bool = false, prop: Int = 0,
+                             working: Bool = false, hiding: Bool = false, prop: Int = 0, riding: Int? = nil,
                              facing direction: Int?, sent: TimeInterval?, at now: TimeInterval) -> Bool {
         guard setRemoteTarget(x: x, y: y, sent: sent, at: now) else { return false }
         isBowing = bowing
@@ -476,6 +530,8 @@ final class CharacterNode: SKNode {
         isWorking = working
         // 새 버전이 더한 물건은 노트북으로 그린다
         self.prop = Characters.props.indices.contains(prop) ? prop : 0
+        // 새 버전이 더한 색은 첫 색으로 그린다
+        ride = riding.map { Characters.motorcycles.indices.contains($0) ? $0 : 0 }
         remoteJetting = jetting
         remoteParachuting = parachuting
         isDead = dead
@@ -499,8 +555,15 @@ final class CharacterNode: SKNode {
             detectLanding(now: now)
             // 튕겨 오르는 중에 죽으면 simulate 가 중력을 멈춰 공중에 남는다. 내려온 뒤에 죽는다
             if hits >= CharacterNode.hitsToDie, y <= 0, !isDragging { isDead = true }
+            if isDead { ride = nil }
         }
         expireBubble(now: now)
+        if var jumping = hop {
+            let since = jumping.since ?? now
+            jumping.since = since
+            jumping.progress = (now - since) / CharacterNode.hopDuration
+            hop = jumping.progress < 1 ? jumping : nil
+        }
 
         if isJetting { wearsJetpack = true }
         else if y <= 0 || isDead || isDragging { wearsJetpack = false }
@@ -560,6 +623,8 @@ final class CharacterNode: SKNode {
         let animation: Animation
         if isDragging { animation = .idle }          // 들려 있는 동안은 가만히 서 있는다
         else if now < hurtUntil || deadSince != nil { animation = .hurt }
+        else if hop != nil { animation = .jump }
+        else if isRiding { animation = .idle }        // 시트에 앉아 있다
         else if isParachuting { animation = .idle }   // 매달려 있다
         else if y > 0 { animation = .jump }
         else if isBowing { animation = isWalking ? .dash : .bow }
@@ -573,7 +638,8 @@ final class CharacterNode: SKNode {
             let fps = isBowing && animation == .dash ? CharacterNode.crawlFPS : animation.fps
             // 점프는 도약 1열, 오르는 동안 2열, 내려오는 동안 3열
             let index = isDragging ? 0
-                : animation == .jump ? (now < takeoffUntil ? 0 : goingUp ? 1 : 2)
+                : animation == .jump ? (hop.map { $0.progress < 0.5 ? 1 : 2 }
+                                        ?? (now < takeoffUntil ? 0 : goingUp ? 1 : 2))
                 : Int(walkPhase * fps) % textures.count
             if animation != renderedAnimation || index != renderedFrame {
                 image.texture = textures[index]
@@ -593,7 +659,8 @@ final class CharacterNode: SKNode {
         if !hurt {
             // 웅크린 채로는 천천히 기어간다
             let crouching = isBowing && y <= 0 && verticalSpeed == 0
-            let speed = crouching ? CharacterNode.crawlSpeed
+            let speed = isRiding ? (isDashing ? CharacterNode.rideDashSpeed : CharacterNode.rideSpeed)
+                : crouching ? CharacterNode.crawlSpeed
                 : (isDashing ? CharacterNode.dashSpeed : CharacterNode.walkSpeed)
             if parachuteOpen {
                 let target = holding * CharacterNode.parachuteGlideSpeed
@@ -609,7 +676,7 @@ final class CharacterNode: SKNode {
             verticalSpeed = min(CharacterNode.jetMaxRise, verticalSpeed + CharacterNode.jetThrust * step)
         } else if !isBowing {
             if parachuteOpen { parachuteOpen = false; glide = 0; parachutePhase = 0 }
-        } else if y > 0, verticalSpeed < 0 {
+        } else if y > 0, verticalSpeed < 0, !isRiding {
             parachuteOpen = true
         }
 
@@ -708,14 +775,28 @@ final class CharacterNode: SKNode {
         let tombstone = tombstoneRows != nil
         let standing = tombstone || isAway || workRows != nil
         shadow.isHidden = standing
-        image.position.y = -spriteDisplaySize / 2 - (standing ? 0 : sheet.footPadding * 2)
+        // 탄 동안은 캐릭터를 시트 높이로 올리고, 오토바이를 앞으로 내밀어 뒤쪽 시트에 앉힌다
+        let riding = isRiding && !standing
+        var seat = riding ? CharacterNode.seatHeight : 0
+        // 타고 내리는 동안은 바닥과 시트 사이를 포물선으로 뛴다
+        if let hop, !standing {
+            let t = CGFloat(hop.progress)
+            let (from, to) = hop.mounting ? (0, CharacterNode.seatHeight) : (CharacterNode.seatHeight, 0)
+            let arc = from + (to - from) * t + CharacterNode.hopApex * 4 * t * (1 - t)
+            seat = (arc / 2).rounded() * 2
+        }
+        image.position.y = -spriteDisplaySize / 2 - (standing ? 0 : sheet.footPadding * 2) + seat
+        overhead.position.y = seat
+        bike.isHidden = !riding
+        bike.xScale = facing
+        bike.position.x = facing * CharacterNode.bikeLead
 
         // 그림자는 캐릭터를 따라 뜨지 않고 바닥에 남는다
         // 발 위치보다 2pt 아래에 두어 캐릭터가 그림자를 밟고 선 것처럼 보이게 한다
-        shadow.position = CGPoint(x: 0, y: -y - spriteDisplaySize / 2 - 2)
+        shadow.position = CGPoint(x: riding ? bike.position.x : 0, y: -y - spriteDisplaySize / 2 - 2)
         let lift = min(1, y / 120)
         applyShadow(step: min(CharacterNode.shadowSteps.count - 1,
-                              Int(lift * CGFloat(CharacterNode.shadowSteps.count))))
+                              Int(lift * CGFloat(CharacterNode.shadowSteps.count))), riding: riding)
         shadow.alpha = 0.3 * (1 - 0.75 * lift)
         parachute.isHidden = !isParachuting || standing
         if !parachute.isHidden {
@@ -730,6 +811,12 @@ final class CharacterNode: SKNode {
             jetpack.position = CGPoint(x: -facing * (sheet.bodyWidth + 3), y: -spriteDisplaySize / 2 + 14)
             flameTick += 1
             flame.texture = Characters.flames[(flameTick / 3) % 2]
+        }
+        // 오토바이 연기도 제트팩 불꽃처럼 번갈아 그린다. 둘은 함께 쓰지 않으므로 박자를 같이 쓴다
+        exhaust.isHidden = !isExhausting
+        if !exhaust.isHidden {
+            flameTick += 1
+            exhaust.texture = Characters.exhaust[(flameTick / 3) % 2]
         }
         // 묘비·팻말·물건은 늘 다른 캐릭터 뒤에 둔다. 원격은 띠 왼쪽 밖(x < 0)에도 서므로 넉넉히 뺀다
         zPosition = standing ? depthBias - 10_000 : x + depthBias
@@ -760,7 +847,7 @@ final class CharacterNode: SKNode {
         background.strokeColor = .clear
         background.zPosition = -1
         background.position = CGPoint(x: 0, y: label.position.y + label.frame.height / 2)
-        addChild(background)
+        overhead.addChild(background)
         nameBackground = background
     }
 }
@@ -794,7 +881,7 @@ extension CharacterNode {
         let nameTop = nameBackground?.frame.maxY ?? spriteDisplaySize / 2 + 16
         bubble.position = CGPoint(x: 0, y: nameTop + 4 + size.height / 2)
         bubble.addChild(label)
-        addChild(bubble)
+        overhead.addChild(bubble)
         if typing { animateDots(label) }
         bubbleNode = bubble
         bubbleUntil = now + (typing ? 3 : 5)
@@ -1085,12 +1172,12 @@ extension World {
 
     func setPeerTarget(id: String, x: CGFloat, y: CGFloat, bowing: Bool, dragging: Bool, dead: Bool,
                        jetting: Bool = false, parachuting: Bool = false, away: Bool = false,
-                       working: Bool = false, hiding: Bool = false, prop: Int = 0,
+                       working: Bool = false, hiding: Bool = false, prop: Int = 0, riding: Int? = nil,
                        facing: Int?, sent: TimeInterval?) {
         guard let node = peers[id] else { return }
         node.applyRemoteSnapshot(x: x, y: y, bowing: bowing, dragging: dragging, dead: dead,
                                  jetting: jetting, parachuting: parachuting, away: away, working: working,
-                                 hiding: hiding, prop: prop, facing: facing, sent: sent,
+                                 hiding: hiding, prop: prop, riding: riding, facing: facing, sent: sent,
                                  at: ProcessInfo.processInfo.systemUptime)
     }
 

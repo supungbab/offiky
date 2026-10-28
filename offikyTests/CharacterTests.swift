@@ -474,6 +474,96 @@ struct ControlTests {
         #expect(!World.shared.me.isAway && !World.shared.me.isHiding)
     }
 
+    @MainActor @Test func 오토바이는_바닥에서_타고_대시보다_빠르게_달리며_다시_누르면_내린다() {
+        let node = node()
+        node.jump()
+        node.update(dt: 1.0 / 60, now: 0, strip: strip)
+        node.toggleRide()
+        #expect(!node.isRiding)
+        for i in 1...60 { node.update(dt: 1.0 / 60, now: Double(i) / 60, strip: strip) }
+
+        node.toggleRide()
+        #expect(node.isRiding)
+        node.isThrusting = true
+        #expect(!node.isJetting)
+        node.isThrusting = false
+        let start = node.x
+        node.hold(1, dash: false)
+        for i in 1...30 { node.update(dt: 1.0 / 60, now: 1 + Double(i) / 60, strip: strip) }
+        #expect(node.x == start + CharacterNode.rideSpeed / 2)
+        node.hold(1, dash: true)
+        for i in 31...60 { node.update(dt: 1.0 / 60, now: 1 + Double(i) / 60, strip: strip) }
+        #expect(node.x == start + (CharacterNode.rideSpeed + CharacterNode.rideDashSpeed) / 2)
+        node.toggleRide()
+        #expect(!node.isRiding)
+    }
+
+    @MainActor @Test func 오토바이는_달리는_동안만_머플러에서_연기가_난다() {
+        #expect(Characters.motorcycles.allSatisfy { $0.size() == CGSize(width: 32, height: 18) })
+        #expect(Characters.exhaust.allSatisfy { $0.size() == CGSize(width: 10, height: 6) })
+        let node = node()
+        node.toggleRide()
+        node.update(dt: 1.0 / 60, now: 0, strip: strip)
+        #expect(!node.isExhausting)
+        node.hold(1, dash: false)
+        node.update(dt: 1.0 / 60, now: 1.0 / 60, strip: strip)
+        #expect(node.isExhausting)
+        node.hold(0, dash: false)
+        node.update(dt: 1.0 / 60, now: 2.0 / 60, strip: strip)
+        #expect(!node.isExhausting)
+    }
+
+    @MainActor @Test func 오토바이로_달려와_서_있는_사람을_친다() {
+        let rider = node(), stander = CharacterNode(id: "you", name: "you", isLocal: true)
+        stander.teleport(to: 1200)
+        rider.toggleRide()
+        rider.hold(1, dash: false)
+        var now = 0.0
+        while stander.x - rider.x > 20 {
+            rider.update(dt: 1.0 / 60, now: now, strip: strip)
+            stander.update(dt: 1.0 / 60, now: now, strip: strip)
+            now += 1.0 / 60
+        }
+        #expect(rider.isRamming(stander, now: now))
+    }
+
+    @MainActor @Test func 오토바이에_탈_때와_내릴_때_뛰어오르고_뛰어내린다() {
+        let node = node()
+        node.toggleRide()
+        node.update(dt: 1.0 / 60, now: 0, strip: strip)
+        #expect(node.hop?.mounting == true && node.hop?.progress == 0)
+        node.update(dt: 1.0 / 60, now: CharacterNode.hopDuration / 2, strip: strip)
+        #expect(node.hop?.progress == 0.5)
+        node.update(dt: 1.0 / 60, now: CharacterNode.hopDuration, strip: strip)
+        #expect(node.hop == nil)
+
+        node.toggleRide()
+        node.update(dt: 1.0 / 60, now: 2, strip: strip)
+        #expect(node.hop?.mounting == false)
+        #expect(node.y == 0)                                 // 겉모습만 뛴다
+    }
+
+    @MainActor @Test func 물건으로_바꾸면_오토바이에서_내린다() {
+        let node = node()
+        node.toggleRide()
+        node.startWorking()
+        #expect(node.isWorking && !node.isRiding)
+        node.toggleRide()
+        #expect(!node.isRiding)
+    }
+
+    @MainActor @Test func 동료가_보낸_오토바이가_없는_번호면_첫_색으로_그린다() {
+        let peer = CharacterNode(id: "you", name: "you", isLocal: false)
+        peer.applyRemoteSnapshot(x: 100, y: 0, bowing: false, dragging: false, riding: 3,
+                                 facing: 1, sent: 1, at: 1)
+        #expect(peer.ride == 3)
+        peer.applyRemoteSnapshot(x: 100, y: 0, bowing: false, dragging: false,
+                                 riding: Characters.motorcycles.count, facing: 1, sent: 2, at: 2)
+        #expect(peer.ride == 0)
+        peer.applyRemoteSnapshot(x: 100, y: 0, bowing: false, dragging: false, facing: 1, sent: 3, at: 3)
+        #expect(!peer.isRiding)
+    }
+
     @MainActor @Test func 서로_달려오다_닿으면_부딪힌다() {
         let a = node(), b = CharacterNode(id: "you", name: "you", isLocal: true)
         b.teleport(to: 1000)

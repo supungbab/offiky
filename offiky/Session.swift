@@ -87,7 +87,8 @@ final class Session {
                a: node.isAway ? true : nil,
                w: node.isWorking ? true : nil,
                h: node.isHiding ? true : nil,
-               o: node.isWorking && node.prop != 0 ? node.prop : nil)
+               o: node.isWorking && node.prop != 0 ? node.prop : nil,
+               r: node.ride)
     }
 
     /// 받는 쪽이 도착 시각 대신 이걸로 표본을 놓는다. 망이 흔들려도 걸음이 고르다
@@ -241,6 +242,7 @@ final class Session {
                                        dead: msg.k == true, jetting: msg.j == true,
                                        parachuting: msg.c == true, away: msg.a == true,
                                        working: msg.w == true, hiding: msg.h == true, prop: msg.o ?? 0,
+                                       riding: msg.r,
                                        facing: msg.f, sent: msg.m.map { Double($0) / 1000 })
         case let .say(msg):
             guard let body = validChat(msg.msg) else { return }

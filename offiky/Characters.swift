@@ -236,18 +236,28 @@ enum Characters {
         return texture
     }()
 
-    /// 제트팩 불꽃 두 장. 가로로 붙어 있고 번갈아 그린다
-    static let flames: [SKTexture] = {
-        guard let cg = NSImage(named: "flame")?
+    /// 제트팩 불꽃 두 장. 번갈아 그린다
+    static let flames = strip("flame", count: 2)
+    /// 오토바이가 달리는 동안 머플러 끝에서 나는 연기 두 장. 불꽃처럼 번갈아 그린다
+    static let exhaust = strip("exhaust", count: 2)
+
+    /// 가로로 붙은 같은 폭의 그림을 자른다
+    private static func strip(_ name: String, count: Int) -> [SKTexture] {
+        guard let cg = NSImage(named: name)?
             .cgImage(forProposedRect: nil, context: nil, hints: nil)
-        else { return [SKTexture(), SKTexture()] }
+        else { return Array(repeating: SKTexture(), count: count) }
         let whole = SKTexture(cgImage: cg)
-        return (0..<2).map { n in
-            let texture = SKTexture(rect: CGRect(x: CGFloat(n) / 2, y: 0, width: 0.5, height: 1), in: whole)
+        return (0..<count).map { n in
+            let texture = SKTexture(rect: CGRect(x: CGFloat(n) / CGFloat(count), y: 0,
+                                                 width: 1 / CGFloat(count), height: 1), in: whole)
             texture.filteringMode = .nearest
             return texture
         }
-    }()
+    }
+
+    /// B 로 타는 오토바이. 탈 때마다 색을 무작위로 고른다. 동료에게 번호로 보내므로 순서를 바꾸지 않고 뒤에만 추가한다
+    static let motorcycles = ["red", "orange", "yellow", "green", "mint", "sky", "blue",
+                              "purple", "pink", "black", "white"].map { strip("motorcycle_\($0)", count: 1)[0] }
 
     private static var thumbCache: [Int: NSImage] = [:]
 

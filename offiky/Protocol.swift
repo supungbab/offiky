@@ -262,6 +262,8 @@ struct PosMsg: Codable, Equatable {
     var h: Bool? = nil
     /// 노트북이 아닌 물건을 표시하는 동안만 그 번호를 적는다. 옛 버전은 이 값을 무시하고 노트북으로 본다
     var o: Int? = nil
+    /// 오토바이를 탄 동안만 그 색 번호를 적는다. 옛 버전은 이 값을 무시하고 달리는 캐릭터로 본다
+    var r: Int? = nil
     /// 보낸 시각(ms, 보낸 기계 기준). 받는 쪽은 도착 시각 대신 이걸로 표본을 놓는다
     var m: Int?
 }
