@@ -156,8 +156,19 @@ enum Characters {
     /// 높은 데서 떨어진 캐릭터가 1분 동안 서 있는 묘비. 모든 모양이 같이 쓴다
     static let tombstoneRows = risingRows("tombstone")
 
-    /// 일하는 동안 캐릭터 대신 서 있는 노트북. 묘비처럼 땅에서 올라온다
-    static let workRows = risingRows("work")
+    /// W 를 누르면 캐릭터 대신 올라오는 물건. 0 은 노트북이다. 동료에게 번호로 보내므로 순서를 바꾸지 않고 뒤에만 추가한다
+    static let props = ["work", "meeting", "coffee", "ramen", "toilet", "bed", "arcade", "tv",
+                        "dumbbell", "books", "beer", "cake", "firstaid", "house", "car"].map { risingRows($0) }
+
+    /// 물건을 고르는 동안 이름표 양옆에 표시하는 화살표. 오른쪽을 가리킨다
+    static let propArrow: SKTexture = {
+        guard let cg = NSImage(named: "arrow")?
+            .cgImage(forProposedRect: nil, context: nil, hints: nil)
+        else { return SKTexture() }
+        let texture = SKTexture(cgImage: cg)
+        texture.filteringMode = .nearest
+        return texture
+    }()
 
     /// n 번째는 윗부분 n 줄이다. 땅에서 올라오는 동안 차례로 쓴다
     private static func risingRows(_ name: String) -> [SKTexture] {

@@ -395,11 +395,32 @@ struct ControlTests {
         #expect(node.isWorking)                        // 다 올라오기 전에는 돌아오지 않는다
 
         node.update(dt: 1.0 / 60, now: 1 + CharacterNode.tombstoneRiseDuration, strip: strip)
-        #expect(node.workRows == Characters.workRows.count - 1)
+        #expect(node.workRows == Characters.props[0].count - 1)
         node.jump()
         #expect(!node.isWorking)
         node.update(dt: 1.0 / 60, now: 2, strip: strip)
         #expect(node.y > 0)
+    }
+
+    @MainActor @Test func 노트북_자리의_물건은_올라와_있을_때만_좌우로_돌려_가며_바꾼다() {
+        let node = node()
+        node.cycleProp(1)
+        #expect(node.prop == 0)
+        node.startWorking()
+        node.cycleProp(-1)
+        #expect(node.prop == Characters.props.count - 1)
+        node.cycleProp(1)
+        #expect(node.prop == 0)
+    }
+
+    @MainActor @Test func 동료가_보낸_물건이_없는_번호면_노트북으로_그린다() {
+        let peer = CharacterNode(id: "you", name: "you", isLocal: false)
+        peer.applyRemoteSnapshot(x: 100, y: 0, bowing: false, dragging: false, working: true,
+                                 prop: 2, facing: 1, sent: 1, at: 1)
+        #expect(peer.prop == 2)
+        peer.applyRemoteSnapshot(x: 100, y: 0, bowing: false, dragging: false, working: true,
+                                 prop: Characters.props.count, facing: 1, sent: 2, at: 2)
+        #expect(peer.prop == 0)
     }
 
     @MainActor @Test func 걷는_중에는_노트북으로_바꾸지_않는다() {

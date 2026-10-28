@@ -418,7 +418,9 @@ struct MessageTests {
         msg.a = true
         msg.w = true
         msg.h = true
+        msg.o = 3
         let back = try JSONDecoder().decode(PosMsg.self, from: JSONEncoder().encode(msg))
+        #expect(back.o == 3)
         #expect(back.j == true)
         #expect(back.c == true)
         #expect(back.a == true)
@@ -430,6 +432,7 @@ struct MessageTests {
         #expect(old.a == nil)
         #expect(old.w == nil)
         #expect(old.h == nil)
+        #expect(old.o == nil)
     }
 
     @Test func 똥_메시지를_구분한다() throws {

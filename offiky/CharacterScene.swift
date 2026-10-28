@@ -79,15 +79,22 @@ final class CharacterNode: SKNode {
     private var deadSince: TimeInterval?
     /// 땅 위로 올라온 묘비의 줄 수. nil 이면 묘비를 그리지 않는다
     private(set) var tombstoneRows: Int?
-    /// 노트북을 표시하고 일하는 동안. 원격은 주인이 적어 보낸 값을 따른다
+    /// 캐릭터 대신 물건을 표시하는 동안. 원격은 주인이 적어 보낸 값을 따른다
     private(set) var isWorking = false {
         didSet { if isWorking != oldValue { workingChanged?(isWorking) } }
     }
-    /// 내 캐릭터에만 연결해 다음 실행에도 노트북으로 시작하게 저장한다
+    /// 내 캐릭터에만 연결해 다음 실행에도 물건으로 시작하게 저장한다
     var workingChanged: ((Bool) -> Void)?
-    /// 노트북이 올라오기 시작한 시각. 화면이 잠긴 동안은 지우고, 풀리면 다시 올라온다
+    /// 올라오는 물건. `Characters.props` 의 번호다
+    var prop = 0 {
+        didSet { if prop != oldValue { propChanged?(prop) } }
+    }
+    /// 내 캐릭터에만 연결해 다음 실행에도 고른 물건이 올라오게 저장한다
+    var propChanged: ((Int) -> Void)?
+    private let arrows = [SKSpriteNode(texture: Characters.propArrow), SKSpriteNode(texture: Characters.propArrow)]
+    /// 물건이 올라오기 시작한 시각. 화면이 잠긴 동안은 지우고, 풀리면 다시 올라온다
     private var workingSince: TimeInterval?
-    /// 땅 위로 올라온 노트북의 줄 수. nil 이면 노트북을 그리지 않는다
+    /// 땅 위로 올라온 물건의 줄 수. nil 이면 물건을 그리지 않는다
     private(set) var workRows: Int?
     private var bubbleUntil: TimeInterval = 0
     private var bubbleIsTyping = false
@@ -149,7 +156,7 @@ final class CharacterNode: SKNode {
     static let deathHurtDuration: TimeInterval = 1
     /// 묘비가 땅에서 다 올라오는 데 걸리는 시간
     static let tombstoneRiseDuration: TimeInterval = 0.6
-    /// 올라오기 시작한 지 `rising` 초 지났을 때 땅 위로 나온 줄 수. 노트북도 같은 빠르기로 올라온다
+    /// 올라오기 시작한 지 `rising` 초 지났을 때 땅 위로 나온 줄 수. 물건도 같은 빠르기로 올라온다
     private static func risenRows(_ rising: TimeInterval, of rows: [SKTexture]) -> Int {
         let full = rows.count - 1
         return min(full, Int(max(0, rising) / tombstoneRiseDuration * Double(full)) + 1)
@@ -232,6 +239,14 @@ final class CharacterNode: SKNode {
         label.position = CGPoint(x: 0, y: spriteDisplaySize / 2 + 2)
         addChild(label)
 
+        for (arrow, side) in zip(arrows, [-1.0, 1.0]) {
+            arrow.size = CGSize(width: Characters.propArrow.size().width * 2,
+                                height: Characters.propArrow.size().height * 2)
+            arrow.xScale = side
+            arrow.isHidden = true
+            addChild(arrow)
+        }
+
         isUserInteractionEnabled = false
     }
 
@@ -259,9 +274,9 @@ final class CharacterNode: SKNode {
     func jump() {
         guard isLocal, !isDragging, !isAway else { return }
         if isDead || isWorking {
-            // 묘비나 노트북이 다 올라온 뒤에만 살아난다
+            // 묘비나 물건이 다 올라온 뒤에만 살아난다
             guard isDead ? tombstoneRows == Characters.tombstoneRows.count - 1
-                : workRows == Characters.workRows.count - 1 else { return }
+                : workRows == Characters.props[prop].count - 1 else { return }
             if isDead { hits = 0 }
             isDead = false
             isWorking = false
@@ -278,11 +293,17 @@ final class CharacterNode: SKNode {
         verticalSpeed = (2 * CharacterNode.gravity * apex).squareRoot()
     }
 
-    /// 바닥에 멈춰 있을 때만 노트북으로 바꾼다. 묘비와 달리 아파하지 않고 바로 올라온다
+    /// 바닥에 멈춰 있을 때만 물건으로 바꾼다. 묘비와 달리 아파하지 않고 바로 올라온다
     func startWorking() {
         guard isLocal, y <= 0, verticalSpeed == 0, knockback == 0, holding == 0, !isDead, !isDragging
         else { return }
         isWorking = true
+    }
+
+    /// 다시 올라오지 않고 바로 바뀐다. 빠르게 넘기면 반쯤 올라온 그림만 보이기 때문이다
+    func cycleProp(_ step: Int) {
+        guard isLocal, isWorking else { return }
+        prop = (prop + step + Characters.props.count) % Characters.props.count
     }
 
     /// 바닥에 멈춰 Shift 를 누른 채 웅크려 `poopHold` 만큼 버텼으면 한 번 true 를 반환한다
@@ -446,13 +467,15 @@ final class CharacterNode: SKNode {
     @discardableResult
     func applyRemoteSnapshot(x: CGFloat, y: CGFloat, bowing: Bool, dragging: Bool, dead: Bool = false,
                              jetting: Bool = false, parachuting: Bool = false, away: Bool = false,
-                             working: Bool = false, hiding: Bool = false,
+                             working: Bool = false, hiding: Bool = false, prop: Int = 0,
                              facing direction: Int?, sent: TimeInterval?, at now: TimeInterval) -> Bool {
         guard setRemoteTarget(x: x, y: y, sent: sent, at: now) else { return false }
         isBowing = bowing
         isAway = away
         isHiding = hiding
         isWorking = working
+        // 새 버전이 더한 물건은 노트북으로 그린다
+        self.prop = Characters.props.indices.contains(prop) ? prop : 0
         remoteJetting = jetting
         remoteParachuting = parachuting
         isDead = dead
@@ -511,7 +534,7 @@ final class CharacterNode: SKNode {
         } else {
             workingSince = nil
         }
-        workRows = workingSince.map { CharacterNode.risenRows(now - $0, of: Characters.workRows) }
+        workRows = workingSince.map { CharacterNode.risenRows(now - $0, of: Characters.props[prop]) }
         if let rows = tombstoneRows {
             image.texture = Characters.tombstoneRows[rows]
             image.size.height = CGFloat(rows) * 2
@@ -526,7 +549,7 @@ final class CharacterNode: SKNode {
             return
         }
         if let rows = workRows {
-            let texture = Characters.workRows[rows]
+            let texture = Characters.props[prop][rows]
             image.texture = texture
             image.size = CGSize(width: texture.size().width * 2, height: texture.size().height * 2)
             renderedAnimation = nil
@@ -681,7 +704,7 @@ final class CharacterNode: SKNode {
         position = CGPoint(x: (placement.point.x / 2).rounded() * 2,
                            y: (placement.point.y / 2).rounded() * 2)
 
-        // 묘비·자리 비움 팻말·노트북은 그림자 없이 맨 아랫줄이 바닥에 닿게 그려져 있고, 뒤집지 않는다
+        // 묘비·팻말·물건은 그림자 없이 맨 아랫줄이 바닥에 닿게 그려져 있고, 뒤집지 않는다
         let tombstone = tombstoneRows != nil
         let standing = tombstone || isAway || workRows != nil
         shadow.isHidden = standing
@@ -708,11 +731,19 @@ final class CharacterNode: SKNode {
             flameTick += 1
             flame.texture = Characters.flames[(flameTick / 3) % 2]
         }
-        // 묘비·팻말·노트북은 늘 다른 캐릭터 뒤에 둔다. 원격은 띠 왼쪽 밖(x < 0)에도 서므로 넉넉히 뺀다
+        // 묘비·팻말·물건은 늘 다른 캐릭터 뒤에 둔다. 원격은 띠 왼쪽 밖(x < 0)에도 서므로 넉넉히 뺀다
         zPosition = standing ? depthBias - 10_000 : x + depthBias
         // 스프라이트는 오른쪽을 보고 그려져 있다. 글씨가 있는 업데이트 팻말은 뒤집지 않는다
         image.xScale = standing || look.design == Characters.count ? 1 : facing
         updateNameLabel()
+        // ←→ 로 물건을 바꿀 수 있을 때만 내 화면에 표시한다
+        let choosing = isLocal && isWorking && Control.shared.isOn
+        for (arrow, side) in zip(arrows, [-1.0, 1.0]) {
+            arrow.isHidden = !choosing
+            guard choosing, let name = nameBackground else { continue }
+            arrow.position = CGPoint(x: side * (name.frame.width / 2 + arrow.size.width / 2 + 3),
+                                     y: name.position.y)
+        }
     }
 
     /// 이름이 바뀔 때만 배경을 다시 만든다
@@ -856,8 +887,11 @@ final class World {
         let stored = UserDefaults.standard.string(forKey: "name") ?? NSFullUserName()
         me = CharacterNode(id: myID, name: sanitizeName(stored), isLocal: true)
         me.apply(World.myLook)
+        let prop = World.store.integer(forKey: "prop")
+        me.prop = Characters.props.indices.contains(prop) ? prop : 0
         if World.store.bool(forKey: "working") { me.startWorking() }
         me.workingChanged = { World.store.set($0, forKey: "working") }
+        me.propChanged = { World.store.set($0, forKey: "prop") }
     }
 
     /// 10종이던 시절의 번호를 지금 배치로 옮긴다. 염소 5색은 자리가 같아 그대로다.
@@ -1051,11 +1085,12 @@ extension World {
 
     func setPeerTarget(id: String, x: CGFloat, y: CGFloat, bowing: Bool, dragging: Bool, dead: Bool,
                        jetting: Bool = false, parachuting: Bool = false, away: Bool = false,
-                       working: Bool = false, hiding: Bool = false, facing: Int?, sent: TimeInterval?) {
+                       working: Bool = false, hiding: Bool = false, prop: Int = 0,
+                       facing: Int?, sent: TimeInterval?) {
         guard let node = peers[id] else { return }
         node.applyRemoteSnapshot(x: x, y: y, bowing: bowing, dragging: dragging, dead: dead,
                                  jetting: jetting, parachuting: parachuting, away: away, working: working,
-                                 hiding: hiding, facing: facing, sent: sent,
+                                 hiding: hiding, prop: prop, facing: facing, sent: sent,
                                  at: ProcessInfo.processInfo.systemUptime)
     }
 

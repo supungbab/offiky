@@ -86,6 +86,10 @@ import SwiftUI
             World.shared.me.isBowing = true
         case kVK_LeftArrow, kVK_RightArrow:
             guard !event.isARepeat else { return }
+            if World.shared.me.isWorking {
+                World.shared.me.cycleProp(code == kVK_LeftArrow ? -1 : 1)
+                return
+            }
             let now = ProcessInfo.processInfo.systemUptime
             dashing = code == lastTap.code && now - lastTap.at < Control.doubleTapWindow
             lastTap = (code, now)
