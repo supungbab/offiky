@@ -158,7 +158,9 @@ enum Characters {
 
     /// W 를 누르면 캐릭터 대신 올라오는 물건. 0 은 노트북이다. 동료에게 번호로 보내므로 순서를 바꾸지 않고 뒤에만 추가한다
     static let props = ["work", "meeting", "coffee", "ramen", "toilet", "bed", "arcade", "tv",
-                        "dumbbell", "books", "beer", "cake", "firstaid", "house", "car"].map { risingRows($0) }
+                        "dumbbell", "books", "beer", "cake", "firstaid", "house", "car",
+                        "pumpkin", "ghost", "zombie", "cauldron", "bat", "witchhat", "mummy",
+                        "coffin", "bucket", "spider", "crystal"].map { risingRows($0) }
 
     /// 물건을 고르는 동안 이름표 양옆에 표시하는 화살표. 오른쪽을 가리킨다
     static let propArrow: SKTexture = {
