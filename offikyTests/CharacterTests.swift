@@ -149,6 +149,34 @@ struct RemoteTests {
     }
 }
 
+struct BubbleTests {
+
+    @MainActor @Test func 새_버전이_있으면_업데이트_말풍선이_채팅이_끝난_뒤_다시_나타난다() {
+        let strip = FloorStrip(visibleFrames: [CGRect(x: 0, y: 0, width: 1800, height: 1000)],
+                               main: nil)
+        let node = CharacterNode(id: "me", name: "me", isLocal: true)
+        func label() -> SKLabelNode? { node["//bubble"].first?.children.first as? SKLabelNode }
+        node.update(dt: 1.0 / 30, now: 0, strip: strip)
+        #expect(label() == nil)
+
+        node.pleadsUpdate = true
+        node.update(dt: 1.0 / 30, now: 1, strip: strip)
+        node.update(dt: 1.0 / 30, now: 100, strip: strip)
+        #expect(label()?.text == "Plz Update!")
+
+        node.showBubble(text: "hi", now: 100)
+        node.update(dt: 1.0 / 30, now: 104, strip: strip)
+        #expect(label()?.text == "hi")
+        node.update(dt: 1.0 / 30, now: 106, strip: strip)
+        #expect(label()?.text == "Plz Update!")
+
+        node.showTyping(now: 106)
+        #expect(label()?.children.count == 3)
+        node.update(dt: 1.0 / 30, now: 110, strip: strip)
+        #expect(label()?.text == "Plz Update!")
+    }
+}
+
 struct ControlTests {
 
     private let strip = FloorStrip(visibleFrames: [CGRect(x: 0, y: 0, width: 1800, height: 1000)],

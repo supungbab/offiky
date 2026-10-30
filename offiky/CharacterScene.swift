@@ -121,6 +121,9 @@ final class CharacterNode: SKNode {
     private var workingSince: TimeInterval?
     /// 땅 위로 올라온 물건의 줄 수. nil 이면 물건을 그리지 않는다
     private(set) var workRows: Int?
+    /// 새 버전이 있으면 내 캐릭터 위에 기한 없는 말풍선을 띄운다. 동료에게 보내지 않는다
+    var pleadsUpdate = false
+    /// 말풍선이 있는데 0 이면 기한이 없다
     private var bubbleUntil: TimeInterval = 0
     private var bubbleIsTyping = false
     private var pendingTypingUntil: TimeInterval = 0
@@ -558,6 +561,7 @@ final class CharacterNode: SKNode {
             if isDead { ride = nil }
         }
         expireBubble(now: now)
+        if pleadsUpdate, bubbleNode == nil { showBubble(text: "Plz Update!", now: now, sticky: true) }
         if var jumping = hop {
             let since = jumping.since ?? now
             jumping.since = since
@@ -856,14 +860,14 @@ final class CharacterNode: SKNode {
 private let bubbleMaxWidth: CGFloat = 100
 
 extension CharacterNode {
-    /// 입력 중 표시는 흰 말풍선이면 채팅으로 읽힌다. 회색으로 구분한다
-    func showBubble(text: String, now: TimeInterval, typing: Bool = false) {
+    /// 입력 중 표시는 흰 말풍선이면 채팅으로 읽힌다. 회색으로 구분한다. 업데이트 말풍선은 채팅창의 내 말과 같은 강조색이다
+    func showBubble(text: String, now: TimeInterval, typing: Bool = false, sticky: Bool = false) {
         bubbleNode?.removeFromParent()
 
         let label = SKLabelNode(fontNamed: "Helvetica")
         label.text = text
         label.fontSize = 11
-        label.fontColor = typing ? NSColor(white: 0.35, alpha: 1) : .black
+        label.fontColor = sticky ? .white : typing ? NSColor(white: 0.35, alpha: 1) : .black
         label.numberOfLines = 0
         label.preferredMaxLayoutWidth = bubbleMaxWidth
         label.verticalAlignmentMode = .center
@@ -874,7 +878,7 @@ extension CharacterNode {
                           height: max(label.frame.height, 12) + padding * 2)
         let bubble = SKShapeNode(rectOf: size, cornerRadius: 4)
         bubble.name = "bubble"
-        bubble.fillColor = typing ? NSColor(white: 0.85, alpha: 1) : .white
+        bubble.fillColor = sticky ? .controlAccentColor : typing ? NSColor(white: 0.85, alpha: 1) : .white
         bubble.strokeColor = typing ? NSColor(white: 0.5, alpha: 1) : .black
         bubble.lineWidth = 1
         bubble.zPosition = 1
@@ -884,15 +888,15 @@ extension CharacterNode {
         overhead.addChild(bubble)
         if typing { animateDots(label) }
         bubbleNode = bubble
-        bubbleUntil = now + (typing ? 3 : 5)
+        bubbleUntil = sticky ? 0 : now + (typing ? 3 : 5)
         bubbleIsTyping = typing
         pendingTypingUntil = 0
     }
 
-    /// 방금 한 말은 입력 중 표시로 덮어쓰지 않는다. 읽기 전에 가려진다
+    /// 방금 한 말은 입력 중 표시로 덮어쓰지 않는다. 읽기 전에 가려진다. 기한 없는 말풍선은 덮어쓴다
     func showTyping(now: TimeInterval) {
         if bubbleIsTyping { bubbleUntil = now + 3; return }
-        guard bubbleNode == nil else { pendingTypingUntil = now + 3; return }
+        guard bubbleNode == nil || bubbleUntil == 0 else { pendingTypingUntil = now + 3; return }
         showBubble(text: "•••", now: now, typing: true)
     }
 
@@ -1106,6 +1110,7 @@ final class World {
             }
             visible.append((node, placement))
         }
+        me.pleadsUpdate = UpdateChecker.shared.newVersion != nil
         update(me)
         for node in peers.values { update(node) }
 

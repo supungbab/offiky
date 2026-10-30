@@ -138,7 +138,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if NSClassFromString("XCTestCase") == nil {
             Net.shared.start()
             Away.shared.install()
-            UpdateChecker.shared.checkAndTell(onlyNew: true)
+            Task { await UpdateChecker.shared.check() }
         }
         ChatPanel.shared.install()
         Control.shared.install()
