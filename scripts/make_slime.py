@@ -2,15 +2,28 @@
 """슬라임 시트를 코드로 그린다. 다리 없이 몸을 눌렀다 늘이며 움직인다.
 
 몸 모양은 너비·높이·쏠림만으로 정하고, 눈·광택·테두리는 그 모양을 따라 붙는다.
-고치면 이것만 실행하고 make_characters.py 로 지도를 다시 만든다.
+프리셋은 색만 다르다. 고치면 이것만 실행하고 make_characters.py 로 지도를 다시 만든다.
 """
+import json
+import pathlib
 from PIL import Image
 
-OUT = "offiky/Assets.xcassets/characters/slime_green.imageset/slime_green.png"
-PAL = {k: tuple(int(v[i:i + 2], 16) for i in (0, 2, 4)) + (255,) for k, v in {
-    "O": "1d5532", "G": "62cf6c", "S": "3f9f52", "D": "2f8044", "L": "9cee92",
-    "W": "ffffff", "K": "173a22"}.items()}
+DIR = "offiky/Assets.xcassets/characters/slime_%s.imageset"
+# 테두리 O, 몸 G, 그늘 S, 바닥 D, 빛 L, 반짝임 W, 눈 K
+PRESETS = {
+    "green": "1d5532 62cf6c 3f9f52 2f8044 9cee92 ffffff 173a22",
+    "water": "1a3d78 5aa8f0 3a7fd0 2c62a8 a8dcff ffffff 13284d",
+    "berry": "7a2448 f47aa8 d4508a b03a70 ffc0d8 ffffff 4a1030",
+    "lava":  "6a1a10 f2652e c84418 a03210 ffc24a fff2b0 3a0c06",
+    "metal": "3c4250 b8c0cc 8a94a6 6c7688 e8eef6 ffffff 1e2430",
+    "grape": "3e2068 a070e0 7c4cc4 6038a0 d2b4ff ffffff 26103e",
+}
 CX, FLOOR = 11.5, 19            # 몸 가운데, 몸이 닿는 마지막 줄
+
+
+def palette(codes):
+    return {k: tuple(int(v[i:i + 2], 16) for i in (0, 2, 4)) + (255,)
+            for k, v in zip("OGSDLWK", codes.split())}
 
 
 def body(w, h, lean, air=0, sag=0.0):
@@ -34,12 +47,12 @@ def body(w, h, lean, air=0, sag=0.0):
     return rows
 
 
-def frame(w=16, h=12, lean=0, air=0, sag=0.0, eye="open", mouth="smile", white=False, drops=()):
+def frame(pal, w=16, h=12, lean=0, air=0, sag=0.0, eye="open", mouth="smile", white=False, drops=()):
     im = Image.new("RGBA", (24, 24), (0, 0, 0, 0))
 
     def put(x, y, c):
         if 0 <= x < 24 and 0 <= y < 24:
-            im.putpixel((x, y), PAL[c])
+            im.putpixel((x, y), pal[c])
 
     rows = body(w, h, lean, air, sag)
     top = min(rows)
@@ -118,9 +131,19 @@ ROWS = [
 ]
 
 if __name__ == "__main__":
-    sheet = Image.new("RGBA", (144, 144), (0, 0, 0, 0))
-    for r, row in enumerate(ROWS):
-        for c, spec in enumerate(row):
-            sheet.alpha_composite(frame(**spec), (c * 24, r * 24))
-    sheet.save(OUT)
-    print(OUT)
+    for name, codes in PRESETS.items():
+        pal = palette(codes)
+        sheet = Image.new("RGBA", (144, 144), (0, 0, 0, 0))
+        for r, row in enumerate(ROWS):
+            for c, spec in enumerate(row):
+                sheet.alpha_composite(frame(pal, **spec), (c * 24, r * 24))
+        folder = pathlib.Path(DIR % name)
+        folder.mkdir(exist_ok=True)
+        # 다른 캐릭터 에셋과 같은 내용이다. 새 프리셋도 이것만 실행하면 된다
+        (folder / "Contents.json").write_text(json.dumps({
+            "images": [{"filename": f"slime_{name}.png", "idiom": "universal"}],
+            "info": {"author": "xcode", "version": 1},
+            "properties": {"template-rendering-intent": "original", "preserves-vector-representation": False},
+        }, indent=2))
+        sheet.save(folder / f"slime_{name}.png")
+        print(folder)
