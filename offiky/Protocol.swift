@@ -264,6 +264,8 @@ struct PosMsg: Codable, Equatable {
     var o: Int? = nil
     /// 오토바이를 탄 동안만 그 색 번호를 적는다. 옛 버전은 이 값을 무시하고 달리는 캐릭터로 본다
     var r: Int? = nil
+    /// 무기를 든 동안만 `Weapon` 번호를 적는다. 옛 버전은 이 값을 무시한다
+    var e: Int? = nil
     /// 보낸 시각(ms, 보낸 기계 기준). 받는 쪽은 도착 시각 대신 이걸로 표본을 놓는다
     var m: Int?
 }
@@ -289,6 +291,19 @@ struct TypingMsg: Codable {
 struct HitMsg: Codable {
     var t = "hit"
     var rammed: String? = nil
+}
+
+/// 몽둥이를 휘두르거나 물총을 쐈다. 몽둥이는 휘두른 쪽이 맞혔다고 판정한 상대의 id 를 적는다.
+/// 물총알은 화면마다 따로 날리고 맞은 쪽이 판정한다. 옛 버전은 모르는 종류라 무시한다
+struct AttackMsg: Codable, Equatable {
+    var t = "atk"
+    /// `Weapon` 의 번호
+    let w: Int
+    var target: String? = nil
+    /// 쓴 순간의 자리와 보는 쪽. 위치 메시지보다 먼저 도착하므로 물총알은 이 값으로 날린다
+    let x: Double
+    let y: Double
+    let f: Int
 }
 
 /// 웅크린 채 버텨 바닥에 똥을 쌌다. 옛 버전은 모르는 종류라 무시한다
@@ -379,6 +394,7 @@ enum IncomingMessage: Decodable {
     case typing(TypingMsg)
     case profile(ProfileMsg)
     case hit(HitMsg)
+    case attack(AttackMsg)
     case poop(PoopMsg)
     case full(FullMsg)
     case udp(UDPMsg)
@@ -394,6 +410,7 @@ enum IncomingMessage: Decodable {
         case "typing":  self = .typing(try TypingMsg(from: decoder))
         case "profile": self = .profile(try ProfileMsg(from: decoder))
         case "hit":     self = .hit(try HitMsg(from: decoder))
+        case "atk":     self = .attack(try AttackMsg(from: decoder))
         case "poop":    self = .poop(try PoopMsg(from: decoder))
         case "full":    self = .full(try FullMsg(from: decoder))
         case "udp":     self = .udp(try UDPMsg(from: decoder))

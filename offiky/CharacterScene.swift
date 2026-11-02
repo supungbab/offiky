@@ -1,6 +1,14 @@
 import AppKit
 import SpriteKit
 
+/// Z 로 바꿔 들고 X 로 쓰는 무기. 번호가 그대로 오가므로 바꾸지 않는다
+enum Weapon: Int {
+    case club = 1, waterGun = 2
+
+    /// 한 번 휘두르거나 쏘는 동안. 그동안은 다시 쓰지 않는다
+    var duration: TimeInterval { self == .club ? 0.32 : 0.25 }
+}
+
 final class CharacterNode: SKNode {
     let id: String
     let isLocal: Bool
@@ -117,6 +125,23 @@ final class CharacterNode: SKNode {
     static let bikeLead: CGFloat = 8
     /// 탄 채로 움직이는 동안. 원격은 보간한 속도로 판정한다
     var isExhausting: Bool { isRiding && abs(velocity) > 1 }
+    /// 손에 든 무기. 원격은 주인이 적어 보낸 값을 따른다
+    var wielding: Weapon?
+    /// 휘두르거나 쏘는 중인 무기와 시작한 시각
+    private(set) var attack: (weapon: Weapon, since: TimeInterval)?
+    private let weapon = SKSpriteNode(texture: Characters.club[0])
+    /// 물총에 맞아 물이 튀기 시작한 시각
+    private var splashAt: TimeInterval?
+    private let splash = SKSpriteNode(texture: Characters.splash[0])
+    /// 물총알은 몽둥이보다 덜 밀어낸다. 대시 동작이 나오는 속도보다 느리다
+    static let soakSpeed: CGFloat = 60
+    static let soakApex: CGFloat = 8
+    /// 몽둥이는 셋째 장에서 상대에 닿는다. 몸 가운데에서 닿는 거리(pt)는 그림 길이에 맞춘다
+    static let clubDelay: TimeInterval = 0.14
+    static let clubReach: CGFloat = 30
+    /// 물총알은 노즐에서 나가 이만큼 날아가면 사라진다
+    static let bulletSpeed: CGFloat = 480
+    static let bulletRange: CGFloat = 720
     /// 물건이 올라오기 시작한 시각. 화면이 잠긴 동안은 지우고, 풀리면 다시 올라온다
     private var workingSince: TimeInterval?
     /// 땅 위로 올라온 물건의 줄 수. nil 이면 물건을 그리지 않는다
@@ -277,6 +302,15 @@ final class CharacterNode: SKNode {
         exhaust.isHidden = true
         bike.addChild(exhaust)
         addChild(bike)
+
+        weapon.isHidden = true
+        addChild(weapon)
+        splash.anchorPoint = CGPoint(x: 0.5, y: 0)
+        splash.size = CGSize(width: Characters.splash[0].size().width * 2,
+                             height: Characters.splash[0].size().height * 2)
+        splash.zPosition = 0.6
+        splash.isHidden = true
+        addChild(splash)
 
         label.fontSize = 10
         label.fontColor = .white
@@ -464,6 +498,85 @@ final class CharacterNode: SKNode {
         verticalSpeed = (2 * CharacterNode.gravity * CharacterNode.knockbackApex).squareRoot()
     }
 
+    /// 번호 순으로 바꿔 들고 마지막 무기 다음에는 내려놓는다
+    func cycleWeapon() {
+        wielding = Weapon(rawValue: (wielding?.rawValue ?? 0) + 1)
+    }
+
+    /// 무기를 쓴다. 이미 쓰는 중이거나 쓸 수 없는 상태면 false
+    @discardableResult
+    func startAttack(_ weapon: Weapon, now: TimeInterval) -> Bool {
+        guard attack == nil, hop == nil, !isDead, !isDragging, !isWorking, !isAway, !isRiding else { return false }
+        attack = (weapon, now)
+        return true
+    }
+
+    /// 보는 쪽에서 몽둥이가 닿는 거리 안에 있다
+    func canReach(_ other: CharacterNode) -> Bool {
+        let gap = (other.x - x) * facing
+        return gap > -4 && gap < CharacterNode.clubReach + other.sheet.bodyWidth && abs(other.y - y) < 40
+    }
+
+    /// 공중에서도 맞는다. 아파하는 동안은 다시 맞지 않는다
+    func canBeStruck(now: TimeInterval) -> Bool {
+        now >= hurtUntil && !isDead && !isDragging && !isAway && !isWorking
+    }
+
+    /// 몸 가운데 발밑에서 물총 노즐 끝까지. 손(칸의 15, 14)에 쥔 손잡이에서 노즐까지 더한다
+    var muzzleOffset: CGVector {
+        CGVector(dx: facing * 21, dy: (24 - 14) * 2 + 5 - sheet.footPadding * 2)
+    }
+
+    /// 물총알이 지나간 구간이 몸에 닿았다. 총알 높이는 바닥에서 잰다
+    func isHit(byBulletAlong path: ClosedRange<CGFloat>, y bulletY: CGFloat) -> Bool {
+        !isDead && !isDragging && !isAway && !isWorking
+            && path.overlaps(x - sheet.bodyWidth...x + sheet.bodyWidth) && (-4..<40).contains(bulletY - y)
+    }
+
+    /// 물총알에 맞아 아파하며 총알이 날던 쪽으로 밀린다
+    func soak(toward direction: CGFloat, now: TimeInterval) {
+        takeHit(now: now)
+        knockback = direction * CharacterNode.soakSpeed
+        verticalSpeed = (2 * CharacterNode.gravity * CharacterNode.soakApex).squareRoot()
+    }
+
+    func splash(at time: TimeInterval) { splashAt = time }
+
+    /// 무기는 손(칸의 15, 14)에 쥔다. 몽둥이는 뒤로 젖힌 두 장만 몸 뒤에 그린다
+    private func drawWeapon(now: TimeInterval) {
+        if let attack, now - attack.since >= attack.weapon.duration || isDead || isWorking || isAway || isRiding {
+            self.attack = nil
+        }
+        let held = attack?.weapon ?? wielding
+        weapon.isHidden = held == nil || isDead || isDragging || isWorking || isAway || isRiding
+        if let held, !weapon.isHidden {
+            let t = attack.map { now - $0.since }
+            weapon.xScale = facing
+            // 오토바이에서 뛰어내리는 동안 몸과 함께 올라간다
+            weapon.position = CGPoint(x: facing * (15 - 12) * 2, y: image.position.y + (24 - 14) * 2)
+            switch held {
+            case .club:
+                let frame = t.map { $0 < 0.08 ? 0 : $0 < 0.14 ? 1 : $0 < 0.2 ? 2 : 3 } ?? 4
+                weapon.texture = Characters.club[frame]
+                weapon.anchorPoint = CGPoint(x: 15.5 / 32, y: 1 - 15.5 / 20)
+                weapon.zPosition = frame < 2 ? -0.5 : 0.5
+            case .waterGun:
+                weapon.texture = Characters.waterGun[t.map { $0 < 0.1 } == true ? 1 : 0]
+                weapon.anchorPoint = CGPoint(x: 2.5 / 11, y: 1 - 6.5 / 9)
+                weapon.zPosition = 0.5
+            }
+            weapon.size = CGSize(width: weapon.texture!.size().width * 2, height: weapon.texture!.size().height * 2)
+        }
+        let wet = splashAt.map { now - $0 } ?? -1
+        splash.isHidden = !(0..<0.3).contains(wet)
+        if !splash.isHidden {
+            splash.texture = Characters.splash[min(2, Int(wet / 0.1))]
+            splash.position = CGPoint(x: 0, y: -spriteDisplaySize / 2 - sheet.footPadding * 2 + 6)
+        } else if wet >= 0.3 {
+            splashAt = nil
+        }
+    }
+
     @discardableResult
     func setRemoteTarget(x newX: CGFloat, y newY: CGFloat,
                          sent: TimeInterval? = nil, at now: TimeInterval) -> Bool {
@@ -525,6 +638,7 @@ final class CharacterNode: SKNode {
     func applyRemoteSnapshot(x: CGFloat, y: CGFloat, bowing: Bool, dragging: Bool, dead: Bool = false,
                              jetting: Bool = false, parachuting: Bool = false, away: Bool = false,
                              working: Bool = false, hiding: Bool = false, prop: Int = 0, riding: Int? = nil,
+                             wielding: Weapon? = nil,
                              facing direction: Int?, sent: TimeInterval?, at now: TimeInterval) -> Bool {
         guard setRemoteTarget(x: x, y: y, sent: sent, at: now) else { return false }
         isBowing = bowing
@@ -535,6 +649,7 @@ final class CharacterNode: SKNode {
         self.prop = Characters.props.indices.contains(prop) ? prop : 0
         // 새 버전이 더한 색은 첫 색으로 그린다
         ride = riding.map { Characters.motorcycles.indices.contains($0) ? $0 : 0 }
+        self.wielding = wielding
         remoteJetting = jetting
         remoteParachuting = parachuting
         isDead = dead
@@ -562,6 +677,7 @@ final class CharacterNode: SKNode {
         }
         expireBubble(now: now)
         if pleadsUpdate, bubbleNode == nil { showBubble(text: "Plz Update!", now: now, sticky: true) }
+        drawWeapon(now: now)
         if var jumping = hop {
             let since = jumping.since ?? now
             jumping.since = since
@@ -968,6 +1084,10 @@ final class World {
     private(set) var lastTick: TimeInterval = 0
     private var lastSweep: TimeInterval = 0
     private var reportedHurtUntil: TimeInterval = 0
+    /// 동료가 나를 맞혔다고 알려 온 몽둥이. 그쪽 몽둥이 그림이 닿는 때를 기다렸다 맞는다
+    private var strikes: [(at: TimeInterval, from: String)] = []
+    private var bullets: [(sprite: SKSpriteNode, from: String, x: CGFloat, y: CGFloat,
+                           direction: CGFloat, left: CGFloat, since: TimeInterval)] = []
     private var placed = false
     /// 마지막으로 보이던 화면 위 자리. 전환 중에는 화면이 0개로 보고되는 순간이 있어,
     /// 그때 띠에서 다시 계산하면 기억이 사라진다
@@ -1120,6 +1240,13 @@ final class World {
             Session.shared.sendPoop(x: x)
         }
         placePoops(now: now)
+        moveBullets(dt: dt, now: now)
+
+        for strike in strikes where now >= strike.at {
+            guard let other = peers[strike.from], me.canBeStruck(now: now) else { continue }
+            me.bounce(awayFrom: other, now: now)
+        }
+        strikes.removeAll { now >= $0.at }
 
         // 달린 쪽이 판정해 hit 으로 부딪힌 상대를 알린다
         var rammed: String?
@@ -1178,11 +1305,12 @@ extension World {
     func setPeerTarget(id: String, x: CGFloat, y: CGFloat, bowing: Bool, dragging: Bool, dead: Bool,
                        jetting: Bool = false, parachuting: Bool = false, away: Bool = false,
                        working: Bool = false, hiding: Bool = false, prop: Int = 0, riding: Int? = nil,
-                       facing: Int?, sent: TimeInterval?) {
+                       wielding: Weapon? = nil, facing: Int?, sent: TimeInterval?) {
         guard let node = peers[id] else { return }
         node.applyRemoteSnapshot(x: x, y: y, bowing: bowing, dragging: dragging, dead: dead,
                                  jetting: jetting, parachuting: parachuting, away: away, working: working,
-                                 hiding: hiding, prop: prop, riding: riding, facing: facing, sent: sent,
+                                 hiding: hiding, prop: prop, riding: riding, wielding: wielding,
+                                 facing: facing, sent: sent,
                                  at: ProcessInfo.processInfo.systemUptime)
     }
 
@@ -1207,23 +1335,94 @@ extension World {
             poop.sprite.removeFromParent()
             return true
         }
-        for poop in poops {
-            guard let placement = strip.place(x: poop.x, y: 0) else {
-                poop.sprite.removeFromParent()
-                continue
-            }
-            let scene = scenes[placement.screenIndex]
-            if poop.sprite.parent !== scene {
-                poop.sprite.removeFromParent()
-                scene.addChild(poop.sprite)
-            }
-            poop.sprite.position = CGPoint(x: (placement.point.x / 2).rounded() * 2,
-                                           y: (placement.point.y / 2).rounded() * 2 - spriteDisplaySize / 2)
+        for poop in poops { put(poop.sprite, x: poop.x, y: 0) }
+    }
+
+    /// 띠 좌표 x, 바닥에서 높이 y 에 놓는다. 그 자리의 화면으로 옮기고, 띠 밖이면 화면에서 제거하고 false
+    @discardableResult
+    private func put(_ sprite: SKSpriteNode, x: CGFloat, y: CGFloat) -> Bool {
+        guard let placement = strip.place(x: x, y: y) else {
+            sprite.removeFromParent()
+            return false
         }
+        let scene = scenes[placement.screenIndex]
+        if sprite.parent !== scene {
+            sprite.removeFromParent()
+            scene.addChild(sprite)
+        }
+        sprite.position = CGPoint(x: (placement.point.x / 2).rounded() * 2,
+                                  y: (placement.point.y / 2).rounded() * 2 - spriteDisplaySize / 2)
+        return true
     }
 
     func peerWasHit(id: String) {
         peers[id]?.takeHit(now: ProcessInfo.processInfo.systemUptime)
+    }
+
+    /// X 를 눌렀다. 몽둥이는 쓴 쪽이 앞에서 가장 가까운 상대를 맞힌 것으로 판정해 함께 알린다
+    func fire() {
+        let now = ProcessInfo.processInfo.systemUptime
+        guard let weapon = me.wielding, me.startAttack(weapon, now: now) else { return }
+        var target: String?
+        if weapon == .club {
+            target = peers.values.filter { $0.canBeStruck(now: now) && me.canReach($0) }
+                .min { abs($0.x - me.x) < abs($1.x - me.x) }?.id
+        } else {
+            shoot(from: me, at: CGPoint(x: me.x, y: me.y), now: now)
+        }
+        Session.shared.sendAttack(weapon, target: target)
+    }
+
+    /// 동료가 무기를 썼다. 몽둥이가 나를 맞혔으면 그림이 닿는 때에 맞는다
+    func peerAttacked(id: String, with weapon: Weapon, target: String?, at position: CGPoint, facing: Int) {
+        let now = ProcessInfo.processInfo.systemUptime
+        guard let shooter = peers[id] else { return }
+        shooter.faceAsTold(CGFloat(facing))
+        shooter.startAttack(weapon, now: now)
+        if weapon == .waterGun { shoot(from: shooter, at: position, now: now) }
+        if weapon == .club, target == myID { strikes.append((now + CharacterNode.clubDelay, id)) }
+    }
+
+    /// 원격이 마구 쏴도 이 이상 날리지 않는다. 오래된 것부터 지운다
+    static let maxBullets = 30
+
+    private func shoot(from shooter: CharacterNode, at position: CGPoint, now: TimeInterval) {
+        let sprite = SKSpriteNode(texture: Characters.bullet[0])
+        sprite.size = CGSize(width: Characters.bullet[0].size().width * 2,
+                             height: Characters.bullet[0].size().height * 2)
+        sprite.xScale = shooter.facing
+        sprite.zPosition = 20_000
+        let muzzle = shooter.muzzleOffset
+        bullets.append((sprite, shooter.id, position.x + muzzle.dx, position.y + muzzle.dy, shooter.facing,
+                        CharacterNode.bulletRange, now))
+        if bullets.count > World.maxBullets { bullets.removeFirst().sprite.removeFromParent() }
+    }
+
+    /// 쏜 사람이 아닌 캐릭터에 닿으면 물이 튀고 사라진다. 밀려나는 것은 맞은 사람 화면에서만 판정한다
+    fileprivate func moveBullets(dt: TimeInterval, now: TimeInterval) {
+        let step = CharacterNode.bulletSpeed * CGFloat(dt)
+        let targets = [me] + Array(peers.values)
+        for i in bullets.indices.reversed() {
+            let from = bullets[i].x
+            bullets[i].x += bullets[i].direction * step
+            bullets[i].left -= step
+            let bullet = bullets[i]
+            // 쏜 사람이 나갔으면 맞히지 않는다. 채널을 옮긴 뒤에 맞으면 새 채널에 아픈 것이 알려진다
+            let live = bullet.from == myID || peers[bullet.from] != nil
+            // 프레임 간격이 길어져 한 번에 멀리 가도 지나온 구간을 모두 판정한다
+            let path = min(from, bullet.x)...max(from, bullet.x)
+            let hit = live ? targets.first { $0.id != bullet.from && $0.isHit(byBulletAlong: path, y: bullet.y) } : nil
+            if let hit {
+                hit.splash(at: now)
+                if hit === me, me.canBeStruck(now: now) { me.soak(toward: bullet.direction, now: now) }
+            }
+            guard live, hit == nil, bullet.left > 0, put(bullet.sprite, x: bullet.x, y: bullet.y) else {
+                bullet.sprite.removeFromParent()
+                bullets.remove(at: i)
+                continue
+            }
+            bullet.sprite.texture = Characters.bullet[Int((now - bullet.since) / 0.1) % 2]
+        }
     }
 
     /// 달려온 상대가 나와 부딪혔다고 알려 왔다

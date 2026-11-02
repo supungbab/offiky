@@ -557,6 +557,76 @@ struct ControlTests {
         #expect(rider.isRamming(stander, now: now))
     }
 
+    @MainActor @Test func 무기는_누를_때마다_몽둥이_물총_순으로_바꿔_들고_마지막에_내려놓는다() {
+        let me = node()
+        #expect(me.wielding == nil)
+        me.cycleWeapon()
+        #expect(me.wielding == .club)
+        me.cycleWeapon()
+        #expect(me.wielding == .waterGun)
+        me.cycleWeapon()
+        #expect(me.wielding == nil)
+    }
+
+    @MainActor @Test func 몽둥이는_보는_쪽에서_닿는_거리_안의_상대만_맞힌다() {
+        let me = node()
+        func other(at x: CGFloat) -> CharacterNode {
+            let other = CharacterNode(id: "o\(x)", name: "o", isLocal: false)
+            other.teleport(to: x)
+            return other
+        }
+        #expect(me.facing == -1)
+        #expect(me.canReach(other(at: 880)))
+        #expect(!me.canReach(other(at: 920)))          // 등 뒤
+        #expect(!me.canReach(other(at: 840)))          // 몽둥이는 짧다
+    }
+
+    @MainActor @Test func 물총알은_몸에_닿아야_맞고_뛰어서_피할_수_있다() {
+        let shooter = node()
+        let target = CharacterNode(id: "t", name: "t", isLocal: false)
+        target.teleport(to: 600)
+        let muzzle = shooter.muzzleOffset
+        #expect(muzzle.dx < 0)                                       // 보는 쪽 앞에서 나간다
+        #expect(target.isHit(byBulletAlong: 600...600, y: muzzle.dy))
+        #expect(!target.isHit(byBulletAlong: 640...640, y: muzzle.dy))
+        #expect(target.isHit(byBulletAlong: 560...640, y: muzzle.dy))         // 한 프레임에 지나쳐도 맞는다
+        #expect(!target.isHit(byBulletAlong: 600...600, y: muzzle.dy + 60))   // 점프하면 아래로 지나간다
+    }
+
+    @MainActor @Test func 몽둥이와_물총알에_맞으면_다치고_밀린다() {
+        let attacker = CharacterNode(id: "a", name: "a", isLocal: false)
+        attacker.teleport(to: 880)
+        let clubbed = node()
+        clubbed.bounce(awayFrom: attacker, now: 0)
+        #expect(clubbed.hits == 1)
+
+        let soaked = node()
+        soaked.soak(toward: 1, now: 0)
+        var now = 0.0
+        for _ in 0..<60 {
+            clubbed.update(dt: 1.0 / 60, now: now, strip: strip)
+            soaked.update(dt: 1.0 / 60, now: now, strip: strip)
+            now += 1.0 / 60
+        }
+        #expect(soaked.hits == 1)
+        #expect(soaked.x > 900)                                    // 총알이 날던 쪽으로 밀렸다
+        #expect(soaked.x < clubbed.x)                              // 몽둥이보다 덜 밀린다
+        #expect(soaked.y == 0)
+    }
+
+    @MainActor @Test func 무기는_쓰는_동안_다시_쓰지_않는다() {
+        let me = node()
+        #expect(me.startAttack(.club, now: 0))
+        #expect(!me.startAttack(.club, now: 0.1))
+        me.update(dt: 1.0 / 60, now: Weapon.club.duration, strip: strip)
+        #expect(me.attack == nil)
+        #expect(me.startAttack(.waterGun, now: 1))
+
+        let rider = node()
+        rider.toggleRide()
+        #expect(!rider.startAttack(.club, now: 0))                  // 탄 동안은 쓰지 않는다
+    }
+
     @MainActor @Test func 오토바이에_탈_때와_내릴_때_뛰어오르고_뛰어내린다() {
         let node = node()
         node.toggleRide()

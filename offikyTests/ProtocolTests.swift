@@ -445,6 +445,14 @@ struct MessageTests {
         #expect(msg.x == 120)
     }
 
+    @Test func 공격_메시지를_구분한다() throws {
+        let message = try JSONDecoder().decode(IncomingMessage.self,
+                                               from: JSONEncoder().encode(AttackMsg(w: 2, target: "abc", x: 120, y: 0, f: -1)))
+        guard case let .attack(msg) = message else { Issue.record("atk 메시지로 디코딩되지 않았다"); return }
+        #expect(msg == AttackMsg(w: 2, target: "abc", x: 120, y: 0, f: -1))
+        #expect(Weapon(rawValue: msg.w) == .waterGun)
+    }
+
     @Test func 피격_메시지를_구분한다() throws {
         let data = try JSONEncoder().encode(HitMsg())
         let message = try JSONDecoder().decode(IncomingMessage.self, from: data)

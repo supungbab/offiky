@@ -244,6 +244,12 @@ enum Characters {
     static let flames = strip("flame", count: 2)
     /// 오토바이가 달리는 동안 머플러 끝에서 나는 연기 두 장. 불꽃처럼 번갈아 그린다
     static let exhaust = strip("exhaust", count: 2)
+    /// 몽둥이 다섯 장. 휘두르는 네 장 뒤에 든 채 앞으로 겨눈 한 장이 있다. 칸마다 손잡이 끝이 (15, 15) 에 있다
+    static let club = strip("club", count: 5)
+    /// 물총 두 장(대기·발사), 날아가는 물총알 두 장, 맞은 자리에 튀는 물 세 장
+    static let waterGun = strip("watergun", count: 2)
+    static let bullet = strip("bullet", count: 2)
+    static let splash = strip("splash", count: 3)
 
     /// 가로로 붙은 같은 폭의 그림을 자른다
     private static func strip(_ name: String, count: Int) -> [SKTexture] {

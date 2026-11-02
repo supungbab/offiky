@@ -82,6 +82,10 @@ import SwiftUI
             World.shared.me.startWorking()
         case kVK_ANSI_B:
             if !event.isARepeat { World.shared.me.toggleRide() }
+        case kVK_ANSI_Z:
+            if !event.isARepeat { World.shared.me.cycleWeapon() }
+        case kVK_ANSI_X:
+            World.shared.fire()
         case kVK_Space:
             World.shared.me.isThrusting = true
         case kVK_DownArrow:
@@ -122,8 +126,8 @@ import SwiftUI
     }
 }
 
-/// 안내 항목이 열 개라 채팅창보다 넓다
-private let hintSize = CGSize(width: 840, height: panelSize.height)
+/// 안내를 두 줄로 나눠 채팅창과 같은 폭에 넣는다
+private let hintSize = CGSize(width: panelSize.width, height: 64)
 
 /// 처리하지 않은 키는 경고음이 나므로 방향키 외에도 모두 받는다
 private final class KeyCatcher: NSHostingView<HintView> {
@@ -135,13 +139,18 @@ private final class KeyCatcher: NSHostingView<HintView> {
 }
 
 struct HintView: View {
-    /// 이동·점프·그 외로 묶는다. 같은 간격의 열 개는 순서대로 다 읽어야 한다
+    /// 윗줄은 움직임, 아랫줄은 하는 일이다. 같은 간격의 열두 개는 순서대로 다 읽어야 해서 묶는다
     var body: some View {
-        HStack(spacing: 16) {
-            HStack(spacing: 10) { item("← →", "이동"); item("←← →→", "대시") }
-            HStack(spacing: 10) { item("↑", "점프"); item("↑↑", "2단 점프"); item("space", "제트팩") }
-            HStack(spacing: 10) {
-                item("↓", "웅크리기·낙하산"); item("⇧↓", "1초 똥"); item("w", "WORK"); item("b", "오토바이")
+        VStack(spacing: 8) {
+            HStack(spacing: 16) {
+                HStack(spacing: 10) { item("← →", "이동"); item("←← →→", "대시") }
+                HStack(spacing: 10) {
+                    item("↑", "점프"); item("↑↑", "2단 점프"); item("space", "제트팩"); item("↓", "웅크리기·낙하산")
+                }
+            }
+            HStack(spacing: 16) {
+                HStack(spacing: 10) { item("z", "무기 바꾸기"); item("x", "공격") }
+                HStack(spacing: 10) { item("⇧↓", "1초 똥"); item("w", "WORK"); item("b", "오토바이") }
                 item("esc", "끝내기")
             }
         }

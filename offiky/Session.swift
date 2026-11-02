@@ -88,7 +88,8 @@ final class Session {
                w: node.isWorking ? true : nil,
                h: node.isHiding ? true : nil,
                o: node.isWorking && node.prop != 0 ? node.prop : nil,
-               r: node.ride)
+               r: node.ride,
+               e: node.wielding?.rawValue)
     }
 
     /// 받는 쪽이 도착 시각 대신 이걸로 표본을 놓는다. 망이 흔들려도 걸음이 고르다
@@ -139,6 +140,12 @@ final class Session {
     /// 낙하는 소유자가 자기 캐릭터에 대해 판정한다. 결과만 다른 화면에 알린다.
     func sendHit(rammed: String? = nil) {
         if let data = encode(HitMsg(rammed: rammed)) { Net.shared.broadcast(data) }
+    }
+
+    func sendAttack(_ weapon: Weapon, target: String?) {
+        let me = World.shared.me
+        let msg = AttackMsg(w: weapon.rawValue, target: target, x: Double(me.x), y: Double(me.y), f: Int(me.facing))
+        if let data = encode(msg) { Net.shared.broadcast(data) }
     }
 
     func sendPoop(x: CGFloat) {
@@ -242,7 +249,7 @@ final class Session {
                                        dead: msg.k == true, jetting: msg.j == true,
                                        parachuting: msg.c == true, away: msg.a == true,
                                        working: msg.w == true, hiding: msg.h == true, prop: msg.o ?? 0,
-                                       riding: msg.r,
+                                       riding: msg.r, wielding: msg.e.flatMap(Weapon.init),
                                        facing: msg.f, sent: msg.m.map { Double($0) / 1000 })
         case let .say(msg):
             guard let body = validChat(msg.msg) else { return }
@@ -254,6 +261,11 @@ final class Session {
         case let .hit(msg):
             World.shared.peerWasHit(id: id)
             if msg.rammed == World.shared.myID { World.shared.wasRammed(by: id) }
+        case let .attack(msg):
+            guard let weapon = Weapon(rawValue: msg.w), abs(msg.x) <= Limits.maxX, (0...Limits.maxY).contains(msg.y)
+            else { return }
+            World.shared.peerAttacked(id: id, with: weapon, target: msg.target,
+                                      at: CGPoint(x: msg.x, y: msg.y), facing: msg.f)
         case let .poop(msg):
             guard abs(msg.x) <= Limits.maxX else { return }
             World.shared.dropPoop(x: CGFloat(msg.x), now: ProcessInfo.processInfo.systemUptime)
