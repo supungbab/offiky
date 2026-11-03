@@ -159,20 +159,16 @@ enum Characters {
     static let tombstoneRows = risingRows("tombstone")
 
     /// W 를 누르면 캐릭터 대신 올라오는 물건. 0 은 노트북이다. 동료에게 번호로 보내므로 순서를 바꾸지 않고 뒤에만 추가한다
-    static let props = ["work", "meeting", "coffee", "ramen", "toilet", "bed", "arcade", "tv",
-                        "dumbbell", "books", "beer", "cake", "firstaid", "house", "car",
-                        "pumpkin", "ghost", "zombie", "cauldron", "bat", "witchhat", "mummy",
-                        "coffin", "bucket", "spider", "crystal"].map { risingRows($0) }
-
-    /// 물건을 고르는 동안 이름표 양옆에 표시하는 화살표. 오른쪽을 가리킨다
-    static let propArrow: SKTexture = {
-        guard let cg = NSImage(named: "arrow")?
-            .cgImage(forProposedRect: nil, context: nil, hints: nil)
-        else { return SKTexture() }
-        let texture = SKTexture(cgImage: cg)
-        texture.filteringMode = .nearest
-        return texture
-    }()
+    static let propGroups: [(title: String, names: [String])] = [
+        ("일상", ["work", "meeting", "coffee", "ramen", "toilet", "bed", "arcade", "tv",
+                 "dumbbell", "books", "beer", "cake", "firstaid", "house", "car"]),
+        ("할로윈", ["pumpkin", "ghost", "zombie", "cauldron", "bat", "witchhat", "mummy",
+                  "coffin", "bucket", "spider", "crystal"]),
+        ("크리스마스", ["tree", "gift", "snowman", "santa", "rudolph", "stocking", "candycane",
+                    "gingerbread", "fireplace", "chimney", "sleigh", "santahat"]),
+    ]
+    static let propNames = propGroups.flatMap(\.names)
+    static let props = propNames.map { risingRows($0) }
 
     /// n 번째는 윗부분 n 줄이다. 땅에서 올라오는 동안 차례로 쓴다
     private static func risingRows(_ name: String) -> [SKTexture] {

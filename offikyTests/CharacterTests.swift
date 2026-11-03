@@ -417,15 +417,29 @@ struct ControlTests {
         #expect(node.y > 0)
     }
 
-    @MainActor @Test func 노트북_자리의_물건은_올라와_있을_때만_좌우로_돌려_가며_바꾼다() {
+    @MainActor @Test func 고른_물건으로_올라오고_물건인_채로_고르면_바로_바뀐다() {
         let node = node()
-        node.cycleProp(1)
-        #expect(node.prop == 0)
-        node.startWorking()
-        node.cycleProp(-1)
-        #expect(node.prop == Characters.props.count - 1)
-        node.cycleProp(1)
-        #expect(node.prop == 0)
+        node.hold(1, dash: false)
+        node.startWorking(as: 3)
+        #expect(!node.isWorking && node.prop == 0)     // 걷는 중에는 고르지 못한다
+        node.hold(0, dash: false)
+        node.startWorking(as: 3)
+        #expect(node.isWorking && node.prop == 3)
+        node.startWorking(as: 5)
+        #expect(node.isWorking && node.prop == 5)
+    }
+
+    @Test func 선택_창은_묶음마다_새_줄에서_시작하고_방향키로_칸을_옮긴다() {
+        #expect(PropPicker.rows.flatMap { $0 } == Array(Characters.props.indices))
+        #expect(PropPicker.rows.allSatisfy { $0.count <= PropPicker.columns })
+        let halloween = PropPicker.rows.firstIndex { $0.first == 15 }!
+        #expect(PropPicker.rows[halloween - 1].last == 14)          // 일상의 마지막 줄 다음에 할로윈이 새 줄에서 시작한다
+        #expect(PropPicker.move(14, dx: 1) == 15)                    // 좌우는 줄을 넘어간다
+        #expect(PropPicker.move(0, dx: -1) == 0)
+        #expect(PropPicker.move(Characters.props.count - 1, dx: 1) == Characters.props.count - 1)
+        #expect(PropPicker.move(11, dy: 1) == 14)                    // 아랫줄이 짧으면 그 줄의 끝으로 간다
+        #expect(PropPicker.move(0, dy: -1) == 0)
+        #expect(PropPicker.move(15, dy: -1) == 12)                   // 위로 가면 같은 칸
     }
 
     @MainActor @Test func 동료가_보낸_물건이_없는_번호면_노트북으로_그린다() {

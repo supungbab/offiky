@@ -111,7 +111,6 @@ final class CharacterNode: SKNode {
     }
     /// 내 캐릭터에만 연결해 다음 실행에도 고른 물건이 올라오게 저장한다
     var propChanged: ((Int) -> Void)?
-    private let arrows = [SKSpriteNode(texture: Characters.propArrow), SKSpriteNode(texture: Characters.propArrow)]
     /// 탄 오토바이. `Characters.motorcycles` 의 번호이고 nil 이면 걷는다. 원격은 주인이 적어 보낸 값을 따른다
     private(set) var ride: Int? {
         didSet {
@@ -340,14 +339,6 @@ final class CharacterNode: SKNode {
         label.verticalAlignmentMode = .bottom
         label.position = CGPoint(x: 0, y: spriteDisplaySize / 2 + 2)
         overhead.addChild(label)
-
-        for (arrow, side) in zip(arrows, [-1.0, 1.0]) {
-            arrow.size = CGSize(width: Characters.propArrow.size().width * 2,
-                                height: Characters.propArrow.size().height * 2)
-            arrow.xScale = side
-            arrow.isHidden = true
-            overhead.addChild(arrow)
-        }
         addChild(overhead)
 
         isUserInteractionEnabled = false
@@ -397,9 +388,12 @@ final class CharacterNode: SKNode {
     }
 
     /// 바닥에 멈춰 있을 때만 물건으로 바꾼다. 묘비와 달리 아파하지 않고 바로 올라온다. 오토바이에서는 내린다
-    func startWorking() {
-        guard isLocal, y <= 0, verticalSpeed == 0, knockback == 0, holding == 0, !isDead, !isDragging
-        else { return }
+    var canWork: Bool { isLocal && y <= 0 && verticalSpeed == 0 && knockback == 0 && !isDead && !isDragging }
+
+    /// 물건인 채로 다른 물건을 고르면 다시 올라오지 않고 바로 바뀐다
+    func startWorking(as prop: Int? = nil) {
+        guard canWork, holding == 0 else { return }
+        if let prop { self.prop = prop }
         ride = nil
         isWorking = true
     }
@@ -422,12 +416,6 @@ final class CharacterNode: SKNode {
     func canDance(now: TimeInterval) -> Bool {
         y <= 0 && holding == 0 && !isBowing && now >= hurtUntil && attack == nil && hop == nil
             && !isDead && !isWorking && !isAway && !isDragging && !isRiding
-    }
-
-    /// 다시 올라오지 않고 바로 바뀐다. 빠르게 넘기면 반쯤 올라온 그림만 보이기 때문이다
-    func cycleProp(_ step: Int) {
-        guard isLocal, isWorking else { return }
-        prop = (prop + step + Characters.props.count) % Characters.props.count
     }
 
     /// 바닥에 멈춰 Shift 를 누른 채 웅크려 `poopHold` 만큼 버텼으면 한 번 true 를 반환한다
@@ -976,14 +964,6 @@ final class CharacterNode: SKNode {
         // 스프라이트는 오른쪽을 보고 그려져 있다. 글씨가 있는 업데이트 팻말은 뒤집지 않는다
         image.xScale = standing || look.design == Characters.count ? 1 : shownFacing
         updateNameLabel()
-        // ←→ 로 물건을 바꿀 수 있을 때만 내 화면에 표시한다
-        let choosing = isLocal && isWorking && Control.shared.isOn
-        for (arrow, side) in zip(arrows, [-1.0, 1.0]) {
-            arrow.isHidden = !choosing
-            guard choosing, let name = nameBackground else { continue }
-            arrow.position = CGPoint(x: side * (name.frame.width / 2 + arrow.size.width / 2 + 3),
-                                     y: name.position.y)
-        }
     }
 
     /// 이름이 바뀔 때만 배경을 다시 만든다
