@@ -147,12 +147,18 @@ final class CharacterNode: SKNode {
     static let bulletRange: CGFloat = 720
     /// C 로 춤추는 동안. `canDance` 가 아니게 되면 멈춘다. 원격은 주인이 적어 보낸 값을 따른다
     var isDancing = false
-    /// 춤의 한 박자 (동작, 그 동작의 몇째 장, 반대쪽을 보는지, 뛰는 높이 pt)
-    typealias DanceMove = (animation: Animation, frame: Int, turned: Bool, lift: CGFloat)
-    /// 춤 한 마디. 박자마다 다음 동작으로 넘어간다
+    /// 춤의 한 박자 (동작, 그 동작의 몇째 장, 반대쪽을 보는지, 뛰는 높이 pt, 옆으로 움직이는 pt)
+    typealias DanceMove = (animation: Animation, frame: Int, turned: Bool, lift: CGFloat, shift: CGFloat)
+    /// 8박자씩 통통·러닝맨·옆걸음·마무리 순으로 춘다. 아파하기 그림은 유령·슬라임이 X 눈이라 쓰지 않는다
     static let danceMoves: [DanceMove] = [
-        (.jump, 0, false, 0), (.jump, 1, false, 4), (.walk, 1, false, 0), (.bow, 0, false, 0),
-        (.jump, 0, true, 0), (.jump, 1, true, 4), (.walk, 4, true, 0), (.bow, 0, true, 0),
+        (.jump, 0, false, 0, 0), (.jump, 1, false, 4, 0), (.walk, 1, false, 0, 0), (.bow, 0, false, 0, 0),
+        (.jump, 0, true, 0, 0), (.jump, 1, true, 4, 0), (.walk, 4, true, 0, 0), (.bow, 0, true, 0, 0),
+        (.dash, 1, false, 0, 0), (.dash, 4, false, 2, 0), (.dash, 1, true, 0, 0), (.dash, 4, true, 2, 0),
+        (.dash, 1, false, 0, 0), (.dash, 4, false, 2, 0), (.dash, 1, true, 0, 0), (.dash, 4, true, 2, 0),
+        (.walk, 1, false, 0, -2), (.walk, 4, false, 0, 2), (.walk, 1, false, 0, -2), (.walk, 4, false, 0, 2),
+        (.walk, 1, true, 0, 2), (.walk, 4, true, 0, -2), (.walk, 1, true, 0, 2), (.walk, 4, true, 0, -2),
+        (.jump, 0, false, 0, 0), (.jump, 1, false, 6, 0), (.jump, 1, true, 10, 0), (.jump, 1, false, 6, 0),
+        (.jump, 0, true, 0, 0), (.bow, 0, true, 0, 0), (.jump, 1, false, 12, 0), (.jump, 2, false, 0, 0),
     ]
     static let danceBeat: TimeInterval = 0.25
     /// 춤추기 시작한 시각. 늘 첫 박자부터 춘다
@@ -925,9 +931,11 @@ final class CharacterNode: SKNode {
         }
         image.position.y = -spriteDisplaySize / 2 - (standing ? 0 : sheet.footPadding * 2) + seat
             + (danceMove?.lift ?? 0)
+        image.position.x = danceMove?.shift ?? 0
         weapon.xScale = shownFacing
-        // 오토바이에서 뛰어내리거나 춤추며 뛰는 동안 몸과 함께 올라간다
-        weapon.position = CGPoint(x: shownFacing * (15 - 12) * 2, y: image.position.y + (24 - 14) * 2)
+        // 오토바이에서 뛰어내리거나 춤추는 동안 몸과 함께 움직인다
+        weapon.position = CGPoint(x: image.position.x + shownFacing * (15 - 12) * 2,
+                                  y: image.position.y + (24 - 14) * 2)
         overhead.position.y = seat
         bike.isHidden = !riding
         bike.xScale = facing

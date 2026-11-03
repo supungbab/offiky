@@ -642,9 +642,12 @@ struct ControlTests {
         #expect(World.crowds(of: [100]).isEmpty)
     }
 
-    @Test func 춤_동작은_시트에_있는_장만_쓴다() {
+    @Test func 춤_동작은_시트에_있는_장만_쓰고_2pt_격자에서_움직인다() {
+        #expect(CharacterNode.danceMoves.count % 8 == 0)
         for move in CharacterNode.danceMoves {
             #expect(move.frame < move.animation.frameCount)
+            #expect(move.animation != .hurt)
+            #expect(move.lift.truncatingRemainder(dividingBy: 2) == 0 && move.shift.truncatingRemainder(dividingBy: 2) == 0)
         }
     }
 
