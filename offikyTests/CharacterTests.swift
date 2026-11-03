@@ -208,10 +208,9 @@ struct ControlTests {
     }
 
     @MainActor @Test func 튕겨_오르다_다섯_번째로_맞으면_내려온_뒤에_죽는다() {
-        let runner = node(), stander = CharacterNode(id: "you", name: "you", isLocal: true)
-        stander.teleport(to: 920)
+        let runner = node()
         for n in 1..<CharacterNode.hitsToDie { runner.takeHit(now: Double(n)) }
-        runner.bounce(awayFrom: stander, now: 10)
+        runner.takeHit(now: 10, by: .club, toward: -1)
         var t = 10.0
         runner.update(dt: 1.0 / 60, now: t, strip: strip)
         #expect(runner.y > 0)
@@ -402,20 +401,6 @@ struct ControlTests {
         #expect(node.y == 0)
     }
 
-    @MainActor @Test func 자리를_비운_팻말에는_달려와도_부딪히지_않는다() {
-        let runner = node(), sign = CharacterNode(id: "you", name: "you", isLocal: true)
-        sign.teleport(to: 915)
-        sign.isAway = true
-        runner.hold(1, dash: true)
-        var t = 0.0
-        for _ in 0..<10 {
-            t += 1.0 / 60
-            runner.update(dt: 1.0 / 60, now: t, strip: strip)
-            #expect(!runner.isRamming(sign, now: t))
-        }
-        #expect(!sign.canBeRammed(now: t))
-    }
-
     @MainActor @Test func 노트북은_아파하지_않고_바로_올라오고_다_올라온_뒤_위_키로_돌아온다() {
         let node = node()
         node.startWorking()
@@ -474,7 +459,7 @@ struct ControlTests {
         #expect(node.workRows == 1)
     }
 
-    @MainActor @Test func 노트북은_걷지_않고_들거나_부딪힐_수_없다() {
+    @MainActor @Test func 노트북은_걷지_않고_들_수_없다() {
         let node = node()
         node.startWorking()
         node.hold(1, dash: true)
@@ -482,7 +467,6 @@ struct ControlTests {
         #expect(node.x == 900)
         node.beginDrag()
         #expect(!node.isDragging)
-        #expect(!node.canBeRammed(now: 1))
     }
 
     @MainActor @Test func 화면이_잠기면_자리_비움이_우선하고_풀리면_노트북이_다시_올라온다() {
@@ -543,20 +527,6 @@ struct ControlTests {
         #expect(!node.isExhausting)
     }
 
-    @MainActor @Test func 오토바이로_달려와_서_있는_사람을_친다() {
-        let rider = node(), stander = CharacterNode(id: "you", name: "you", isLocal: true)
-        stander.teleport(to: 1200)
-        rider.toggleRide()
-        rider.hold(1, dash: false)
-        var now = 0.0
-        while stander.x - rider.x > 20 {
-            rider.update(dt: 1.0 / 60, now: now, strip: strip)
-            stander.update(dt: 1.0 / 60, now: now, strip: strip)
-            now += 1.0 / 60
-        }
-        #expect(rider.isRamming(stander, now: now))
-    }
-
     @MainActor @Test func 무기는_누를_때마다_몽둥이_물총_순으로_바꿔_들고_마지막에_내려놓는다() {
         let me = node()
         #expect(me.wielding == nil)
@@ -594,14 +564,12 @@ struct ControlTests {
     }
 
     @MainActor @Test func 몽둥이와_물총알에_맞으면_다치고_밀린다() {
-        let attacker = CharacterNode(id: "a", name: "a", isLocal: false)
-        attacker.teleport(to: 880)
         let clubbed = node()
-        clubbed.bounce(awayFrom: attacker, now: 0)
+        clubbed.takeHit(now: 0, by: .club, toward: 1)
         #expect(clubbed.hits == 1)
 
         let soaked = node()
-        soaked.soak(toward: 1, now: 0)
+        soaked.takeHit(now: 0, by: .waterGun, toward: 1)
         var now = 0.0
         for _ in 0..<60 {
             clubbed.update(dt: 1.0 / 60, now: now, strip: strip)
@@ -662,49 +630,6 @@ struct ControlTests {
         #expect(peer.ride == 0)
         peer.applyRemoteSnapshot(x: 100, y: 0, bowing: false, dragging: false, facing: 1, sent: 3, at: 3)
         #expect(!peer.isRiding)
-    }
-
-    @MainActor @Test func 서로_달려오다_닿으면_부딪힌다() {
-        let a = node(), b = CharacterNode(id: "you", name: "you", isLocal: true)
-        b.teleport(to: 1000)
-        a.hold(1, dash: true); b.hold(-1, dash: true)
-        var now = 0.0
-        while b.x - a.x > 20 {
-            a.update(dt: 1.0 / 60, now: now, strip: strip)
-            b.update(dt: 1.0 / 60, now: now, strip: strip)
-            now += 1.0 / 60
-        }
-        #expect(a.isRamming(b, now: now))
-
-        let hitX = a.x
-        a.hold(0, dash: false)
-        a.bounce(awayFrom: b, now: now)
-        for _ in 0..<60 { now += 1.0 / 60; a.update(dt: 1.0 / 60, now: now, strip: strip) }
-        #expect(a.x < hitX - 10)
-        #expect(a.y == 0)
-
-        b.hold(0, dash: false)
-        b.update(dt: 1.0 / 60, now: now, strip: strip)
-        #expect(!a.isRamming(b, now: now))
-    }
-
-    @MainActor @Test func 달려와_서_있는_사람을_치면_달린_쪽이_판정한다() {
-        let runner = node(), stander = CharacterNode(id: "you", name: "you", isLocal: true)
-        stander.teleport(to: 1000)
-        runner.hold(1, dash: true)
-        var now = 0.0
-        while stander.x - runner.x > 20 {
-            runner.update(dt: 1.0 / 60, now: now, strip: strip)
-            stander.update(dt: 1.0 / 60, now: now, strip: strip)
-            now += 1.0 / 60
-        }
-        #expect(runner.isRamming(stander, now: now))
-        #expect(!stander.isRamming(runner, now: now))
-        #expect(stander.canBeRammed(now: now))
-
-        runner.hold(1, dash: false)
-        runner.update(dt: 1.0 / 60, now: now, strip: strip)
-        #expect(!runner.isRamming(stander, now: now))
     }
 
     @MainActor @Test func 방향키를_누르는_동안_걷는다() {

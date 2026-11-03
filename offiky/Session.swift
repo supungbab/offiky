@@ -137,9 +137,9 @@ final class Session {
         }
     }
 
-    /// 낙하는 소유자가 자기 캐릭터에 대해 판정한다. 결과만 다른 화면에 알린다.
-    func sendHit(rammed: String? = nil) {
-        if let data = encode(HitMsg(rammed: rammed)) { Net.shared.broadcast(data) }
+    /// 낙하·무기에 다친 결과만 다른 화면에 알린다
+    func sendHit() {
+        if let data = encode(HitMsg()) { Net.shared.broadcast(data) }
     }
 
     func sendAttack(_ weapon: Weapon, target: String?) {
@@ -258,9 +258,8 @@ final class Session {
             World.shared.showTyping(id: id)
         case let .profile(msg):
             World.shared.addPeer(id: id, name: sanitizeName(msg.name), look: msg.look.sanitized)
-        case let .hit(msg):
+        case .hit:
             World.shared.peerWasHit(id: id)
-            if msg.rammed == World.shared.myID { World.shared.wasRammed(by: id) }
         case let .attack(msg):
             guard let weapon = Weapon(rawValue: msg.w), abs(msg.x) <= Limits.maxX, (0...Limits.maxY).contains(msg.y)
             else { return }

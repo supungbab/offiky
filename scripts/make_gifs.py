@@ -51,21 +51,6 @@ def strip(name, animation, scale=4, pad=6):
     return out
 
 
-BURST = (0xff, 0xf6, 0x99, 255)
-BURST2 = (0xff, 0xff, 0xff, 255)
-
-
-def burst(canvas, cx, cy, step):
-    """부딪힌 자리에 터지는 표시. 세 장으로 커졌다 사라진다"""
-    spread = (3, 6, 9)[min(step, 2)]
-    color = (BURST2, BURST, BURST)[min(step, 2)]
-    for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (1, -1), (-1, 1), (-1, -1)):
-        for n in range(spread - 2, spread + 1):
-            x, y = cx + dx * n, cy + dy * n
-            if 0 <= x < canvas.size[0] and 0 <= y < canvas.size[1]:
-                canvas.putpixel((x, y), color)
-
-
 class Actor:
     def __init__(self, cut, x, facing):
         self.cut, self.x, self.facing = cut, x, facing
@@ -85,10 +70,9 @@ class Actor:
             cell, (cx + round((self.x - camera) * ppt), foot - round(self.lift * ppt)))
 
 
-# 부딪힌 뒤. 동시에 꾸벅하면 로봇 같다 — 하나가 먼저 숙이고 상대가 답하고 짧게 한 번 더
+# 엇갈린 뒤. 동시에 꾸벅하면 로봇 같다 — 하나가 먼저 숙이고 상대가 답하고 짧게 한 번 더
 # (초, 내 동작, 내 이동, 내 방향, 상대 동작, 상대 이동, 상대 방향)
 AFTER = [
-    (0.7, "hurt", 0, +1, "hurt", 0, -1),      # 아프다
     (0.7, "walk", +1, +1, "walk", -1, -1),    # 서로 지나쳐 몇 걸음
     (0.5, "idle", 0, -1, "idle", 0, +1),      # 멈춰 돌아본다
     (0.8, "bow", 0, -1, "idle", 0, +1),       # 내가 먼저 숙인다
@@ -108,7 +92,7 @@ TICK = 20.0                    # 바닥 눈금 한 주기(pt). 위상이 같아�
 
 
 def scene(scale=3, width=342, height=186):
-    """걷다 달리다 뛰고, 달려온 동료와 부딪쳐 인사하고 각자 간다.
+    """걷다 달리다 뛰고, 달려온 동료와 엇갈린 뒤 인사하고 각자 간다.
 
     스프라이트 한 칸(24)이 화면에서 48pt 이므로 1pt 는 scale/2 픽셀이다.
     점프 정점 108pt 가 키의 2.25배라 도화지가 그만큼 높다."""
@@ -121,9 +105,9 @@ def scene(scale=3, width=342, height=186):
     me = Actor(frames("frog_green"), 0.0, +1)
     you = Actor(frames("pig_pink"), 830.0, -1)
     OTHER_START = 190.0
-    out, camera, hit = [], 0.0, None
+    out, camera, met = [], 0.0, False
 
-    def render(step_from_hit=None):
+    def render():
         canvas = Image.new("RGBA", (width, height), SKY)
         for y in range(floor_y, height):
             color = GROUND_TOP if y < floor_y + 2 else GROUND
@@ -135,17 +119,14 @@ def scene(scale=3, width=342, height=186):
                     canvas.putpixel((px, y), GROUND_DARK)
         for body in (me, you):
             body.draw(canvas, camera, cx, foot, scale, ppt)
-        if step_from_hit is not None and step_from_hit < 3:
-            burst(canvas, cx + 12 * scale + round((you.x - camera) * ppt / 2),
-                  foot + 10 * scale, step_from_hit)
         out.append(canvas)
 
-    # 부딪히기 전. 상대가 가까워지면 달려 나온다
+    # 엇갈리기 전. 상대가 가까워지면 달려 나온다
     plan = [("idle", 0.8), ("walk", 2.0), ("dash", 1.3), ("jump", 0.9), ("dash", 4.0)]
     jump_t = None
     for action, seconds in plan:
         for _ in range(round(seconds * STEP)):
-            if hit is not None:
+            if met:
                 break
             dt = 1.0 / STEP
             me.action, me.move = ("jump" if action == "jump" else action), 1
@@ -160,14 +141,10 @@ def scene(scale=3, width=342, height=186):
                 me.lift = max(0.0, v0 * jump_t - 0.5 * GRAVITY * jump_t ** 2)
             else:
                 me.lift = 0.0
-            # 앱과 같은 판정 — 마주 보고 달리다 22pt 안으로 들어오면 둘 다 아프다
-            if action == "dash" and you.x - me.x < 22:
-                hit = len(out)
-                me.phase = you.phase = 0.0
-            render(0 if hit is not None else None)
+            met = action == "dash" and you.x - me.x < 22
+            render()
 
-    # 부딪힌 뒤. 화면을 고정해 둘이 같이 보이게 한다
-    frame = 1
+    # 엇갈린 뒤. 화면을 고정해 둘이 같이 보이게 한다
     for seconds, act, mv, face, oact, omv, oface in AFTER:
         for i in range(round(seconds * STEP)):
             dt = 1.0 / STEP
@@ -177,8 +154,7 @@ def scene(scale=3, width=342, height=186):
             you.action, you.move, you.facing = oact, omv, oface
             me.step(dt)
             you.step(dt)
-            render(frame if frame < 3 else None)
-            frame += 1
+            render()
 
     # 각자 간다. 멈춰 있던 화면이 개구리를 따라잡는다
     me.action, me.move, me.facing = "walk", 1, +1

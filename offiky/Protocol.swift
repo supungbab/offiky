@@ -286,11 +286,9 @@ struct TypingMsg: Codable {
     var t = "typing"
 }
 
-/// 높은 곳에서 떨어진 피격은 소유자만 판정하고 다른 화면에 한 번 알린다.
-/// 달리다 부딪혔으면 부딪힌 상대의 id 를 적는다. 그 상대도 튕겨 나간다
+/// 낙하·무기에 맞아 다쳤다. 다친 사람이 다른 화면에 한 번 알린다
 struct HitMsg: Codable {
     var t = "hit"
-    var rammed: String? = nil
 }
 
 /// 몽둥이를 휘두르거나 물총을 쐈다. 몽둥이는 휘두른 쪽이 맞혔다고 판정한 상대의 id 를 적는다.

@@ -7,6 +7,8 @@ enum Weapon: Int {
 
     /// 한 번 휘두르거나 쏘는 동안. 그동안은 다시 쓰지 않는다
     var duration: TimeInterval { self == .club ? 0.32 : 0.25 }
+    /// 맞은 쪽이 밀려나는 가로 속도와 튀어 오르는 높이. 대시 동작이 나오는 속도보다 느리다
+    var push: (speed: CGFloat, apex: CGFloat) { self == .club ? (80, 14) : (60, 8) }
 }
 
 final class CharacterNode: SKNode {
@@ -133,9 +135,6 @@ final class CharacterNode: SKNode {
     /// 물총에 맞아 물이 튀기 시작한 시각
     private var splashAt: TimeInterval?
     private let splash = SKSpriteNode(texture: Characters.splash[0])
-    /// 물총알은 몽둥이보다 덜 밀어낸다. 대시 동작이 나오는 속도보다 느리다
-    static let soakSpeed: CGFloat = 60
-    static let soakApex: CGFloat = 8
     /// 몽둥이는 셋째 장에서 상대에 닿는다. 몸 가운데에서 닿는 거리(pt)는 그림 길이에 맞춘다
     static let clubDelay: TimeInterval = 0.14
     static let clubReach: CGFloat = 30
@@ -191,10 +190,8 @@ final class CharacterNode: SKNode {
     static let maxJumps = 2
     static let airJumpApex: CGFloat = 60
     private var jumpsUsed = 0
-    /// 부딪혀 튕겨 나가는 가로 속도. 착지하면 0 이 된다
+    /// 맞아서 튕겨 나가는 가로 속도. 착지하면 0 이 된다
     private var knockback: CGFloat = 0
-    static let knockbackSpeed: CGFloat = 80
-    static let knockbackApex: CGFloat = 14
 
     /// 뛰어서 닿는 최고점. 대시 점프 정점에서 한 번 더 차는 경우다
     static let maxJumpHeight = dashJumpApex + airJumpApex
@@ -203,7 +200,7 @@ final class CharacterNode: SKNode {
     static let hurtDropHeight = maxJumpHeight * 1.4
     /// 이보다 높은 데서 떨어지면 묘비가 된다. 화면 절반쯤까지 들어 올려야 닿는다
     static let deathDropHeight = hurtDropHeight * 2.5
-    /// 낙하·충돌을 합쳐 이만큼 맞으면 묘비가 된다. 살아나면 다시 센다
+    /// 낙하·무기를 합쳐 이만큼 맞으면 묘비가 된다. 살아나면 다시 센다
     static let hitsToDie = 5
     private(set) var hits = 0
     /// 묘비가 올라오기 전에 아파하는 시간
@@ -421,8 +418,7 @@ final class CharacterNode: SKNode {
         face(direction)
     }
 
-    /// 화면 구성이 바뀌어 자리를 옮긴다. 이동한 것으로 세지 않는다.
-    /// 그러면 대시 동작이 나오고 피격 판정까지 성립한다
+    /// 화면 구성이 바뀌어 자리를 옮긴다. 이동으로 세면 대시 동작이 나오므로 세지 않는다
     func teleport(to newX: CGFloat) {
         x = newX
         previousX = newX
@@ -467,35 +463,17 @@ final class CharacterNode: SKNode {
                              height: CGFloat(size.height) * 2)
     }
 
-    func takeHit(now: TimeInterval) {
+    /// 낙하·무기 피격을 모두 이 함수로 처리한다. 무기에 맞았으면 `direction` 쪽으로 튕겨 나간다
+    func takeHit(now: TimeInterval, by weapon: Weapon? = nil, toward direction: CGFloat = 0) {
         if isLocal { hits += 1 }
         hurtUntil = now + 0.6
         walkPhase = 0
         isDashing = false
         // 맞으면 올라가던 힘이 사라진다. 떨어지던 중이면 그대로 둔다
         verticalSpeed = min(verticalSpeed, 0)
-    }
-
-    /// 상대를 향해 달리다 몸이 닿았다. 서 있는 상대도 부딪힌다.
-    /// 달린 쪽만 판정한다. 상대 화면에서는 내가 늦게 보여 닿기 전에 튕겨 나간다
-    func isRamming(_ other: CharacterNode, now: TimeInterval) -> Bool {
-        guard canBeRammed(now: now), other.y <= 0, !other.isDead, !other.isDragging, !other.isAway,
-              !other.isWorking
-        else { return false }
-        let gap = other.x - x
-        return abs(gap) < sheet.bodyWidth + other.sheet.bodyWidth
-            && velocity * gap > 0 && abs(velocity) > CharacterNode.dashAnimationThreshold
-    }
-
-    func canBeRammed(now: TimeInterval) -> Bool {
-        now >= hurtUntil && y <= 0 && !isDead && !isDragging && !isAway && !isWorking
-    }
-
-    /// 부딪힌 상대 반대쪽으로 튕겨 나가며 아파한다
-    func bounce(awayFrom other: CharacterNode, now: TimeInterval) {
-        takeHit(now: now)
-        knockback = (x < other.x ? -1 : 1) * CharacterNode.knockbackSpeed
-        verticalSpeed = (2 * CharacterNode.gravity * CharacterNode.knockbackApex).squareRoot()
+        guard let weapon else { return }
+        knockback = direction * weapon.push.speed
+        verticalSpeed = (2 * CharacterNode.gravity * weapon.push.apex).squareRoot()
     }
 
     /// 번호 순으로 바꿔 들고 마지막 무기 다음에는 내려놓는다
@@ -531,13 +509,6 @@ final class CharacterNode: SKNode {
     func isHit(byBulletAlong path: ClosedRange<CGFloat>, y bulletY: CGFloat) -> Bool {
         !isDead && !isDragging && !isAway && !isWorking
             && path.overlaps(x - sheet.bodyWidth...x + sheet.bodyWidth) && (-4..<40).contains(bulletY - y)
-    }
-
-    /// 물총알에 맞아 아파하며 총알이 날던 쪽으로 밀린다
-    func soak(toward direction: CGFloat, now: TimeInterval) {
-        takeHit(now: now)
-        knockback = direction * CharacterNode.soakSpeed
-        verticalSpeed = (2 * CharacterNode.gravity * CharacterNode.soakApex).squareRoot()
     }
 
     func splash(at time: TimeInterval) { splashAt = time }
@@ -1244,19 +1215,13 @@ final class World {
 
         for strike in strikes where now >= strike.at {
             guard let other = peers[strike.from], me.canBeStruck(now: now) else { continue }
-            me.bounce(awayFrom: other, now: now)
+            me.takeHit(now: now, by: .club, toward: other.facing)
         }
         strikes.removeAll { now >= $0.at }
 
-        // 달린 쪽이 판정해 hit 으로 부딪힌 상대를 알린다
-        var rammed: String?
-        if let other = peers.values.first(where: { me.isRamming($0, now: now) }) {
-            me.bounce(awayFrom: other, now: now)
-            rammed = other.id
-        }
         if me.hurtUntil > reportedHurtUntil {
             reportedHurtUntil = me.hurtUntil
-            Session.shared.sendHit(rammed: rammed)
+            Session.shared.sendHit()
         }
 
         for (node, placement) in visible {
@@ -1414,7 +1379,7 @@ extension World {
             let hit = live ? targets.first { $0.id != bullet.from && $0.isHit(byBulletAlong: path, y: bullet.y) } : nil
             if let hit {
                 hit.splash(at: now)
-                if hit === me, me.canBeStruck(now: now) { me.soak(toward: bullet.direction, now: now) }
+                if hit === me, me.canBeStruck(now: now) { me.takeHit(now: now, by: .waterGun, toward: bullet.direction) }
             }
             guard live, hit == nil, bullet.left > 0, put(bullet.sprite, x: bullet.x, y: bullet.y) else {
                 bullet.sprite.removeFromParent()
@@ -1423,13 +1388,6 @@ extension World {
             }
             bullet.sprite.texture = Characters.bullet[Int((now - bullet.since) / 0.1) % 2]
         }
-    }
-
-    /// 달려온 상대가 나와 부딪혔다고 알려 왔다
-    func wasRammed(by id: String) {
-        let now = ProcessInfo.processInfo.systemUptime
-        guard let other = peers[id], me.canBeRammed(now: now) else { return }
-        me.bounce(awayFrom: other, now: now)
     }
 
     func showBubble(id: String, text: String) {
