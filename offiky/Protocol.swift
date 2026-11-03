@@ -266,6 +266,8 @@ struct PosMsg: Codable, Equatable {
     var r: Int? = nil
     /// 무기를 든 동안만 `Weapon` 번호를 적는다. 옛 버전은 이 값을 무시한다
     var e: Int? = nil
+    /// 춤추는 동안만 적는다. 옛 버전은 이 값을 무시하고 서 있는 것으로 본다
+    var n: Bool? = nil
     /// 보낸 시각(ms, 보낸 기계 기준). 받는 쪽은 도착 시각 대신 이걸로 표본을 놓는다
     var m: Int?
 }

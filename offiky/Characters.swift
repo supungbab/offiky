@@ -250,6 +250,8 @@ enum Characters {
     static let waterGun = strip("watergun", count: 2)
     static let bullet = strip("bullet", count: 2)
     static let splash = strip("splash", count: 3)
+    /// 춤추는 동안 몸 옆에서 떠오르는 음표
+    static let note = strip("note", count: 1)[0]
 
     /// 가로로 붙은 같은 폭의 그림을 자른다
     private static func strip(_ name: String, count: Int) -> [SKTexture] {

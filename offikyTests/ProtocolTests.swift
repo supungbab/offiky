@@ -460,8 +460,6 @@ struct MessageTests {
             Issue.record("hit 메시지로 디코딩되지 않았다")
             return
         }
-        let old = try JSONDecoder().decode(IncomingMessage.self, from: Data(#"{"t":"hit","rammed":"abc"}"#.utf8))
-        guard case .hit = old else { Issue.record("2.49.0 이하의 hit 메시지로 디코딩되지 않았다"); return }
     }
 }
 

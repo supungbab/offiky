@@ -86,6 +86,8 @@ import SwiftUI
             if !event.isARepeat { World.shared.me.cycleWeapon() }
         case kVK_ANSI_X:
             World.shared.fire()
+        case kVK_ANSI_C:
+            if !event.isARepeat { World.shared.me.toggleDance() }
         case kVK_Space:
             World.shared.me.isThrusting = true
         case kVK_DownArrow:
@@ -149,7 +151,7 @@ struct HintView: View {
                 }
             }
             HStack(spacing: 16) {
-                HStack(spacing: 10) { item("z", "무기 바꾸기"); item("x", "공격") }
+                HStack(spacing: 10) { item("z", "무기 바꾸기"); item("x", "공격"); item("c", "춤") }
                 HStack(spacing: 10) { item("⇧↓", "1초 똥"); item("w", "WORK"); item("b", "오토바이") }
                 item("esc", "끝내기")
             }

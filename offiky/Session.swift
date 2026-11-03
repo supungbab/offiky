@@ -89,7 +89,8 @@ final class Session {
                h: node.isHiding ? true : nil,
                o: node.isWorking && node.prop != 0 ? node.prop : nil,
                r: node.ride,
-               e: node.wielding?.rawValue)
+               e: node.wielding?.rawValue,
+               n: node.isDancing ? true : nil)
     }
 
     /// 받는 쪽이 도착 시각 대신 이걸로 표본을 놓는다. 망이 흔들려도 걸음이 고르다
@@ -250,7 +251,7 @@ final class Session {
                                        parachuting: msg.c == true, away: msg.a == true,
                                        working: msg.w == true, hiding: msg.h == true, prop: msg.o ?? 0,
                                        riding: msg.r, wielding: msg.e.flatMap(Weapon.init),
-                                       facing: msg.f, sent: msg.m.map { Double($0) / 1000 })
+                                       dancing: msg.n == true, facing: msg.f, sent: msg.m.map { Double($0) / 1000 })
         case let .say(msg):
             guard let body = validChat(msg.msg) else { return }
             World.shared.showBubble(id: id, text: body)

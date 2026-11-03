@@ -595,6 +595,31 @@ struct ControlTests {
         #expect(!rider.startAttack(.club, now: 0))                  // 탄 동안은 쓰지 않는다
     }
 
+    @MainActor @Test func 춤은_누를_때마다_추고_멈추며_움직이거나_맞으면_멈춘다() {
+        let dancer = node()
+        dancer.toggleDance()
+        dancer.update(dt: 1.0 / 60, now: 0, strip: strip)
+        #expect(dancer.isDancing)
+        dancer.toggleDance()
+        #expect(!dancer.isDancing)
+
+        dancer.toggleDance()
+        dancer.hold(1, dash: false)
+        dancer.update(dt: 1.0 / 60, now: 1.0 / 60, strip: strip)
+        #expect(!dancer.isDancing)
+
+        dancer.hold(0, dash: false)
+        dancer.toggleDance()
+        dancer.takeHit(now: 1)
+        dancer.update(dt: 1.0 / 60, now: 1, strip: strip)
+        #expect(!dancer.isDancing)
+
+        let rider = node()
+        rider.toggleRide()
+        rider.toggleDance()
+        #expect(!rider.isDancing)                                   // 탄 동안은 추지 않는다
+    }
+
     @MainActor @Test func 오토바이에_탈_때와_내릴_때_뛰어오르고_뛰어내린다() {
         let node = node()
         node.toggleRide()
