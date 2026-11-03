@@ -442,14 +442,15 @@ struct ControlTests {
         #expect(PropPicker.move(15, dy: -1) == 12)                   // 위로 가면 같은 칸
     }
 
-    @MainActor @Test func 동료가_보낸_물건이_없는_번호면_노트북으로_그린다() {
+    @MainActor @Test func 동료가_보낸_물건이_없는_번호면_업데이트_팻말로_그린다() {
         let peer = CharacterNode(id: "you", name: "you", isLocal: false)
         peer.applyRemoteSnapshot(x: 100, y: 0, bowing: false, dragging: false, working: true,
                                  prop: 2, facing: 1, sent: 1, at: 1)
-        #expect(peer.prop == 2)
+        #expect(peer.propRows == Characters.props[2])
         peer.applyRemoteSnapshot(x: 100, y: 0, bowing: false, dragging: false, working: true,
                                  prop: Characters.props.count, facing: 1, sent: 2, at: 2)
-        #expect(peer.prop == 0)
+        #expect(peer.propRows == Characters.unknownProp)
+        #expect(Characters.unknownProp.last?.size() == CGSize(width: 24, height: 22))
     }
 
     @MainActor @Test func 걷는_중에는_노트북으로_바꾸지_않는다() {

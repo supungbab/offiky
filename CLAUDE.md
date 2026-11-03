@@ -38,7 +38,7 @@ open -n "$DIR/debug1/Offiky.app"
 xcodebuild test -project offiky.xcodeproj -scheme offiky -destination 'platform=macOS' -derivedDataPath /tmp/offiky-test CODE_SIGNING_ALLOWED=NO
 ```
 
-테스트 호스트는 `com.offiky.app` 로 실행되어 실제 앱의 환경설정을 읽는다. `World.shared.me` 상태가 사용자 설정에 따라 달라지므로 `World` 대신 `CharacterNode` 단위로 검증한다.
+Debug 빌드와 테스트 호스트는 `com.offiky.app.debug` 로 실행된다. 배포본과 번들 id 가 같으면 `open -b com.offiky.app` 이 Debug 빌드를 실행한다. `World.shared.me` 상태가 그 환경설정에 따라 달라지므로 `World` 대신 `CharacterNode` 단위로 검증한다.
 
 ## 픽셀 아트
 
@@ -62,4 +62,4 @@ xcodebuild test -project offiky.xcodeproj -scheme offiky -destination 'platform=
 - `protocolVersion` 을 바꾸면 이전 버전과 서로 보이지 않는다. 꼭 필요할 때만 바꾼다
 - 이전 클라이언트는 모르는 JSON 키와 모르는 메시지 종류를 무시한다. 새 필드는 옵셔널로 추가한다
 - 번호로 전송되는 값(캐릭터·W 물건·오토바이 색·무기 번호 등)은 뒤에 추가만 하고 기존 번호를 바꾸지 않는다
-- 이전 클라이언트는 모르는 캐릭터 번호를 받으면 업데이트 팻말로 표시한다
+- 이전 클라이언트는 모르는 캐릭터·W 물건 번호를 받으면 업데이트 팻말로 표시한다. 물건은 2.53.0 이하에서 노트북으로 표시된다

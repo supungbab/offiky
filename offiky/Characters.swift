@@ -170,11 +170,23 @@ enum Characters {
     static let propNames = propGroups.flatMap(\.names)
     static let props = propNames.map { risingRows($0) }
 
-    /// n 번째는 윗부분 n 줄이다. 땅에서 올라오는 동안 차례로 쓴다
+    /// 새 버전이 더한 물건 대신 올라온다. 팻말 시트 첫 칸에서 다리 아래 빈 두 줄을 잘라 땅에 붙인다
+    static let unknownProp: [SKTexture] = {
+        guard let cell = NSImage(named: "update")?.cgImage(forProposedRect: nil, context: nil, hints: nil)?
+            .cropping(to: CGRect(x: 0, y: 0, width: 24, height: 22))
+        else { return [SKTexture()] }
+        return risingRows(cell)
+    }()
+
     private static func risingRows(_ name: String) -> [SKTexture] {
         guard let cg = NSImage(named: name)?
             .cgImage(forProposedRect: nil, context: nil, hints: nil)
         else { return [SKTexture()] }
+        return risingRows(cg)
+    }
+
+    /// n 번째는 윗부분 n 줄이다. 땅에서 올라오는 동안 차례로 쓴다
+    private static func risingRows(_ cg: CGImage) -> [SKTexture] {
         let whole = SKTexture(cgImage: cg)
         let rows = cg.height
         return (0...rows).map { n in

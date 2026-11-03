@@ -111,6 +111,8 @@ final class CharacterNode: SKNode {
     }
     /// 내 캐릭터에만 연결해 다음 실행에도 고른 물건이 올라오게 저장한다
     var propChanged: ((Int) -> Void)?
+    /// 새 버전이 더한 물건은 업데이트 팻말로 그린다
+    var propRows: [SKTexture] { Characters.props.indices.contains(prop) ? Characters.props[prop] : Characters.unknownProp }
     /// 탄 오토바이. `Characters.motorcycles` 의 번호이고 nil 이면 걷는다. 원격은 주인이 적어 보낸 값을 따른다
     private(set) var ride: Int? {
         didSet {
@@ -370,7 +372,7 @@ final class CharacterNode: SKNode {
         if isDead || isWorking {
             // 묘비나 물건이 다 올라온 뒤에만 살아난다
             guard isDead ? tombstoneRows == Characters.tombstoneRows.count - 1
-                : workRows == Characters.props[prop].count - 1 else { return }
+                : workRows == propRows.count - 1 else { return }
             if isDead { hits = 0 }
             isDead = false
             isWorking = false
@@ -641,8 +643,7 @@ final class CharacterNode: SKNode {
         isAway = away
         isHiding = hiding
         isWorking = working
-        // 새 버전이 더한 물건은 노트북으로 그린다
-        self.prop = Characters.props.indices.contains(prop) ? prop : 0
+        self.prop = prop
         // 새 버전이 더한 색은 첫 색으로 그린다
         ride = riding.map { Characters.motorcycles.indices.contains($0) ? $0 : 0 }
         self.wielding = wielding
@@ -715,7 +716,7 @@ final class CharacterNode: SKNode {
         } else {
             workingSince = nil
         }
-        workRows = workingSince.map { CharacterNode.risenRows(now - $0, of: Characters.props[prop]) }
+        workRows = workingSince.map { CharacterNode.risenRows(now - $0, of: propRows) }
         danceSince = isDancing ? danceSince ?? now : nil
         // 원격은 받은 값이 늦게 오므로 보간으로 아직 걷고 있으면 그리지 않는다
         danceMove = danceSince.flatMap { since in
@@ -747,7 +748,7 @@ final class CharacterNode: SKNode {
             return
         }
         if let rows = workRows {
-            let texture = Characters.props[prop][rows]
+            let texture = propRows[rows]
             image.texture = texture
             image.size = CGSize(width: texture.size().width * 2, height: texture.size().height * 2)
             renderedAnimation = nil
