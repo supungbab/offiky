@@ -34,7 +34,7 @@ final class CharacterNode: SKNode {
     private let overhead = SKNode()
     /// 화면이 꺼지거나 잠기거나 캐릭터를 숨긴 동안. 원격은 주인이 적어 보낸 값을 따른다
     var isAway = false {
-        didSet { if isAway { workingSince = nil } }   // 화면이 꺼지면 update 가 실행되지 않아 여기서 지운다
+        didSet { if isAway { workingSince = nil; isDancing = false } }   // 화면이 꺼지면 update 가 실행되지 않아 여기서 지운다
     }
     /// 캐릭터를 숨긴 동안. ZZZ 팻말 대신 꺼진 스위치를 표시한다
     var isHiding = false
@@ -144,16 +144,20 @@ final class CharacterNode: SKNode {
     /// 물총알은 노즐에서 나가 이만큼 날아가면 사라진다
     static let bulletSpeed: CGFloat = 480
     static let bulletRange: CGFloat = 720
-    /// C 로 춤추는 동안. 움직이거나 뛰거나 맞거나 무기를 쓰면 멈춘다. 원격은 주인이 적어 보낸 값을 따른다
+    /// C 로 춤추는 동안. `canDance` 가 아니게 되면 멈춘다. 원격은 주인이 적어 보낸 값을 따른다
     var isDancing = false
-    /// 춤 한 마디. 박자마다 다음 동작으로 넘어간다 (동작, 그 동작의 몇째 장, 반대쪽을 보는지, 뛰는 높이 pt)
-    static let danceMoves: [(animation: Animation, frame: Int, turned: Bool, lift: CGFloat)] = [
+    /// 춤의 한 박자 (동작, 그 동작의 몇째 장, 반대쪽을 보는지, 뛰는 높이 pt)
+    typealias DanceMove = (animation: Animation, frame: Int, turned: Bool, lift: CGFloat)
+    /// 춤 한 마디. 박자마다 다음 동작으로 넘어간다
+    static let danceMoves: [DanceMove] = [
         (.jump, 0, false, 0), (.jump, 1, false, 4), (.walk, 1, false, 0), (.bow, 0, false, 0),
         (.jump, 0, true, 0), (.jump, 1, true, 4), (.walk, 4, true, 0), (.bow, 0, true, 0),
     ]
     static let danceBeat: TimeInterval = 0.25
+    /// 춤추기 시작한 시각. 늘 첫 박자부터 춘다
+    private var danceSince: TimeInterval?
     /// 이번 프레임에 그리는 춤 동작. 춤추지 않으면 nil
-    private var danceMove: (animation: Animation, frame: Int, turned: Bool, lift: CGFloat)?
+    private var danceMove: DanceMove?
     /// 춤추는 동안 양옆에서 번갈아 떠오르는 음표
     private let notes = [SKSpriteNode(texture: Characters.note), SKSpriteNode(texture: Characters.note)]
     /// 물건이 올라오기 시작한 시각. 화면이 잠긴 동안은 지우고, 풀리면 다시 올라온다
@@ -407,12 +411,16 @@ final class CharacterNode: SKNode {
         ride = Characters.motorcycles.indices.randomElement()
     }
 
-    /// 누를 때마다 춤추기 시작하고 멈춘다. 바닥에 서 있을 때만 시작한다
+    /// 누를 때마다 춤추기 시작하고 멈춘다
     func toggleDance() {
         guard isLocal else { return }
-        guard !isDancing else { isDancing = false; return }
-        guard y <= 0, holding == 0, !isDead, !isWorking, !isAway, !isDragging, !isRiding else { return }
-        isDancing = true
+        isDancing = !isDancing && canDance(now: ProcessInfo.processInfo.systemUptime)
+    }
+
+    /// 바닥에 가만히 서 있을 때만 춘다. 움직이거나 뛰거나 웅크리거나 맞거나 무기를 쓰면 멈춘다
+    func canDance(now: TimeInterval) -> Bool {
+        y <= 0 && holding == 0 && !isBowing && now >= hurtUntil && attack == nil && hop == nil
+            && !isDead && !isWorking && !isAway && !isDragging && !isRiding
     }
 
     /// 다시 올라오지 않고 바로 바뀐다. 빠르게 넘기면 반쯤 올라온 그림만 보이기 때문이다
@@ -514,6 +522,8 @@ final class CharacterNode: SKNode {
     @discardableResult
     func startAttack(_ weapon: Weapon, now: TimeInterval) -> Bool {
         guard attack == nil, hop == nil, !isDead, !isDragging, !isWorking, !isAway, !isRiding else { return false }
+        // 춤추다 반대쪽을 보던 박자에 쓰면 보이던 쪽으로 쓴다
+        if isLocal, danceMove?.turned == true { facing = -facing }
         attack = (weapon, now)
         return true
     }
@@ -551,9 +561,6 @@ final class CharacterNode: SKNode {
         weapon.isHidden = held == nil || isDead || isDragging || isWorking || isAway || isRiding
         if let held, !weapon.isHidden {
             let t = attack.map { now - $0.since }
-            weapon.xScale = shownFacing
-            // 오토바이에서 뛰어내리는 동안 몸과 함께 올라간다
-            weapon.position = CGPoint(x: shownFacing * (15 - 12) * 2, y: image.position.y + (24 - 14) * 2)
             switch held {
             case .club:
                 let frame = t.map { $0 < 0.08 ? 0 : $0 < 0.14 ? 1 : $0 < 0.2 ? 2 : 3 } ?? 4
@@ -675,8 +682,7 @@ final class CharacterNode: SKNode {
             // 튕겨 오르는 중에 죽으면 simulate 가 중력을 멈춰 공중에 남는다. 내려온 뒤에 죽는다
             if hits >= CharacterNode.hitsToDie, y <= 0, !isDragging { isDead = true }
             if isDead { ride = nil }
-            if holding != 0 || y > 0 || now < hurtUntil || attack != nil || isDead || isWorking || isAway
-                || isDragging || isRiding { isDancing = false }
+            if isDancing, !canDance(now: now) { isDancing = false }
         }
         expireBubble(now: now)
         if pleadsUpdate, bubbleNode == nil { showBubble(text: "Plz Update!", now: now, sticky: true) }
@@ -721,10 +727,23 @@ final class CharacterNode: SKNode {
             workingSince = nil
         }
         workRows = workingSince.map { CharacterNode.risenRows(now - $0, of: Characters.props[prop]) }
-        // 원격은 받은 값이 늦게 오므로 보간으로 아직 걷거나 떠 있으면 그리지 않는다
-        danceMove = isDancing && y <= 0 && !isWalking && now >= hurtUntil && attack == nil && hop == nil
-            && !isDead && !isAway && !isWorking && !isDragging && !isRiding
-            ? CharacterNode.danceMoves[Int(now / CharacterNode.danceBeat) % CharacterNode.danceMoves.count] : nil
+        danceSince = isDancing ? danceSince ?? now : nil
+        // 원격은 받은 값이 늦게 오므로 보간으로 아직 걷고 있으면 그리지 않는다
+        danceMove = danceSince.flatMap { since in
+            canDance(now: now) && !isWalking
+                ? CharacterNode.danceMoves[Int((now - since) / CharacterNode.danceBeat) % CharacterNode.danceMoves.count]
+                : nil
+        }
+        for (i, note) in notes.enumerated() {
+            note.isHidden = danceMove == nil
+            guard let since = danceSince, !note.isHidden else { continue }
+            // 1초 동안 몸 옆에서 떠올라 사라진다. 두 음표는 0.5초 어긋나 좌우에서 번갈아 떠오른다
+            let t = CGFloat((now - since + Double(i) * 0.5).truncatingRemainder(dividingBy: 1))
+            let side: CGFloat = i == 0 ? -1 : 1
+            note.position = CGPoint(x: ((side * (sheet.bodyWidth + 6 + t * 4)) / 2).rounded() * 2,
+                                    y: ((t * 24 - 4) / 2).rounded() * 2)
+            note.alpha = 1 - t * t
+        }
         if let rows = tombstoneRows {
             image.texture = Characters.tombstoneRows[rows]
             image.size.height = CGFloat(rows) * 2
@@ -916,17 +935,9 @@ final class CharacterNode: SKNode {
         }
         image.position.y = -spriteDisplaySize / 2 - (standing ? 0 : sheet.footPadding * 2) + seat
             + (danceMove?.lift ?? 0)
-        let beat = ProcessInfo.processInfo.systemUptime
-        for (i, note) in notes.enumerated() {
-            note.isHidden = danceMove == nil
-            guard !note.isHidden else { continue }
-            // 1초 동안 몸 옆에서 떠올라 사라진다. 두 음표는 0.5초 어긋나 좌우에서 번갈아 떠오른다
-            let t = CGFloat((beat + Double(i) * 0.5).truncatingRemainder(dividingBy: 1))
-            let side: CGFloat = i == 0 ? -1 : 1
-            note.position = CGPoint(x: ((side * (sheet.bodyWidth + 6 + t * 4)) / 2).rounded() * 2,
-                                    y: ((t * 24 - 4) / 2).rounded() * 2)
-            note.alpha = 1 - t * t
-        }
+        weapon.xScale = shownFacing
+        // 오토바이에서 뛰어내리거나 춤추며 뛰는 동안 몸과 함께 올라간다
+        weapon.position = CGPoint(x: shownFacing * (15 - 12) * 2, y: image.position.y + (24 - 14) * 2)
         overhead.position.y = seat
         bike.isHidden = !riding
         bike.xScale = facing

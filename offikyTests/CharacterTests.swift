@@ -620,6 +620,12 @@ struct ControlTests {
         #expect(!rider.isDancing)                                   // 탄 동안은 추지 않는다
     }
 
+    @Test func 춤_동작은_시트에_있는_장만_쓴다() {
+        for move in CharacterNode.danceMoves {
+            #expect(move.frame < move.animation.frameCount)
+        }
+    }
+
     @MainActor @Test func 오토바이에_탈_때와_내릴_때_뛰어오르고_뛰어내린다() {
         let node = node()
         node.toggleRide()

@@ -141,7 +141,7 @@ private final class KeyCatcher: NSHostingView<HintView> {
 }
 
 struct HintView: View {
-    /// 윗줄은 움직임, 아랫줄은 하는 일이다. 같은 간격의 열두 개는 순서대로 다 읽어야 해서 묶는다
+    /// 윗줄은 움직임, 아랫줄은 하는 일이다. 같은 간격으로 늘어놓으면 순서대로 다 읽어야 해서 묶는다
     var body: some View {
         VStack(spacing: 8) {
             HStack(spacing: 16) {
