@@ -155,6 +155,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         #if DEBUG
         if UserDefaults.standard.bool(forKey: "bot") { Bot.shared.start() }
+        // 끌어다 놓아 멈춰도 다시 춘다
+        if UserDefaults.standard.bool(forKey: "dance") {
+            Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
+                if !World.shared.me.isDancing { World.shared.me.toggleDance() }
+            }
+        }
         Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { _ in
             let overlay = OverlayController.shared
             let age = ProcessInfo.processInfo.systemUptime - World.shared.lastTick

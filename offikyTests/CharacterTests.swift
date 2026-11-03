@@ -620,6 +620,13 @@ struct ControlTests {
         #expect(!rider.isDancing)                                   // 탄 동안은 추지 않는다
     }
 
+    @Test func 춤추는_사람끼리_가까우면_한_무리로_묶고_2명_이상일_때만_무대를_깐다() {
+        #expect(World.crowds(of: [1000, 100, 220, 500]) == [100...220])
+        #expect(World.crowds(of: [100, 221]).isEmpty)                 // 무리 간격보다 멀다
+        #expect(World.crowds(of: [100, 200, 300, 900, 950]) == [100...300, 900...950])
+        #expect(World.crowds(of: [100]).isEmpty)
+    }
+
     @Test func 춤_동작은_시트에_있는_장만_쓴다() {
         for move in CharacterNode.danceMoves {
             #expect(move.frame < move.animation.frameCount)

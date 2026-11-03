@@ -158,6 +158,7 @@ final class CharacterNode: SKNode {
     private var danceSince: TimeInterval?
     /// 이번 프레임에 그리는 춤 동작. 춤추지 않으면 nil
     private var danceMove: DanceMove?
+    var isShowingDance: Bool { danceMove != nil }
     /// 춤추는 동안 양옆에서 번갈아 떠오르는 음표
     private let notes = [SKSpriteNode(texture: Characters.note), SKSpriteNode(texture: Characters.note)]
     /// 물건이 올라오기 시작한 시각. 화면이 잠긴 동안은 지우고, 풀리면 다시 올라온다
@@ -1120,6 +1121,9 @@ final class World {
     private var strikes: [(at: TimeInterval, from: String)] = []
     private var bullets: [(sprite: SKSpriteNode, from: String, x: CGFloat, y: CGFloat,
                            direction: CGFloat, left: CGFloat, since: TimeInterval)] = []
+    /// 2명 이상 모여 춤추는 무리 발밑에 까는 무대 조각과 위에 매다는 미러볼. 남는 것은 화면에서 제거해 둔다
+    private var stageTiles: [SKSpriteNode] = []
+    private var lamps: [SKSpriteNode] = []
     private var placed = false
     /// 마지막으로 보이던 화면 위 자리. 전환 중에는 화면이 0개로 보고되는 순간이 있어,
     /// 그때 띠에서 다시 계산하면 기억이 사라진다
@@ -1272,6 +1276,7 @@ final class World {
             Session.shared.sendPoop(x: x)
         }
         placePoops(now: now)
+        placeDiscos(now: now)
         moveBullets(dt: dt, now: now)
 
         for strike in strikes where now >= strike.at {
@@ -1366,19 +1371,88 @@ extension World {
 
     /// 띠 좌표 x, 바닥에서 높이 y 에 놓는다. 그 자리의 화면으로 옮기고, 띠 밖이면 화면에서 제거하고 false
     @discardableResult
-    private func put(_ sprite: SKSpriteNode, x: CGFloat, y: CGFloat) -> Bool {
+    private func put(_ node: SKNode, x: CGFloat, y: CGFloat) -> Bool {
         guard let placement = strip.place(x: x, y: y) else {
-            sprite.removeFromParent()
+            node.removeFromParent()
             return false
         }
         let scene = scenes[placement.screenIndex]
-        if sprite.parent !== scene {
-            sprite.removeFromParent()
-            scene.addChild(sprite)
+        if node.parent !== scene {
+            node.removeFromParent()
+            scene.addChild(node)
         }
-        sprite.position = CGPoint(x: (placement.point.x / 2).rounded() * 2,
-                                  y: (placement.point.y / 2).rounded() * 2 - spriteDisplaySize / 2)
+        node.position = CGPoint(x: (placement.point.x / 2).rounded() * 2,
+                                y: (placement.point.y / 2).rounded() * 2 - spriteDisplaySize / 2)
         return true
+    }
+
+    /// 춤추는 사람끼리 이만큼 안에 있으면 한 무리다
+    static let crowdGap: CGFloat = 120
+    /// 무대는 무리 양 끝의 캐릭터 가운데보다 이만큼 더 넓게 깐다
+    static let stageMargin: CGFloat = 24
+
+    /// 춤추는 사람의 x 를 가까운 사람끼리 이어 묶고, 2명 이상인 무리의 양 끝을 반환한다
+    static func crowds(of xs: [CGFloat]) -> [ClosedRange<CGFloat>] {
+        var groups: [(range: ClosedRange<CGFloat>, count: Int)] = []
+        for x in xs.sorted() {
+            if let last = groups.last, x - last.range.upperBound <= crowdGap {
+                groups[groups.count - 1] = (last.range.lowerBound...x, last.count + 1)
+            } else {
+                groups.append((x...x, 1))
+            }
+        }
+        return groups.filter { $0.count >= 2 }.map(\.range)
+    }
+
+    /// 무대가 이만큼 넓어질 때마다 미러볼을 하나 더 매단다
+    static let lampSpacing: CGFloat = 200
+
+    /// 조각마다 띠 좌표로 놓아 무리가 화면 경계에 걸쳐도 양쪽 화면에 이어 그린다. 박자마다 다음 장을 그린다
+    fileprivate func placeDiscos(now: TimeInterval) {
+        // 내 띠 밖에 선 동료는 보이지 않으므로 무리에 세지 않는다
+        let dancers = ([me] + peers.values).filter { $0.isShowingDance && strip.place(x: $0.x, y: 0) != nil }
+        let beat = Int(now / CharacterNode.danceBeat)
+        let floor = Characters.danceFloor[beat % Characters.danceFloor.count]
+        let tileWidth = floor.size().width * 2
+        var tileXs: [CGFloat] = [], lampXs: [CGFloat] = []
+        for crowd in World.crowds(of: dancers.map(\.x)) {
+            let center = (crowd.lowerBound + crowd.upperBound) / 2
+            let count = Int(((crowd.upperBound - crowd.lowerBound + 2 * World.stageMargin) / tileWidth).rounded(.up))
+            let stage = CGFloat(count) * tileWidth
+            tileXs += World.spread(count, every: tileWidth, around: center)
+            let balls = max(1, Int((stage / World.lampSpacing).rounded()))
+            lampXs += World.spread(balls, every: stage / CGFloat(balls), around: center)
+        }
+        // 무대는 윗면이 바닥선에 닿아 화면 아래 끝까지 내려가고, 미러볼은 맨 아랫줄이 바닥선에 닿는다
+        lay(&stageTiles, at: tileXs, anchorY: 1) { _ in floor }
+        // 미러볼마다 박자를 어긋나게 해 한꺼번에 반짝이지 않는다
+        lay(&lamps, at: lampXs, anchorY: 0) { Characters.discoLamp[(beat + $0) % Characters.discoLamp.count] }
+    }
+
+    /// `center` 를 가운데로 `gap` 간격의 자리 `count` 개
+    private static func spread(_ count: Int, every gap: CGFloat, around center: CGFloat) -> [CGFloat] {
+        let first: CGFloat = center - CGFloat(count - 1) / 2 * gap
+        return (0..<count).map { first + CGFloat($0) * gap }
+    }
+
+    /// `xs` 자리마다 하나씩 놓는다. 모자라면 만들고 남으면 화면에서 제거한다
+    private func lay(_ pool: inout [SKSpriteNode], at xs: [CGFloat], anchorY: CGFloat,
+                     texture: (Int) -> SKTexture) {
+        while pool.count < xs.count {
+            let sprite = SKSpriteNode(texture: texture(pool.count))
+            sprite.size = CGSize(width: sprite.texture!.size().width * 2, height: sprite.texture!.size().height * 2)
+            sprite.anchorPoint = CGPoint(x: 0.5, y: anchorY)
+            // 묘비·물건보다도 뒤에 둔다
+            sprite.zPosition = -20_000
+            pool.append(sprite)
+        }
+        for (i, sprite) in pool.enumerated() {
+            guard i < xs.count, put(sprite, x: xs[i], y: 0) else {
+                sprite.removeFromParent()
+                continue
+            }
+            sprite.texture = texture(i)
+        }
     }
 
     func peerWasHit(id: String) {

@@ -252,6 +252,10 @@ enum Characters {
     static let splash = strip("splash", count: 3)
     /// 춤추는 동안 몸 옆에서 떠오르는 음표
     static let note = strip("note", count: 1)[0]
+    /// 모여 춤추면 매다는 미러볼 네 장. 줄과 바닥까지 비추는 조명을 함께 그렸고, 맨 아랫줄이 바닥선에 닿는다
+    static let discoLamp = strip("discolamp", count: 4)
+    /// 발밑에 이어 까는 무대 네 장
+    static let danceFloor = strip("dancefloor", count: 4)
 
     /// 가로로 붙은 같은 폭의 그림을 자른다
     private static func strip(_ name: String, count: Int) -> [SKTexture] {
