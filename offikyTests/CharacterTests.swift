@@ -542,13 +542,15 @@ struct ControlTests {
         #expect(!node.isExhausting)
     }
 
-    @MainActor @Test func 무기는_누를_때마다_몽둥이_물총_순으로_바꿔_들고_마지막에_내려놓는다() {
+    @MainActor @Test func 무기는_누를_때마다_몽둥이_물총_광선검_순으로_바꿔_들고_마지막에_내려놓는다() {
         let me = node()
         #expect(me.wielding == nil)
         me.cycleWeapon()
         #expect(me.wielding == .club)
         me.cycleWeapon()
         #expect(me.wielding == .waterGun)
+        me.cycleWeapon()
+        #expect(me.wielding == .lightsaber)
         me.cycleWeapon()
         #expect(me.wielding == nil)
     }
@@ -561,9 +563,10 @@ struct ControlTests {
             return other
         }
         #expect(me.facing == -1)
-        #expect(me.canReach(other(at: 880)))
-        #expect(!me.canReach(other(at: 920)))          // 등 뒤
-        #expect(!me.canReach(other(at: 840)))          // 몽둥이는 짧다
+        #expect(me.canReach(other(at: 880), with: .club))
+        #expect(!me.canReach(other(at: 920), with: .club))          // 등 뒤
+        #expect(!me.canReach(other(at: 840), with: .club))          // 몽둥이는 짧다
+        #expect(me.canReach(other(at: 840), with: .lightsaber))   // 광선검은 길다
     }
 
     @MainActor @Test func 물총알은_몸에_닿아야_맞고_뛰어서_피할_수_있다() {

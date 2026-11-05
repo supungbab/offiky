@@ -254,6 +254,8 @@ enum Characters {
     static let exhaust = strip("exhaust", count: 2)
     /// 몽둥이 다섯 장. 휘두르는 네 장 뒤에 든 채 앞으로 겨눈 한 장이 있다. 칸마다 손잡이 끝이 (15, 15) 에 있다
     static let club = strip("club", count: 5)
+    /// 광선검 다섯 장. 몽둥이와 같은 순서이고 칸이 더 크다. 칸마다 손(22, 34)이 같다
+    static let lightsaber = strip("lightsaber", count: 5)
     /// 물총 두 장(대기·발사), 날아가는 물총알 두 장, 맞은 자리에 튀는 물 세 장
     static let waterGun = strip("watergun", count: 2)
     static let bullet = strip("bullet", count: 2)

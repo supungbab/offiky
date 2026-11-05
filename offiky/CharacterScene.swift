@@ -3,12 +3,14 @@ import SpriteKit
 
 /// Z 로 바꿔 들고 X 로 쓰는 무기. 번호가 그대로 오가므로 바꾸지 않는다
 enum Weapon: Int {
-    case club = 1, waterGun = 2
+    case club = 1, waterGun = 2, lightsaber = 3
 
     /// 한 번 휘두르거나 쏘는 동안. 그동안은 다시 쓰지 않는다
-    var duration: TimeInterval { self == .club ? 0.32 : 0.25 }
+    var duration: TimeInterval { self == .waterGun ? 0.25 : 0.32 }
     /// 맞은 쪽이 밀려나는 가로 속도와 튀어 오르는 높이. 대시 동작이 나오는 속도보다 느리다
-    var push: (speed: CGFloat, apex: CGFloat) { self == .club ? (80, 14) : (60, 8) }
+    var push: (speed: CGFloat, apex: CGFloat) { self == .waterGun ? (60, 8) : (80, 14) }
+    /// 휘두르는 무기가 몸 가운데에서 닿는 거리(pt). 그림 길이에 맞춘다
+    var reach: CGFloat { self == .lightsaber ? 54 : 30 }
 }
 
 final class CharacterNode: SKNode {
@@ -139,9 +141,8 @@ final class CharacterNode: SKNode {
     /// 물총에 맞아 물이 튀기 시작한 시각
     private var splashAt: TimeInterval?
     private let splash = SKSpriteNode(texture: Characters.splash[0])
-    /// 몽둥이는 셋째 장에서 상대에 닿는다. 몸 가운데에서 닿는 거리(pt)는 그림 길이에 맞춘다
-    static let clubDelay: TimeInterval = 0.14
-    static let clubReach: CGFloat = 30
+    /// 휘두르는 무기는 셋째 장에서 상대에 닿는다
+    static let strikeDelay: TimeInterval = 0.14
     /// 물총알은 노즐에서 나가 이만큼 날아가면 사라진다
     static let bulletSpeed: CGFloat = 480
     static let bulletRange: CGFloat = 720
@@ -525,10 +526,10 @@ final class CharacterNode: SKNode {
         return true
     }
 
-    /// 보는 쪽에서 몽둥이가 닿는 거리 안에 있다
-    func canReach(_ other: CharacterNode) -> Bool {
+    /// 보는 쪽에서 무기가 닿는 거리 안에 있다
+    func canReach(_ other: CharacterNode, with weapon: Weapon) -> Bool {
         let gap = (other.x - x) * facing
-        return gap > -4 && gap < CharacterNode.clubReach + other.sheet.bodyWidth && abs(other.y - y) < 40
+        return gap > -4 && gap < weapon.reach + other.sheet.bodyWidth && abs(other.y - y) < 40
     }
 
     /// 공중에서도 맞는다. 아파하는 동안은 다시 맞지 않는다
@@ -563,6 +564,11 @@ final class CharacterNode: SKNode {
                 let frame = t.map { $0 < 0.08 ? 0 : $0 < 0.14 ? 1 : $0 < 0.2 ? 2 : 3 } ?? 4
                 weapon.texture = Characters.club[frame]
                 weapon.anchorPoint = CGPoint(x: 15.5 / 32, y: 1 - 15.5 / 20)
+                weapon.zPosition = frame < 2 ? -0.5 : 0.5
+            case .lightsaber:
+                let frame = t.map { $0 < 0.08 ? 0 : $0 < 0.14 ? 1 : $0 < 0.2 ? 2 : 3 } ?? 4
+                weapon.texture = Characters.lightsaber[frame]
+                weapon.anchorPoint = CGPoint(x: 22.5 / 56, y: 1 - 34.5 / 44)
                 weapon.zPosition = frame < 2 ? -0.5 : 0.5
             case .waterGun:
                 weapon.texture = Characters.waterGun[t.map { $0 < 0.1 } == true ? 1 : 0]
@@ -1107,7 +1113,7 @@ final class World {
     private var lastSweep: TimeInterval = 0
     private var reportedHurtUntil: TimeInterval = 0
     /// 동료가 나를 맞혔다고 알려 온 몽둥이. 그쪽 몽둥이 그림이 닿는 때를 기다렸다 맞는다
-    private var strikes: [(at: TimeInterval, from: String)] = []
+    private var strikes: [(at: TimeInterval, from: String, weapon: Weapon)] = []
     private var bullets: [(sprite: SKSpriteNode, from: String, x: CGFloat, y: CGFloat,
                            direction: CGFloat, left: CGFloat, since: TimeInterval)] = []
     /// 2명 이상 모여 춤추는 무리 발밑에 까는 무대 조각과 위에 매다는 미러볼. 남는 것은 화면에서 제거해 둔다
@@ -1270,7 +1276,7 @@ final class World {
 
         for strike in strikes where now >= strike.at {
             guard let other = peers[strike.from], me.canBeStruck(now: now) else { continue }
-            me.takeHit(now: now, by: .club, toward: other.facing)
+            me.takeHit(now: now, by: strike.weapon, toward: other.facing)
         }
         strikes.removeAll { now >= $0.at }
 
@@ -1448,13 +1454,13 @@ extension World {
         peers[id]?.takeHit(now: ProcessInfo.processInfo.systemUptime)
     }
 
-    /// X 를 눌렀다. 몽둥이는 쓴 쪽이 앞에서 가장 가까운 상대를 맞힌 것으로 판정해 함께 알린다
+    /// X 를 눌렀다. 몽둥이·광선검은 쓴 쪽이 앞에서 가장 가까운 상대를 맞힌 것으로 판정해 함께 알린다
     func fire() {
         let now = ProcessInfo.processInfo.systemUptime
         guard let weapon = me.wielding, me.startAttack(weapon, now: now) else { return }
         var target: String?
-        if weapon == .club {
-            target = peers.values.filter { $0.canBeStruck(now: now) && me.canReach($0) }
+        if weapon != .waterGun {
+            target = peers.values.filter { $0.canBeStruck(now: now) && me.canReach($0, with: weapon) }
                 .min { abs($0.x - me.x) < abs($1.x - me.x) }?.id
         } else {
             shoot(from: me, at: CGPoint(x: me.x, y: me.y), now: now)
@@ -1462,14 +1468,14 @@ extension World {
         Session.shared.sendAttack(weapon, target: target)
     }
 
-    /// 동료가 무기를 썼다. 몽둥이가 나를 맞혔으면 그림이 닿는 때에 맞는다
+    /// 동료가 무기를 썼다. 몽둥이·광선검이 나를 맞혔으면 그림이 닿는 때에 맞는다
     func peerAttacked(id: String, with weapon: Weapon, target: String?, at position: CGPoint, facing: Int) {
         let now = ProcessInfo.processInfo.systemUptime
         guard let shooter = peers[id] else { return }
         shooter.faceAsTold(CGFloat(facing))
         shooter.startAttack(weapon, now: now)
         if weapon == .waterGun { shoot(from: shooter, at: position, now: now) }
-        if weapon == .club, target == myID { strikes.append((now + CharacterNode.clubDelay, id)) }
+        if weapon != .waterGun, target == myID { strikes.append((now + CharacterNode.strikeDelay, id, weapon)) }
     }
 
     /// 원격이 마구 쏴도 이 이상 날리지 않는다. 오래된 것부터 지운다
