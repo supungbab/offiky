@@ -638,6 +638,54 @@ struct ControlTests {
         #expect(!rider.isDancing)                                   // 탄 동안은 추지 않는다
     }
 
+    @MainActor @Test func 낚시는_F_로_펴고_접으며_움직이면_접힌다() {
+        let me = node()
+        me.toggleFishing(now: 0)
+        #expect(me.isFishing)
+        me.toggleFishing(now: 0)
+        #expect(!me.isFishing)
+        me.toggleFishing(now: 0)
+        me.hold(1, dash: false)
+        me.update(dt: 1.0 / 60, now: 1.0 / 60, strip: strip)
+        #expect(!me.isFishing)
+        let rider = node(); rider.toggleRide(); rider.toggleFishing(now: 0)
+        #expect(!rider.isFishing)                                   // 탄 동안은 펴지 않는다
+    }
+
+    @MainActor @Test func 낚시와_춤은_서로를_멈춘다() {
+        let me = node()
+        me.toggleDance(); me.toggleFishing(now: 0)
+        #expect(me.isFishing && !me.isDancing)
+        me.toggleDance()
+        #expect(me.isDancing && !me.isFishing)
+    }
+
+    @MainActor @Test func 입질은_대기_뒤에_와서_1_5초_이어지고_놓치면_처음부터_다시_기다린다() {
+        let me = node(); me.biteDelay = 1...1
+        me.toggleFishing(now: 0)
+        me.update(dt: 0.5, now: 0.5, strip: strip); #expect(!me.isBiting)
+        me.update(dt: 0.6, now: 1.1, strip: strip); #expect(me.isBiting)
+        me.update(dt: 1.5, now: 2.7, strip: strip); #expect(!me.isBiting)   // 1.5초 지나 놓쳤다
+        me.update(dt: 0.5, now: 3.2, strip: strip); #expect(!me.isBiting)   // 다시 1초를 채워야 한다
+        me.update(dt: 0.6, now: 3.8, strip: strip); #expect(me.isBiting)
+    }
+
+    @MainActor @Test func 챔질은_입질_중에만_잡고_2초_보여_준_뒤_낚시를_이어_간다() {
+        let me = node(); me.biteDelay = 1...1
+        me.toggleFishing(now: 0)
+        #expect(!me.strike(now: 0.5, fish: 3))                              // 헛챔질
+        #expect(me.missedAt == 0.5)
+        me.update(dt: 1.1, now: 1.6, strip: strip)                          // 헛챔질부터 다시 1초
+        #expect(me.isBiting)
+        #expect(me.strike(now: 1.7, fish: 3))
+        #expect(me.caught == 3 && !me.isBiting && me.isFishing)
+        #expect(!me.strike(now: 1.8, fish: 4))                              // 드는 동안은 챔질 없음
+        me.update(dt: 2, now: 3.7, strip: strip)
+        #expect(me.caught == nil && me.isFishing)
+        me.update(dt: 0.5, now: 4.2, strip: strip); #expect(!me.isBiting)   // 든 뒤부터 다시 1초
+        me.update(dt: 0.6, now: 4.8, strip: strip); #expect(me.isBiting)
+    }
+
     @Test func 낚시_에셋은_장수와_크기가_맞다() {
         #expect(Characters.bobber.count == 2)
         #expect(Characters.pond.count == 4)

@@ -162,6 +162,21 @@ final class CharacterNode: SKNode {
         (.jump, 0, true, 0, 0), (.bow, 0, true, 0, 0), (.jump, 1, false, 12, 0), (.jump, 2, false, 0, 0),
     ]
     static let danceBeat: TimeInterval = 0.25
+    /// F 로 낚싯대를 편 동안. `canDance` 가 아니게 되면 접힌다. 원격은 주인이 보낸 값을 따른다
+    var isFishing = false
+    /// 입질 중. 낚시하는 사람은 `fishingTick` 이 정하고, 원격은 받은 값
+    var isBiting = false
+    /// 들어 보이는 물고기 번호(1부터). `catchShow` 뒤에 nil
+    var caught: Int?
+    /// 펴기·헛챔질·놓침·들기 끝에서 다음 입질까지. 테스트가 줄인다
+    var biteDelay: ClosedRange<TimeInterval> = 5...20
+    static let biteWindow: TimeInterval = 1.5
+    static let catchShow: TimeInterval = 2
+    /// 헛챔질한 시각. 찌가 튀는 표시용
+    private(set) var missedAt: TimeInterval?
+    private var biteAt: TimeInterval?
+    private var biteUntil: TimeInterval?
+    private var caughtUntil: TimeInterval?
     /// 춤추기 시작한 시각. 늘 첫 박자부터 춘다
     private var danceSince: TimeInterval?
     /// 이번 프레임에 그리는 춤 동작. 춤추지 않으면 nil
@@ -419,6 +434,39 @@ final class CharacterNode: SKNode {
     func toggleDance() {
         guard isLocal else { return }
         isDancing = !isDancing && canDance(now: ProcessInfo.processInfo.systemUptime)
+        if isDancing { isFishing = false }
+    }
+
+    /// F 로 낚싯대를 펴고 접는다. 조건은 춤과 같다
+    func toggleFishing(now: TimeInterval) {
+        guard isLocal else { return }
+        isFishing = !isFishing && canDance(now: now)
+        guard isFishing else { return }
+        isDancing = false
+        waitForBite(from: now)
+    }
+
+    private func waitForBite(from now: TimeInterval) {
+        isBiting = false
+        biteAt = now + .random(in: biteDelay)
+    }
+
+    /// X 로 챔질한다. 입질 중이면 물고기를 들어 보이고 true, 아니면 헛챔질
+    func strike(now: TimeInterval, fish: Int) -> Bool {
+        guard isFishing, caught == nil else { return false }
+        guard isBiting else { missedAt = now; waitForBite(from: now); return false }
+        isBiting = false
+        caught = fish
+        caughtUntil = now + CharacterNode.catchShow
+        return true
+    }
+
+    /// 낚시하는 사람만 입질·들기 시각을 민다. 원격은 받은 값 그대로다
+    private func fishingTick(now: TimeInterval) {
+        guard isFishing else { isBiting = false; caught = nil; return }
+        if let until = caughtUntil, now >= until { caughtUntil = nil; caught = nil; waitForBite(from: now) }
+        if !isBiting, caught == nil, let at = biteAt, now >= at { isBiting = true; biteAt = nil; biteUntil = now + CharacterNode.biteWindow }
+        if isBiting, let until = biteUntil, now >= until { waitForBite(from: now) }
     }
 
     /// 바닥에 가만히 서 있을 때만 춘다. 움직이거나 뛰거나 웅크리거나 맞거나 무기를 쓰면 멈춘다
@@ -685,6 +733,8 @@ final class CharacterNode: SKNode {
             if hits >= CharacterNode.hitsToDie, y <= 0, !isDragging { isDead = true }
             if isDead { ride = nil }
             if isDancing, !canDance(now: now) { isDancing = false }
+            if isFishing, !canDance(now: now) { isFishing = false }
+            fishingTick(now: now)
         }
         expireBubble(now: now)
         if pleadsUpdate, bubbleNode == nil { showBubble(text: "Plz Update!", now: now, sticky: true) }
