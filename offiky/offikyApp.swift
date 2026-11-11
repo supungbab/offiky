@@ -112,7 +112,7 @@ private final class Bot {
         guard now >= until else { return }
         me.isBowing = false
         let direction: CGFloat = Bool.random() ? 1 : -1
-        switch Int.random(in: 0..<13) {
+        switch Int.random(in: 0..<15) {
         case 0...3: me.hold(direction, dash: false); until = now + .random(in: 0.8...3)
         case 4...5: me.hold(0, dash: false); until = now + .random(in: 0.5...2.5)
         case 6:     me.hold(direction, dash: true); until = now + .random(in: 0.4...1.2)
@@ -122,6 +122,8 @@ private final class Bot {
         case 9:     me.cycleWeapon(); until = now + .random(in: 0.3...0.8)
         case 10:    World.shared.fire(); until = now + .random(in: 0.3...0.8)
         case 11:    me.hold(0, dash: false); me.toggleDance(); until = now + .random(in: 1.5...3)
+        case 12:    me.hold(0, dash: false); me.toggleFishing(now: now); until = now + .random(in: 3...8)
+        case 13:    World.shared.strike(); until = now + .random(in: 0.3...1)
         default:    me.hold(-me.facing, dash: false); until = now + .random(in: 0.3...1)
         }
     }

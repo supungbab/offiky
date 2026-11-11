@@ -196,7 +196,7 @@ struct HintView: View {
                 }
             }
             HStack(spacing: 16) {
-                HStack(spacing: 10) { item("z", "무기 바꾸기"); item("x", "공격"); item("c", "춤") }
+                HStack(spacing: 10) { item("z", "무기 바꾸기"); item("x", "공격·챔질"); item("c", "춤"); item("f", "낚시") }
                 HStack(spacing: 10) { item("⇧↓", "1초 똥"); item("w", "WORK"); item("b", "오토바이") }
                 item("esc", "끝내기")
             }

@@ -18,7 +18,7 @@ xcodebuild -project offiky.xcodeproj -scheme offiky -configuration Debug -destin
 cp -R /tmp/offiky-debug/Build/Products/Debug/Offiky.app "$DIR/debug1/"
 /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.offiky.debug1" "$DIR/debug1/Offiky.app/Contents/Info.plist"
 codesign --force --deep --entitlements offiky.entitlements -s - "$DIR/debug1/Offiky.app"  # offiky/ 아래가 아니라 리포 루트에 있다
-defaults write com.offiky.debug1 channel -int 2   # Debug 빌드만: bot -bool YES 면 혼자 움직이고, dance -bool YES 면 제자리에서 계속 춤춘다. working -bool NO
+defaults write com.offiky.debug1 channel -int 2   # Debug 빌드만: bot -bool YES 면 혼자 움직이고, dance -bool YES 면 제자리에서 계속 춤춘다. fishing -bool YES 면 계속 낚시하고 입질이 오면 챔질하며 biteDelay -float 4 로 대기를 줄인다. working -bool NO
 open -n "$DIR/debug1/Offiky.app"
 ```
 
@@ -48,6 +48,7 @@ Debug 빌드와 테스트 호스트는 `com.offiky.app.debug` 로 실행된다. 
 캐릭터를 추가하면 어느 원본에서 왔는지(원본 없이 코드로 그렸으면 그 스크립트)를 README 의 출처 문단과 `characters.txt` 에 적는다.
 
 - 캐릭터·이펙트는 Python(Pillow) 코드로 그리고, 디버그 인스턴스에서 실제 크기로 확인하며 다듬는다 (`scripts/make_slime.py` 참고)
+- 사용자가 이미지를 주면 [Pixel Snapper](https://github.com/Hugo-Dz/spritefusion-pixel-snapper)(MIT)로 격자에 맞춰 캐릭터를 만든다. 설치는 `brew install Hugo-Dz/tap/spritefusion-pixel-snapper`, 사용은 `spritefusion-pixel-snapper <입력> <출력.png> [색 수] [--pixel-size N] [--palette 16진수,…]` (색 수 기본 16). 기존 캐릭터와 색을 맞출 때는 `--palette` 를, 격자가 어긋날 때는 `--pixel-size` 를 지정한다. 결과가 144×144 시트(24×24 장 6×6)와 `scripts/image_prompt.txt` 의 행 구성에 맞는지 확인한다
 - 새 캐릭터는 시안 여러 개를 GIF 로 보여 주지 말고, 기존과 같은 144×144 시트 하나를 완성해 확대 이미지로 보여 준다
 - 소품·무기는 번호를 붙인 시안 여러 개를 한 이미지에 나란히 보여 주고 고르게 한다
 - 움직이는 에셋은 부품(바퀴·본체 등)을 실행 중에 합치지 말고 프레임마다 통째로 그린 스트립으로 만든다
