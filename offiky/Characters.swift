@@ -266,6 +266,11 @@ enum Characters {
     static let discoLamp = strip("discolamp", count: 4)
     /// 발밑에 이어 까는 무대 네 장
     static let danceFloor = strip("dancefloor", count: 4)
+    /// 낚싯대 한 장(손 (3, 17), 끝 (18, 4)), 찌 두 장(뜬 것·가라앉은 것), 연못 물결 네 장, 물고기 여덟 장
+    static let rod = strip("rod", count: 1)[0]
+    static let bobber = strip("bobber", count: 2)
+    static let pond = strip("pond", count: 4)
+    static let fishes = strip("fish", count: 8)
 
     /// 가로로 붙은 같은 폭의 그림을 자른다
     private static func strip(_ name: String, count: Int) -> [SKTexture] {

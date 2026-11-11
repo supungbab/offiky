@@ -638,6 +638,15 @@ struct ControlTests {
         #expect(!rider.isDancing)                                   // 탄 동안은 추지 않는다
     }
 
+    @Test func 낚시_에셋은_장수와_크기가_맞다() {
+        #expect(Characters.bobber.count == 2)
+        #expect(Characters.pond.count == 4)
+        #expect(Characters.fishes.count == 8)
+        #expect(Characters.rod.size().width > 0)
+        #expect(Characters.pond[0].size() == Characters.danceFloor[0].size())
+        #expect(Set(Characters.fishes.map { $0.size() }).count == 1)
+    }
+
     @Test func 춤추는_사람끼리_가까우면_한_무리로_묶고_2명_이상일_때만_무대를_깐다() {
         #expect(World.crowds(of: [1000, 100, 220, 500]) == [100...220])
         #expect(World.crowds(of: [100, 221]).isEmpty)                 // 무리 간격보다 멀다
