@@ -1039,7 +1039,7 @@ final class CharacterNode: SKNode {
         weapon.xScale = shownFacing
         rod.xScale = shownFacing
         rod.position = CGPoint(x: image.position.x + shownFacing * (15 - 12) * 2, y: image.position.y + (24 - 14) * 2)
-        // 챔질하면 낚싯대를 위로 휙 올렸다가 들어 보이는 동안 천천히 내린다
+        // 챔질하면 낚싯대를 위로 휙 올려 들어 보이는 동안 든 채로 있다
         let swing = caught == nil ? 0 : CGFloat(hoist) * 0.9
         rod.zRotation = shownFacing * swing
         bobber.position = CGPoint(x: shownFacing * CharacterNode.bobberLead, y: -spriteDisplaySize / 2 - 4 + bobberLift)
@@ -1048,7 +1048,8 @@ final class CharacterNode: SKNode {
         let tip = CGPoint(x: rod.position.x + shownFacing * (tx * cos(swing) - ty * sin(swing)),
                           y: rod.position.y + tx * sin(swing) + ty * cos(swing))
         let held = CGPoint(x: image.position.x, y: image.position.y + spriteDisplaySize / 2 + 6)
-        let water = CGPoint(x: bobber.position.x, y: bobber.position.y + bobber.size.height - 2)
+        // 가라앉은 장은 칸 아래 절반에만 그려져 있어 줄 끝을 그만큼 내린다
+        let water = CGPoint(x: bobber.position.x, y: bobber.position.y + bobber.size.height - 2 - (isBiting ? 8 : 0))
         // 물고기는 찌 자리에서 포물선으로 머리 위까지 딸려 온다
         let t = CGFloat(hoist)
         catchNode.position = CGPoint(x: water.x + (held.x - water.x) * t,
