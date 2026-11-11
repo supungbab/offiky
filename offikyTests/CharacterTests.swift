@@ -686,6 +686,10 @@ struct ControlTests {
         me.update(dt: 0.6, now: 4.8, strip: strip); #expect(me.isBiting)
     }
 
+    @Test func 물고기는_1부터_8_사이에서_뽑는다() {
+        for _ in 0..<200 { #expect((1...Characters.fishes.count).contains(World.pickFish())) }
+    }
+
     @Test func 낚시_에셋은_장수와_크기가_맞다() {
         #expect(Characters.bobber.count == 2)
         #expect(Characters.pond.count == 4)

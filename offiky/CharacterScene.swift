@@ -138,6 +138,16 @@ final class CharacterNode: SKNode {
     /// 휘두르거나 쏘는 중인 무기와 시작한 시각
     private(set) var attack: (weapon: Weapon, since: TimeInterval)?
     private let weapon = SKSpriteNode(texture: Characters.club[0])
+    private let rod = SKSpriteNode(texture: Characters.rod)
+    private let bobber = SKSpriteNode(texture: Characters.bobber[0])
+    private let fishingLine = SKSpriteNode(color: NSColor(white: 0.85, alpha: 0.8), size: CGSize(width: 2, height: 1))
+    private let catchNode = SKSpriteNode(texture: Characters.fishes[0])
+    /// 몸 가운데에서 찌까지(pt). 연못 범위를 잴 때도 쓴다
+    static let bobberLead: CGFloat = 44
+    var bobberX: CGFloat { x + facing * CharacterNode.bobberLead }
+    /// 입질 중 몸과 낚싯대가 좌우로 떨리는 폭
+    private var shake: CGFloat = 0
+    private var bobberLift: CGFloat = 0
     /// 물총에 맞아 물이 튀기 시작한 시각
     private var splashAt: TimeInterval?
     private let splash = SKSpriteNode(texture: Characters.splash[0])
@@ -345,6 +355,22 @@ final class CharacterNode: SKNode {
 
         weapon.isHidden = true
         addChild(weapon)
+        // 낚싯대는 손(3, 17)을 쥐고, 낚싯줄은 끝(18, 4)에서 찌까지 긋는다. 찌는 바닥선에 떠 있다
+        rod.anchorPoint = CGPoint(x: 3.5 / 24, y: 1 - 17.5 / 20)
+        rod.size = CGSize(width: Characters.rod.size().width * 2, height: Characters.rod.size().height * 2)
+        rod.zPosition = 0.5
+        bobber.anchorPoint = CGPoint(x: 0.5, y: 0)
+        bobber.size = CGSize(width: Characters.bobber[0].size().width * 2, height: Characters.bobber[0].size().height * 2)
+        bobber.zPosition = -0.5
+        fishingLine.anchorPoint = CGPoint(x: 0.5, y: 0)
+        fishingLine.zPosition = 0.4
+        catchNode.anchorPoint = CGPoint(x: 0.5, y: 0)
+        catchNode.size = CGSize(width: Characters.fishes[0].size().width * 2, height: Characters.fishes[0].size().height * 2)
+        catchNode.zPosition = 1
+        for node in [rod, bobber, fishingLine, catchNode] {
+            node.isHidden = true
+            addChild(node)
+        }
         splash.anchorPoint = CGPoint(x: 0.5, y: 0)
         splash.size = CGSize(width: Characters.splash[0].size().width * 2,
                              height: Characters.splash[0].size().height * 2)
@@ -604,7 +630,16 @@ final class CharacterNode: SKNode {
             self.attack = nil
         }
         let held = attack?.weapon ?? wielding
-        weapon.isHidden = held == nil || isDead || isDragging || isWorking || isAway || isRiding
+        weapon.isHidden = held == nil || isDead || isDragging || isWorking || isAway || isRiding || isFishing
+        rod.isHidden = !isFishing
+        bobber.isHidden = !isFishing
+        fishingLine.isHidden = !isFishing
+        catchNode.isHidden = caught == nil || !isFishing
+        if let caught { catchNode.texture = Characters.fishes[min(max(caught, 1), Characters.fishes.count) - 1] }
+        bobber.texture = Characters.bobber[isBiting ? 1 : 0]
+        shake = isBiting ? (Int(now / 0.08) % 2 == 0 ? 2 : -2) : 0
+        // 헛챔질하면 찌가 0.3초 동안 튀어 오른다
+        bobberLift = missedAt.map { now - $0 < 0.3 } == true ? 6 : 0
         if let held, !weapon.isHidden {
             let t = attack.map { now - $0.since }
             switch held {
@@ -991,8 +1026,17 @@ final class CharacterNode: SKNode {
         }
         image.position.y = -spriteDisplaySize / 2 - (standing ? 0 : sheet.footPadding * 2) + seat
             + (danceMove?.lift ?? 0)
-        image.position.x = danceMove?.shift ?? 0
+        image.position.x = (danceMove?.shift ?? 0) + shake
         weapon.xScale = shownFacing
+        rod.xScale = shownFacing
+        rod.position = CGPoint(x: image.position.x + shownFacing * (15 - 12) * 2, y: image.position.y + (24 - 14) * 2)
+        bobber.position = CGPoint(x: shownFacing * CharacterNode.bobberLead, y: -spriteDisplaySize / 2 - 4 + bobberLift)
+        let tip = CGPoint(x: rod.position.x + shownFacing * (18 - 3) * 2, y: rod.position.y + (17 - 4) * 2)
+        let end = CGPoint(x: bobber.position.x, y: bobber.position.y + bobber.size.height - 2)
+        fishingLine.position = tip
+        fishingLine.size.height = hypot(end.x - tip.x, end.y - tip.y)
+        fishingLine.zRotation = atan2(end.y - tip.y, end.x - tip.x) - .pi / 2
+        catchNode.position = CGPoint(x: image.position.x, y: image.position.y + spriteDisplaySize / 2 + 6)
         // 오토바이에서 뛰어내리거나 춤추는 동안 몸과 함께 움직인다
         weapon.position = CGPoint(x: image.position.x + shownFacing * (15 - 12) * 2,
                                   y: image.position.y + (24 - 14) * 2)
@@ -1508,6 +1552,23 @@ extension World {
 
     func peerWasHit(id: String) {
         peers[id]?.takeHit(now: ProcessInfo.processInfo.systemUptime)
+    }
+
+    /// 붕어·잉어·금붕어·복어·가오리·문어·게·장화 순의 가중치. 번호는 1부터
+    static let fishWeights = [30, 25, 20, 6, 5, 4, 4, 6]
+
+    static func pickFish() -> Int {
+        var roll = Int.random(in: 0..<fishWeights.reduce(0, +))
+        for (index, weight) in fishWeights.enumerated() {
+            roll -= weight
+            if roll < 0 { return index + 1 }
+        }
+        return fishWeights.count
+    }
+
+    /// 낚싯대를 든 채 X 를 눌렀다. 물고기는 챔질한 쪽이 뽑는다
+    func strike() {
+        _ = me.strike(now: ProcessInfo.processInfo.systemUptime, fish: World.pickFish())
     }
 
     /// X 를 눌렀다. 몽둥이·광선검은 쓴 쪽이 앞에서 가장 가까운 상대를 맞힌 것으로 판정해 함께 알린다

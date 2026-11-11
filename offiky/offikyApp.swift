@@ -161,6 +161,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 if !World.shared.me.isDancing { World.shared.me.toggleDance() }
             }
         }
+        // 계속 낚시하고 입질이 오면 챔질한다. biteDelay(초)로 대기를 줄인다
+        if UserDefaults.standard.bool(forKey: "fishing") {
+            let delay = UserDefaults.standard.double(forKey: "biteDelay")
+            if delay > 0 { World.shared.me.biteDelay = delay...delay }
+            Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { _ in
+                let me = World.shared.me
+                if !me.isFishing { me.toggleFishing(now: ProcessInfo.processInfo.systemUptime) }
+                else if me.isBiting { World.shared.strike() }
+            }
+        }
         Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { _ in
             let overlay = OverlayController.shared
             let age = ProcessInfo.processInfo.systemUptime - World.shared.lastTick

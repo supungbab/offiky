@@ -100,9 +100,11 @@ import SwiftUI
         case kVK_ANSI_Z:
             if !event.isARepeat { World.shared.me.cycleWeapon() }
         case kVK_ANSI_X:
-            World.shared.fire()
+            if World.shared.me.isFishing { if !event.isARepeat { World.shared.strike() } } else { World.shared.fire() }
         case kVK_ANSI_C:
             if !event.isARepeat { World.shared.me.toggleDance() }
+        case kVK_ANSI_F:
+            if !event.isARepeat { World.shared.me.toggleFishing(now: ProcessInfo.processInfo.systemUptime) }
         case kVK_Space:
             World.shared.me.isThrusting = true
         case kVK_DownArrow:
