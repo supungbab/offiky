@@ -36,7 +36,7 @@ final class CharacterNode: SKNode {
     private let overhead = SKNode()
     /// 화면이 꺼지거나 잠기거나 캐릭터를 숨긴 동안. 원격은 주인이 적어 보낸 값을 따른다
     var isAway = false {
-        didSet { if isAway { workingSince = nil; isDancing = false } }   // 화면이 꺼지면 update 가 실행되지 않아 여기서 지운다
+        didSet { if isAway { workingSince = nil; isDancing = false; isFishing = false } }   // 화면이 꺼지면 update 가 실행되지 않아 여기서 지운다
     }
     /// 캐릭터를 숨긴 동안. ZZZ 팻말 대신 꺼진 스위치를 표시한다
     var isHiding = false
@@ -178,7 +178,9 @@ final class CharacterNode: SKNode {
     ]
     static let danceBeat: TimeInterval = 0.25
     /// F 로 낚싯대를 편 동안. `canDance` 가 아니게 되면 접힌다. 원격은 주인이 보낸 값을 따른다
-    var isFishing = false
+    var isFishing = false {
+        didSet { if !isFishing { isBiting = false; caught = nil; caughtUntil = nil } }
+    }
     /// 입질 중. 낚시하는 사람은 `fishingTick` 이 정하고, 원격은 받은 값
     var isBiting = false
     /// 들어 보이는 물고기 번호(1부터). `catchShow` 뒤에 nil
@@ -494,7 +496,7 @@ final class CharacterNode: SKNode {
 
     /// 낚시하는 사람만 입질·들기 시각을 민다. 원격은 받은 값 그대로다
     private func fishingTick(now: TimeInterval) {
-        guard isFishing else { isBiting = false; caught = nil; return }
+        guard isFishing else { return }
         if let until = caughtUntil, now >= until { caughtUntil = nil; caught = nil; waitForBite(from: now) }
         if !isBiting, caught == nil, let at = biteAt, now >= at { isBiting = true; biteAt = nil; biteUntil = now + CharacterNode.biteWindow }
         if isBiting, let until = biteUntil, now >= until { waitForBite(from: now) }

@@ -652,6 +652,15 @@ struct ControlTests {
         #expect(!rider.isFishing)                                   // 탄 동안은 펴지 않는다
     }
 
+    @MainActor @Test func 자리를_비우면_낚시도_접히고_입질과_물고기가_남지_않는다() {
+        let me = node(); me.biteDelay = 1...1
+        me.toggleFishing(now: 0)
+        me.update(dt: 1.1, now: 1.1, strip: strip)
+        #expect(me.isBiting)
+        me.isAway = true                                                    // 화면이 꺼지면 update 가 실행되지 않는다
+        #expect(!me.isFishing && !me.isBiting && me.caught == nil)
+    }
+
     @MainActor @Test func 낚시와_춤은_서로를_멈춘다() {
         let me = node()
         me.toggleDance(); me.toggleFishing(now: 0)
