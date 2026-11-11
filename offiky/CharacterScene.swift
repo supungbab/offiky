@@ -161,6 +161,8 @@ final class CharacterNode: SKNode {
     private var bobberLift: CGFloat = 0
     /// 입질 중 낚싯대 끝이 물 쪽으로 기우는 각도
     private var dip: CGFloat = 0
+    /// 헛챔질 때 낚싯대를 휘두르는 각도
+    private var missSwing: CGFloat = 0
     /// 챔질한 뒤 지난 시간(초). `hoistDuration` 까지는 물고기가 딸려 오고 그 뒤는 매달려 파닥인다
     private var hoist: TimeInterval = CharacterNode.hoistDuration
     private var caughtAt: TimeInterval?
@@ -209,8 +211,11 @@ final class CharacterNode: SKNode {
     /// 들어 보이는 물고기 번호(1부터). `catchShow` 뒤에 nil
     var caught: Int?
     /// 펴기·헛챔질·놓침·들기 끝에서 다음 입질까지. 테스트가 줄인다
-    var biteDelay: ClosedRange<TimeInterval> = 5...20
-    static let biteWindow: TimeInterval = 1.5
+    var biteDelay: ClosedRange<TimeInterval> = 15...40
+    /// 헛챔질한 횟수. 원격은 받은 값이고, 바뀌면 헛챔질을 그린다
+    var misses = 0
+    private var shownMisses = 0
+    static let biteWindow: TimeInterval = 1
     static let catchShow: TimeInterval = 2
     /// 헛챔질한 시각. 찌가 튀는 표시용
     private(set) var missedAt: TimeInterval?
@@ -517,7 +522,7 @@ final class CharacterNode: SKNode {
     /// X 로 챔질한다. 입질 중이면 물고기를 들어 보이고 true, 아니면 헛챔질
     func strike(now: TimeInterval, fish: Int) -> Bool {
         guard isFishing, caught == nil else { return false }
-        guard isBiting else { missedAt = now; waitForBite(from: now); return false }
+        guard isBiting else { missedAt = now; misses += 1; waitForBite(from: now); return false }
         isBiting = false
         caught = fish
         caughtUntil = now + CharacterNode.catchShow
@@ -683,7 +688,18 @@ final class CharacterNode: SKNode {
         shake = isBiting ? (Int(now / 0.08) % 2 == 0 ? 2 : -2) : 0
         dip = isBiting ? CGFloat(0.16 + 0.06 * sin(now * 24)) : 0
         // 헛챔질하면 찌가 0.3초 동안 튀어 오른다
-        bobberLift = missedAt.map { now - $0 < 0.3 } == true ? 6 : 0
+        // 헛챔질도 챔질처럼 낚싯대를 휙 올렸다 내리고, 빈 찌가 물 밖으로 튀었다 떨어진다
+        if misses != shownMisses {
+            shownMisses = misses
+            if isFishing, misses > 0 {
+                if !isLocal { missedAt = now }
+                showBubble(text: "까비…", now: now, tone: CharacterNode.missTone)
+            }
+        }
+        let missed = missedAt.map { now - $0 } ?? 1
+        let u = missed / 0.5
+        bobberLift = u < 1 ? ((24 * 4 * u * (1 - u)) / 2).rounded() * 2 : 0
+        missSwing = u < 1 ? 0.5 * (missed < 0.12 ? missed / 0.12 : 1 - (missed - 0.12) / 0.38) : 0
         // 잡은 순간부터 잰다. 원격도 받은 번호가 생기는 순간이 그때다
         if let caught, shownCaught == nil {
             caughtAt = now
@@ -695,6 +711,8 @@ final class CharacterNode: SKNode {
         shownCaught = caught
         // 입질이 오는 순간 느낌표 말풍선. 원격도 받은 값이 바뀌는 순간이 그때다
         if isBiting, !shownBiting { showBubble(text: "!", now: now, tone: CharacterNode.biteTone) }
+        // 입질을 그냥 보내면 놓쳤다고 알린다. 낚싯대를 접어 끝난 입질은 스스로 그만둔 것이라 알리지 않는다
+        if !isBiting, shownBiting, caught == nil, isFishing { showBubble(text: "놓쳤다…", now: now, tone: CharacterNode.missTone) }
         shownBiting = isBiting
         hoist = caughtAt.map { now - $0 } ?? CharacterNode.hoistDuration
         if let held, !weapon.isHidden {
@@ -789,7 +807,7 @@ final class CharacterNode: SKNode {
                              jetting: Bool = false, parachuting: Bool = false, away: Bool = false,
                              working: Bool = false, hiding: Bool = false, prop: Int = 0, riding: Int? = nil,
                              wielding: Weapon? = nil, dancing: Bool = false,
-                             fishing: Bool = false, biting: Bool = false, caught: Int? = nil,
+                             fishing: Bool = false, biting: Bool = false, caught: Int? = nil, misses: Int = 0,
                              facing direction: Int?, sent: TimeInterval?, at now: TimeInterval) -> Bool {
         guard setRemoteTarget(x: x, y: y, sent: sent, at: now) else { return false }
         isBowing = bowing
@@ -811,6 +829,7 @@ final class CharacterNode: SKNode {
         isFishing = fishing
         isBiting = biting
         self.caught = caught
+        self.misses = misses
         return true
     }
 
@@ -1088,7 +1107,7 @@ final class CharacterNode: SKNode {
         let eased = 1 - pow(1 - travel, 3)
         let settle = CGFloat(max(0, hoist - CharacterNode.hoistDuration))
         // 입질이 오면 물고기가 당겨 낚싯대 끝이 물 쪽으로 기운다
-        let swing = caught == nil ? -dip : 0.5 * eased - 0.12 * min(1, settle / 0.3)
+        let swing = caught == nil ? missSwing - dip : 0.5 * eased - 0.12 * min(1, settle / 0.3)
         rod.zRotation = shownFacing * swing
         // 낚싯대 끝(18, 4)은 손에서 (30, 26)pt. 보는 쪽으로 뒤집고 휘두른 만큼 돌린다
         let (tx, ty): (CGFloat, CGFloat) = ((18 - 3) * 2, (17 - 4) * 2)
@@ -1191,9 +1210,11 @@ extension CharacterNode {
         let fill: NSColor
         let duration: TimeInterval
     }
-    /// 입질 느낌표는 빨갛게, 잡은 물고기는 금빛으로
+    /// 입질 느낌표는 빨갛게, 놓치면 회청색, 잡은 물고기는 금빛으로
     static let biteTone = BubbleTone(ink: NSColor(red: 0.8, green: 0.15, blue: 0.1, alpha: 1),
                                      fill: NSColor(red: 1, green: 0.88, blue: 0.86, alpha: 1), duration: biteWindow)
+    static let missTone = BubbleTone(ink: NSColor(red: 0.32, green: 0.38, blue: 0.5, alpha: 1),
+                                     fill: NSColor(red: 0.88, green: 0.9, blue: 0.95, alpha: 1), duration: 1.5)
     /// 잡은 말풍선은 물고기를 내려놓을 때 지운다. 시간은 그 신호를 못 받았을 때의 예비다
     static let catchTone = BubbleTone(ink: NSColor(red: 0.55, green: 0.36, blue: 0.04, alpha: 1),
                                       fill: NSColor(red: 1, green: 0.95, blue: 0.74, alpha: 1), duration: catchShow + 1)
@@ -1529,12 +1550,12 @@ extension World {
                        jetting: Bool = false, parachuting: Bool = false, away: Bool = false,
                        working: Bool = false, hiding: Bool = false, prop: Int = 0, riding: Int? = nil,
                        wielding: Weapon? = nil, dancing: Bool = false, fishing: Bool = false,
-                       biting: Bool = false, caught: Int? = nil, facing: Int?, sent: TimeInterval?) {
+                       biting: Bool = false, caught: Int? = nil, misses: Int = 0, facing: Int?, sent: TimeInterval?) {
         guard let node = peers[id] else { return }
         node.applyRemoteSnapshot(x: x, y: y, bowing: bowing, dragging: dragging, dead: dead,
                                  jetting: jetting, parachuting: parachuting, away: away, working: working,
                                  hiding: hiding, prop: prop, riding: riding, wielding: wielding,
-                                 dancing: dancing, fishing: fishing, biting: biting, caught: caught,
+                                 dancing: dancing, fishing: fishing, biting: biting, caught: caught, misses: misses,
                                  facing: facing, sent: sent,
                                  at: ProcessInfo.processInfo.systemUptime)
     }

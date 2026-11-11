@@ -375,6 +375,9 @@ struct MessageTests {
         let fishing = String(decoding: try JSONEncoder().encode(PosMsg(x: 1, y: nil, g: true, i: true, u: 3)),
                              as: UTF8.self)
         #expect(fishing.contains("\"g\":true") && fishing.contains("\"i\":true") && fishing.contains("\"u\":3"))
+        #expect(old.v == nil && !still.contains("\"v\""))
+        let missed = String(decoding: try JSONEncoder().encode(PosMsg(x: 1, y: nil, g: true, v: 2)), as: UTF8.self)
+        #expect(missed.contains("\"v\":2"))
     }
 
     /// 보낸 사람은 연결이 정한다. 메시지에 id 가 있으면 남을 사칭할 수 있다

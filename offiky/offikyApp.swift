@@ -170,7 +170,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { _ in
                 let me = World.shared.me
                 if !me.isFishing { me.toggleFishing(now: ProcessInfo.processInfo.systemUptime) }
-                else if me.isBiting { World.shared.strike() }
+                // 입질마다 세 번 기회 중 한 번씩만 챔질해 가끔 놓친다
+                else if me.isBiting, Int.random(in: 0..<3) == 0 { World.shared.strike() }
+                else if !me.isBiting, Int.random(in: 0..<80) == 0 { World.shared.strike() }   // 40초에 한 번꼴로 헛챔질
             }
         }
         Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { _ in

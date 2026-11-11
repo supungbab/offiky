@@ -274,6 +274,8 @@ struct PosMsg: Codable, Equatable {
     var i: Bool? = nil
     /// 물고기를 들어 보이는 동안만 그 번호를 적는다. 옛 버전은 이 값을 무시한다
     var u: Int? = nil
+    /// 헛챔질한 횟수. 바뀌면 받는 쪽이 헛챔질을 그린다. 낚시하는 동안 한 번 이상일 때만 적는다. 옛 버전은 이 값을 무시한다
+    var v: Int? = nil
     /// 보낸 시각(ms, 보낸 기계 기준). 받는 쪽은 도착 시각 대신 이걸로 표본을 놓는다
     var m: Int?
 }

@@ -700,6 +700,42 @@ struct ControlTests {
         #expect(me.caught == nil && label() == nil)
     }
 
+    @MainActor @Test func 입질을_그냥_보내면_놓쳤다고_알리고_접어서_끝나면_알리지_않는다() {
+        let me = node(); me.biteDelay = 1...1
+        func label() -> String? { (me["//bubble"].first?.children.first as? SKLabelNode)?.text }
+        me.toggleFishing(now: 0)
+        me.update(dt: 1.1, now: 1.1, strip: strip)
+        #expect(label() == "!")
+        me.update(dt: 1.5, now: 2.7, strip: strip)
+        #expect(!me.isBiting && label() == "놓쳤다…")
+
+        let quitter = node(); quitter.biteDelay = 1...1
+        func quitterLabel() -> String? { (quitter["//bubble"].first?.children.first as? SKLabelNode)?.text }
+        quitter.toggleFishing(now: 0)
+        quitter.update(dt: 1.1, now: 1.1, strip: strip)
+        quitter.toggleFishing(now: 1.2)
+        quitter.update(dt: 0.1, now: 1.2, strip: strip)
+        #expect(quitterLabel() != "놓쳤다…")
+    }
+
+    @MainActor @Test func 헛챔질하면_까비_말풍선을_띄우고_횟수를_세어_동료에게도_보인다() {
+        let me = node(); me.biteDelay = 10...10
+        func label(_ n: CharacterNode) -> String? { (n["//bubble"].first?.children.first as? SKLabelNode)?.text }
+        me.toggleFishing(now: 0)
+        me.update(dt: 0.1, now: 0.5, strip: strip)
+        #expect(!me.strike(now: 1, fish: 1))
+        me.update(dt: 0.1, now: 1, strip: strip)
+        #expect(me.misses == 1 && label(me) == "까비…")
+
+        let peer = CharacterNode(id: "p", name: "p", isLocal: false)
+        peer.applyRemoteSnapshot(x: 100, y: 0, bowing: false, dragging: false, fishing: true, facing: 1, sent: nil, at: 0)
+        peer.update(dt: 0.1, now: 0, strip: strip)
+        #expect(label(peer) == nil)
+        peer.applyRemoteSnapshot(x: 100, y: 0, bowing: false, dragging: false, fishing: true, misses: 1, facing: 1, sent: nil, at: 0.1)
+        peer.update(dt: 0.1, now: 0.1, strip: strip)
+        #expect(label(peer) == "까비…")
+    }
+
     @MainActor @Test func 낚시와_춤은_서로를_멈춘다() {
         let me = node()
         me.toggleDance(); me.toggleFishing(now: 0)
@@ -708,12 +744,12 @@ struct ControlTests {
         #expect(me.isDancing && !me.isFishing)
     }
 
-    @MainActor @Test func 입질은_대기_뒤에_와서_1_5초_이어지고_놓치면_처음부터_다시_기다린다() {
+    @MainActor @Test func 입질은_대기_뒤에_와서_잠깐_이어지고_놓치면_처음부터_다시_기다린다() {
         let me = node(); me.biteDelay = 1...1
         me.toggleFishing(now: 0)
         me.update(dt: 0.5, now: 0.5, strip: strip); #expect(!me.isBiting)
         me.update(dt: 0.6, now: 1.1, strip: strip); #expect(me.isBiting)
-        me.update(dt: 1.5, now: 2.7, strip: strip); #expect(!me.isBiting)   // 1.5초 지나 놓쳤다
+        me.update(dt: 1.5, now: 2.7, strip: strip); #expect(!me.isBiting)   // 입질 시간이 지나 놓쳤다
         me.update(dt: 0.5, now: 3.2, strip: strip); #expect(!me.isBiting)   // 다시 1초를 채워야 한다
         me.update(dt: 0.6, now: 3.8, strip: strip); #expect(me.isBiting)
     }
