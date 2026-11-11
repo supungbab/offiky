@@ -148,6 +148,11 @@ final class CharacterNode: SKNode {
     /// 입질 중 몸과 낚싯대가 좌우로 떨리는 폭
     private var shake: CGFloat = 0
     private var bobberLift: CGFloat = 0
+    /// 챔질해 낚싯대를 휙 올리고 물고기가 찌 자리에서 머리 위로 딸려 오는 진행(0~1)
+    private var hoist: Double = 1
+    private var caughtAt: TimeInterval?
+    private var shownCaught: Int?
+    static let hoistDuration: TimeInterval = 0.35
     /// 물총에 맞아 물이 튀기 시작한 시각
     private var splashAt: TimeInterval?
     private let splash = SKSpriteNode(texture: Characters.splash[0])
@@ -632,7 +637,7 @@ final class CharacterNode: SKNode {
         let held = attack?.weapon ?? wielding
         weapon.isHidden = held == nil || isDead || isDragging || isWorking || isAway || isRiding || isFishing
         rod.isHidden = !isFishing
-        bobber.isHidden = !isFishing
+        bobber.isHidden = !isFishing || caught != nil
         fishingLine.isHidden = !isFishing
         catchNode.isHidden = caught == nil || !isFishing
         if let caught { catchNode.texture = Characters.fishes[min(max(caught, 1), Characters.fishes.count) - 1] }
@@ -640,6 +645,10 @@ final class CharacterNode: SKNode {
         shake = isBiting ? (Int(now / 0.08) % 2 == 0 ? 2 : -2) : 0
         // 헛챔질하면 찌가 0.3초 동안 튀어 오른다
         bobberLift = missedAt.map { now - $0 < 0.3 } == true ? 6 : 0
+        // 잡은 순간부터 잰다. 원격도 받은 번호가 생기는 순간이 그때다
+        if caught != nil, shownCaught == nil { caughtAt = now }
+        shownCaught = caught
+        hoist = caughtAt.map { min(1, (now - $0) / CharacterNode.hoistDuration) } ?? 1
         if let held, !weapon.isHidden {
             let t = attack.map { now - $0.since }
             switch held {
@@ -1030,13 +1039,24 @@ final class CharacterNode: SKNode {
         weapon.xScale = shownFacing
         rod.xScale = shownFacing
         rod.position = CGPoint(x: image.position.x + shownFacing * (15 - 12) * 2, y: image.position.y + (24 - 14) * 2)
+        // 챔질하면 낚싯대를 위로 휙 올렸다가 들어 보이는 동안 천천히 내린다
+        let swing = caught == nil ? 0 : CGFloat(hoist) * 0.9
+        rod.zRotation = shownFacing * swing
         bobber.position = CGPoint(x: shownFacing * CharacterNode.bobberLead, y: -spriteDisplaySize / 2 - 4 + bobberLift)
-        let tip = CGPoint(x: rod.position.x + shownFacing * (18 - 3) * 2, y: rod.position.y + (17 - 4) * 2)
-        let end = CGPoint(x: bobber.position.x, y: bobber.position.y + bobber.size.height - 2)
+        // 낚싯대 끝(18, 4)은 손에서 (30, 26)pt. 보는 쪽으로 뒤집고 휘두른 만큼 돌린다
+        let (tx, ty): (CGFloat, CGFloat) = ((18 - 3) * 2, (17 - 4) * 2)
+        let tip = CGPoint(x: rod.position.x + shownFacing * (tx * cos(swing) - ty * sin(swing)),
+                          y: rod.position.y + tx * sin(swing) + ty * cos(swing))
+        let held = CGPoint(x: image.position.x, y: image.position.y + spriteDisplaySize / 2 + 6)
+        let water = CGPoint(x: bobber.position.x, y: bobber.position.y + bobber.size.height - 2)
+        // 물고기는 찌 자리에서 포물선으로 머리 위까지 딸려 온다
+        let t = CGFloat(hoist)
+        catchNode.position = CGPoint(x: water.x + (held.x - water.x) * t,
+                                     y: water.y + (held.y - water.y) * t + 40 * t * (1 - t))
+        let end = caught == nil ? water : CGPoint(x: catchNode.position.x, y: catchNode.position.y + catchNode.size.height)
         fishingLine.position = tip
         fishingLine.size.height = hypot(end.x - tip.x, end.y - tip.y)
         fishingLine.zRotation = atan2(end.y - tip.y, end.x - tip.x) - .pi / 2
-        catchNode.position = CGPoint(x: image.position.x, y: image.position.y + spriteDisplaySize / 2 + 6)
         // 오토바이에서 뛰어내리거나 춤추는 동안 몸과 함께 움직인다
         weapon.position = CGPoint(x: image.position.x + shownFacing * (15 - 12) * 2,
                                   y: image.position.y + (24 - 14) * 2)
