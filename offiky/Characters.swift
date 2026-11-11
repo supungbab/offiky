@@ -275,6 +275,13 @@ enum Characters {
     static let fishNames = ["붕어", "잉어", "금붕어", "복어", "가오리", "문어", "게", "장화",
                             "고등어", "연어", "흰동가리", "메기", "오징어", "새우", "불가사리", "상어", "깡통"]
 
+    /// 헛챔질 때 하는 말. id 와 횟수로 골라 매번 바뀌면서도 모든 화면에 같은 말이 뜬다
+    static let missLines = ["까비…", "아깝다!", "어라?", "허탕…", "에잇!", "쳇…", "빈 바늘…", "다음엔 꼭!"]
+
+    static func missText(id: String, misses: Int) -> String {
+        missLines[Int(stableHash("\(id)#\(misses)") % UInt64(missLines.count))]
+    }
+
     /// 잡은 말풍선 문구. 받침이 있으면 을, 없으면 를. 새 버전이 더한 번호는 마지막 장으로 본다
     static func caughtText(_ fish: Int) -> String {
         let name = fishNames[min(max(fish, 1), fishNames.count) - 1]

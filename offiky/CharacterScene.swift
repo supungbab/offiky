@@ -693,7 +693,7 @@ final class CharacterNode: SKNode {
             shownMisses = misses
             if isFishing, misses > 0 {
                 if !isLocal { missedAt = now }
-                showBubble(text: "까비…", now: now, tone: CharacterNode.missTone)
+                showBubble(text: Characters.missText(id: id, misses: misses), now: now, tone: CharacterNode.missTone)
             }
         }
         let missed = missedAt.map { now - $0 } ?? 1

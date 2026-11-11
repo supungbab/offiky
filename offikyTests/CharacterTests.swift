@@ -718,22 +718,26 @@ struct ControlTests {
         #expect(quitterLabel() != "놓쳤다…")
     }
 
-    @MainActor @Test func 헛챔질하면_까비_말풍선을_띄우고_횟수를_세어_동료에게도_보인다() {
+    @MainActor @Test func 헛챔질하면_아쉬운_말을_돌려_가며_띄우고_동료_화면에도_같은_말이_뜬다() {
         let me = node(); me.biteDelay = 10...10
         func label(_ n: CharacterNode) -> String? { (n["//bubble"].first?.children.first as? SKLabelNode)?.text }
         me.toggleFishing(now: 0)
         me.update(dt: 0.1, now: 0.5, strip: strip)
         #expect(!me.strike(now: 1, fish: 1))
         me.update(dt: 0.1, now: 1, strip: strip)
-        #expect(me.misses == 1 && label(me) == "까비…")
+        #expect(me.misses == 1 && label(me) == Characters.missText(id: "me", misses: 1))
 
-        let peer = CharacterNode(id: "p", name: "p", isLocal: false)
-        peer.applyRemoteSnapshot(x: 100, y: 0, bowing: false, dragging: false, fishing: true, facing: 1, sent: nil, at: 0)
-        peer.update(dt: 0.1, now: 0, strip: strip)
-        #expect(label(peer) == nil)
-        peer.applyRemoteSnapshot(x: 100, y: 0, bowing: false, dragging: false, fishing: true, misses: 1, facing: 1, sent: nil, at: 0.1)
-        peer.update(dt: 0.1, now: 0.1, strip: strip)
-        #expect(label(peer) == "까비…")
+        // 동료 화면의 내 캐릭터도 같은 id 라 같은 말이 뜬다
+        let mirror = CharacterNode(id: "me", name: "me", isLocal: false)
+        mirror.applyRemoteSnapshot(x: 100, y: 0, bowing: false, dragging: false, fishing: true, facing: 1, sent: nil, at: 0)
+        mirror.update(dt: 0.1, now: 0, strip: strip)
+        #expect(label(mirror) == nil)
+        mirror.applyRemoteSnapshot(x: 100, y: 0, bowing: false, dragging: false, fishing: true, misses: 1, facing: 1, sent: nil, at: 0.1)
+        mirror.update(dt: 0.1, now: 0.1, strip: strip)
+        #expect(label(mirror) == label(me))
+
+        #expect(Characters.missLines.count >= 6)
+        #expect(Set((1...12).map { Characters.missText(id: "me", misses: $0) }).count >= 4)   // 매번 같은 말이 아니다
     }
 
     @MainActor @Test func 낚시와_춤은_서로를_멈춘다() {
