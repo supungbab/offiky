@@ -686,6 +686,13 @@ struct ControlTests {
         me.update(dt: 0.6, now: 4.8, strip: strip); #expect(me.isBiting)
     }
 
+    @Test func 연못은_혼자여도_생기고_가까운_낚시꾼의_찌를_모두_덮는다() {
+        #expect(World.crowds(of: [100], minimum: 1) == [100...100])
+        #expect(World.pondRanges(fishers: [(x: 100, bobberX: 144)]) == [120...168])
+        #expect(World.pondRanges(fishers: [(x: 100, bobberX: 144), (x: 200, bobberX: 156)]) == [120...180])
+        #expect(World.pondRanges(fishers: [(x: 100, bobberX: 144), (x: 500, bobberX: 456)]) == [120...168, 432...480])
+    }
+
     @Test func 물고기는_1부터_8_사이에서_뽑는다() {
         for _ in 0..<200 { #expect((1...Characters.fishes.count).contains(World.pickFish())) }
     }

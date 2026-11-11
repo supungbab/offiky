@@ -1236,6 +1236,7 @@ final class World {
                            direction: CGFloat, left: CGFloat, since: TimeInterval)] = []
     /// 2명 이상 모여 춤추는 무리 발밑에 까는 무대 조각과 위에 매다는 미러볼. 남는 것은 화면에서 제거해 둔다
     private var stageTiles: [SKSpriteNode] = []
+    private var pondTiles: [SKSpriteNode] = []
     private var lamps: [SKSpriteNode] = []
     private var placed = false
     /// 마지막으로 보이던 화면 위 자리. 전환 중에는 화면이 0개로 보고되는 순간이 있어,
@@ -1390,6 +1391,7 @@ final class World {
         }
         placePoops(now: now)
         placeDiscos(now: now)
+        placePonds(now: now)
         moveBullets(dt: dt, now: now)
 
         for strike in strikes where now >= strike.at {
@@ -1506,8 +1508,8 @@ extension World {
     /// 무대는 무리 양 끝의 캐릭터 가운데보다 이만큼 더 넓게 깐다
     static let stageMargin: CGFloat = 24
 
-    /// 춤추는 사람의 x 를 가까운 사람끼리 이어 묶고, 2명 이상인 무리의 양 끝을 반환한다
-    static func crowds(of xs: [CGFloat]) -> [ClosedRange<CGFloat>] {
+    /// 춤추는 사람의 x 를 가까운 사람끼리 이어 묶고, `minimum` 명 이상인 무리의 양 끝을 반환한다
+    static func crowds(of xs: [CGFloat], minimum: Int = 2) -> [ClosedRange<CGFloat>] {
         var groups: [(range: ClosedRange<CGFloat>, count: Int)] = []
         for x in xs.sorted() {
             if let last = groups.last, x - last.range.upperBound <= crowdGap {
@@ -1516,7 +1518,31 @@ extension World {
                 groups.append((x...x, 1))
             }
         }
-        return groups.filter { $0.count >= 2 }.map(\.range)
+        return groups.filter { $0.count >= minimum }.map(\.range)
+    }
+
+    /// 연못은 찌 양쪽으로 이만큼 더 넓다
+    static let pondMargin: CGFloat = 24
+
+    /// 낚시하는 사람을 춤과 같은 간격으로 묶되 혼자여도 무리다. 무리마다 찌를 모두 덮는 범위
+    static func pondRanges(fishers: [(x: CGFloat, bobberX: CGFloat)]) -> [ClosedRange<CGFloat>] {
+        crowds(of: fishers.map(\.x), minimum: 1).map { crowd in
+            let bobbers = fishers.filter { crowd.contains($0.x) }.map(\.bobberX)
+            return (bobbers.min()! - pondMargin)...(bobbers.max()! + pondMargin)
+        }
+    }
+
+    /// 범위를 타일로 채워 윗면이 바닥선에 닿게 깐다. 물결은 0.4초마다 다음 장이다
+    fileprivate func placePonds(now: TimeInterval) {
+        let fishers = ([me] + peers.values).filter { $0.isFishing && strip.place(x: $0.x, y: 0) != nil }
+        let wave = Characters.pond[Int(now / 0.4) % Characters.pond.count]
+        let tileWidth = wave.size().width * 2
+        var tileXs: [CGFloat] = []
+        for range in World.pondRanges(fishers: fishers.map { ($0.x, $0.bobberX) }) {
+            let count = Int(((range.upperBound - range.lowerBound) / tileWidth).rounded(.up))
+            tileXs += World.spread(count, every: tileWidth, around: (range.lowerBound + range.upperBound) / 2)
+        }
+        lay(&pondTiles, at: tileXs, anchorY: 1) { _ in wave }
     }
 
     /// 무대가 이만큼 넓어질 때마다 미러볼을 하나 더 매단다
