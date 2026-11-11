@@ -661,6 +661,45 @@ struct ControlTests {
         #expect(!me.isFishing && !me.isBiting && me.caught == nil)
     }
 
+    @MainActor @Test func 낚싯대를_펴면_발판으로_뛰어오르고_뛰는_동안에도_접히지_않는다() {
+        let me = node()
+        me.toggleFishing(now: 0)
+        me.update(dt: 1.0 / 60, now: 0, strip: strip)
+        #expect(me.hop?.from == 0 && me.hop?.to == CharacterNode.dockLift)
+        me.update(dt: 1.0 / 60, now: CharacterNode.hopDuration / 2, strip: strip)
+        #expect(me.isFishing)
+        me.update(dt: 1.0 / 60, now: CharacterNode.hopDuration, strip: strip)
+        #expect(me.hop == nil && me.isFishing)
+        me.toggleFishing(now: 1)
+        me.update(dt: 1.0 / 60, now: 1, strip: strip)
+        #expect(me.hop?.from == CharacterNode.dockLift && me.hop?.to == 0)    // 접으면 뛰어내린다
+    }
+
+    @MainActor @Test func 춤도_한_번_뛰어오른_뒤에_추기_시작한다() {
+        let me = node()
+        me.toggleDance()
+        me.update(dt: 1.0 / 60, now: 0, strip: strip)
+        #expect(me.hop?.from == 0 && me.hop?.to == 0)
+        #expect(me.isDancing && !me.isShowingDance)
+        me.update(dt: 1.0 / 60, now: CharacterNode.hopDuration, strip: strip)
+        me.update(dt: 1.0 / 60, now: CharacterNode.hopDuration + 0.01, strip: strip)
+        #expect(me.isDancing && me.isShowingDance)
+    }
+
+    @MainActor @Test func 잡은_말풍선은_잡자마자_뜨고_내려놓을_때_같이_사라진다() {
+        let me = node(); me.biteDelay = 1...1
+        func label() -> String? { (me["//bubble"].first?.children.first as? SKLabelNode)?.text }
+        me.toggleFishing(now: 0)
+        me.update(dt: 1.1, now: 1.1, strip: strip)
+        #expect(me.strike(now: 1.2, fish: 1))
+        me.update(dt: 0.1, now: 1.2, strip: strip)
+        #expect(label() == "붕어를 잡았다!")
+        me.update(dt: 0.1, now: 1.2 + CharacterNode.catchShow - 0.05, strip: strip)
+        #expect(label() == "붕어를 잡았다!")
+        me.update(dt: 0.1, now: 1.2 + CharacterNode.catchShow, strip: strip)
+        #expect(me.caught == nil && label() == nil)
+    }
+
     @MainActor @Test func 낚시와_춤은_서로를_멈춘다() {
         let me = node()
         me.toggleDance(); me.toggleFishing(now: 0)
@@ -695,21 +734,32 @@ struct ControlTests {
         me.update(dt: 0.6, now: 4.8, strip: strip); #expect(me.isBiting)
     }
 
-    @Test func 연못은_혼자여도_생기고_가까운_낚시꾼의_찌를_모두_덮는다() {
+    @Test func 연못은_혼자여도_생기고_가까운_낚시꾼과_찌를_모두_덮는다() {
         #expect(World.crowds(of: [100], minimum: 1) == [100...100])
-        #expect(World.pondRanges(fishers: [(x: 100, bobberX: 144)]) == [120...168])
-        #expect(World.pondRanges(fishers: [(x: 100, bobberX: 144), (x: 200, bobberX: 156)]) == [120...180])
-        #expect(World.pondRanges(fishers: [(x: 100, bobberX: 144), (x: 500, bobberX: 456)]) == [120...168, 432...480])
+        // 물가에 선 것처럼 캐릭터 자리까지 덮는다
+        #expect(World.pondRanges(fishers: [(x: 100, bobberX: 144)]) == [76...168])
+        #expect(World.pondRanges(fishers: [(x: 100, bobberX: 144), (x: 200, bobberX: 156)]) == [76...224])
+        #expect(World.pondRanges(fishers: [(x: 100, bobberX: 144), (x: 500, bobberX: 456)]) == [76...168, 432...524])
     }
 
-    @Test func 물고기는_1부터_8_사이에서_뽑는다() {
-        for _ in 0..<200 { #expect((1...Characters.fishes.count).contains(World.pickFish())) }
+    @Test func 물고기는_그린_종_안에서_뽑고_종마다_확률과_바늘_자리가_있다() {
+        for _ in 0..<500 { #expect((1...Characters.fishes.count).contains(World.pickFish())) }
+        #expect(World.fishWeights.count == Characters.fishes.count)
+        #expect(Characters.hooks.count == Characters.fishes.count)
+    }
+
+    @Test func 잡은_말풍선은_종마다_이름과_받침에_맞는_조사를_쓴다() {
+        #expect(Characters.fishNames.count == Characters.fishes.count)
+        #expect(Characters.caughtText(1) == "붕어를 잡았다!")
+        #expect(Characters.caughtText(7) == "게를 잡았다!")
+        #expect(Characters.caughtText(17) == "깡통을 잡았다!")
+        #expect(Characters.caughtText(999) == "깡통을 잡았다!")              // 새 버전이 더한 물고기는 마지막 장으로 그린다
     }
 
     @Test func 낚시_에셋은_장수와_크기가_맞다() {
-        #expect(Characters.bobber.count == 2)
+        #expect(Characters.bobber.count == 1)
         #expect(Characters.pond.count == 4)
-        #expect(Characters.fishes.count == 8)
+        #expect(Characters.fishes.count == 17)
         #expect(Characters.rod.size().width > 0)
         #expect(Characters.pond[0].size() == Characters.danceFloor[0].size())
         #expect(Set(Characters.fishes.map { $0.size() }).count == 1)
@@ -735,7 +785,7 @@ struct ControlTests {
         let node = node()
         node.toggleRide()
         node.update(dt: 1.0 / 60, now: 0, strip: strip)
-        #expect(node.hop?.mounting == true && node.hop?.progress == 0)
+        #expect(node.hop?.to == CharacterNode.seatHeight && node.hop?.progress == 0)
         node.update(dt: 1.0 / 60, now: CharacterNode.hopDuration / 2, strip: strip)
         #expect(node.hop?.progress == 0.5)
         node.update(dt: 1.0 / 60, now: CharacterNode.hopDuration, strip: strip)
@@ -743,7 +793,7 @@ struct ControlTests {
 
         node.toggleRide()
         node.update(dt: 1.0 / 60, now: 2, strip: strip)
-        #expect(node.hop?.mounting == false)
+        #expect(node.hop?.from == CharacterNode.seatHeight && node.hop?.to == 0)
         #expect(node.y == 0)                                 // 겉모습만 뛴다
     }
 

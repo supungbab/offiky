@@ -266,11 +266,32 @@ enum Characters {
     static let discoLamp = strip("discolamp", count: 4)
     /// 발밑에 이어 까는 무대 네 장
     static let danceFloor = strip("dancefloor", count: 4)
-    /// 낚싯대 한 장(손 (3, 17), 끝 (18, 4)), 찌 두 장(뜬 것·가라앉은 것), 연못 물결 네 장, 물고기 여덟 장
+    /// 낚싯대 한 장(손 (3, 17), 끝 (18, 4)), 찌 한 장, 연못 물결 네 장
     static let rod = strip("rod", count: 1)[0]
-    static let bobber = strip("bobber", count: 2)
+    static let bobber = strip("bobber", count: 1)
     static let pond = strip("pond", count: 4)
-    static let fishes = strip("fish", count: 8)
+    /// `fishNames` 순서의 물고기. 번호로 전송되므로 뒤에만 더한다
+    static let fishes = strip("fish", count: 17)
+    static let fishNames = ["붕어", "잉어", "금붕어", "복어", "가오리", "문어", "게", "장화",
+                            "고등어", "연어", "흰동가리", "메기", "오징어", "새우", "불가사리", "상어", "깡통"]
+
+    /// 잡은 말풍선 문구. 받침이 있으면 을, 없으면 를. 새 버전이 더한 번호는 마지막 장으로 본다
+    static func caughtText(_ fish: Int) -> String {
+        let name = fishNames[min(max(fish, 1), fishNames.count) - 1]
+        let last = name.unicodeScalars.last!.value
+        let batchim = (0xAC00...0xD7A3).contains(last) && (last - 0xAC00) % 28 != 0
+        return "\(name)\(batchim ? "을" : "를") 잡았다!"
+    }
+    /// 낚시꾼이 올라서는 나무 발판. 윗면이 바닥선보다 `CharacterNode.dockLift` 위에 온다
+    static let dock = strip("dock", count: 1)[0]
+    /// `fishes` 순서로 바늘이 걸리는 자리(칸의 px)와 매달린 각도. 입·다리·집게·입구에 걸려 무게중심이 바늘 아래로 온다
+    static let hooks: [(anchor: CGPoint, rotation: CGFloat)] = [
+        (CGPoint(x: 0.5, y: 6.5), -.pi / 2), (CGPoint(x: 0.5, y: 6.5), -.pi / 2), (CGPoint(x: 0.5, y: 6.5), -.pi / 2),
+        (CGPoint(x: 2.5, y: 6.5), -.pi / 2), (CGPoint(x: 7.5, y: 6.5), 0),
+        (CGPoint(x: 8, y: 11.5), .pi), (CGPoint(x: 1.5, y: 2.5), -0.9), (CGPoint(x: 7, y: 0.5), 0),
+        (CGPoint(x: 0.5, y: 6.5), -.pi / 2), (CGPoint(x: 0.5, y: 6.5), -.pi / 2), (CGPoint(x: 0.5, y: 6.5), -.pi / 2),
+        (CGPoint(x: 0.5, y: 6.5), -.pi / 2), (CGPoint(x: 0.5, y: 6.5), -.pi / 2), (CGPoint(x: 3.5, y: 3.5), -.pi / 2),
+        (CGPoint(x: 7.5, y: 0.5), 0), (CGPoint(x: 1.5, y: 7.5), -.pi / 2), (CGPoint(x: 5.5, y: 2.5), -0.5)]
 
     /// 가로로 붙은 같은 폭의 그림을 자른다
     private static func strip(_ name: String, count: Int) -> [SKTexture] {
