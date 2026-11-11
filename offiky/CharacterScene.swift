@@ -711,8 +711,6 @@ final class CharacterNode: SKNode {
         shownCaught = caught
         // 입질이 오는 순간 느낌표 말풍선. 원격도 받은 값이 바뀌는 순간이 그때다
         if isBiting, !shownBiting { showBubble(text: "!", now: now, tone: CharacterNode.biteTone) }
-        // 입질을 그냥 보내면 놓쳤다고 알린다. 낚싯대를 접어 끝난 입질은 스스로 그만둔 것이라 알리지 않는다
-        if !isBiting, shownBiting, caught == nil, isFishing { showBubble(text: "놓쳤다…", now: now, tone: CharacterNode.missTone) }
         shownBiting = isBiting
         hoist = caughtAt.map { now - $0 } ?? CharacterNode.hoistDuration
         if let held, !weapon.isHidden {
@@ -1210,7 +1208,7 @@ extension CharacterNode {
         let fill: NSColor
         let duration: TimeInterval
     }
-    /// 입질 느낌표는 빨갛게, 놓치면 회청색, 잡은 물고기는 금빛으로
+    /// 입질 느낌표는 빨갛게, 헛챔질은 회청색, 잡은 물고기는 금빛으로
     static let biteTone = BubbleTone(ink: NSColor(red: 0.8, green: 0.15, blue: 0.1, alpha: 1),
                                      fill: NSColor(red: 1, green: 0.88, blue: 0.86, alpha: 1), duration: biteWindow)
     static let missTone = BubbleTone(ink: NSColor(red: 0.32, green: 0.38, blue: 0.5, alpha: 1),

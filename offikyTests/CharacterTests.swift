@@ -700,14 +700,14 @@ struct ControlTests {
         #expect(me.caught == nil && label() == nil)
     }
 
-    @MainActor @Test func 입질을_그냥_보내면_놓쳤다고_알리고_접어서_끝나면_알리지_않는다() {
+    @MainActor @Test func 입질을_그냥_보내면_느낌표만_사라지고_말풍선을_더_띄우지_않는다() {
         let me = node(); me.biteDelay = 1...1
         func label() -> String? { (me["//bubble"].first?.children.first as? SKLabelNode)?.text }
         me.toggleFishing(now: 0)
         me.update(dt: 1.1, now: 1.1, strip: strip)
         #expect(label() == "!")
         me.update(dt: 1.5, now: 2.7, strip: strip)
-        #expect(!me.isBiting && label() == "놓쳤다…")
+        #expect(!me.isBiting && label() == nil)                              // 켜 두고 일하면 대부분 놓치므로 알리지 않는다
 
         let quitter = node(); quitter.biteDelay = 1...1
         func quitterLabel() -> String? { (quitter["//bubble"].first?.children.first as? SKLabelNode)?.text }
