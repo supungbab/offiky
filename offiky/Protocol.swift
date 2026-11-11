@@ -268,6 +268,12 @@ struct PosMsg: Codable, Equatable {
     var e: Int? = nil
     /// 춤추는 동안만 적는다. 옛 버전은 이 값을 무시하고 서 있는 것으로 본다
     var n: Bool? = nil
+    /// 낚싯대를 편 동안만 적는다. 옛 버전은 이 값을 무시하고 서 있는 것으로 본다
+    var g: Bool? = nil
+    /// 입질 중일 때만 적는다. 옛 버전은 이 값을 무시한다
+    var i: Bool? = nil
+    /// 물고기를 들어 보이는 동안만 그 번호를 적는다. 옛 버전은 이 값을 무시한다
+    var u: Int? = nil
     /// 보낸 시각(ms, 보낸 기계 기준). 받는 쪽은 도착 시각 대신 이걸로 표본을 놓는다
     var m: Int?
 }

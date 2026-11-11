@@ -367,6 +367,16 @@ struct MessageTests {
         #expect(dead.contains("\"k\":true"))
     }
 
+    @Test func 낚시_필드는_옛_버전_좌표에_없어도_디코딩되고_할_때만_적힌다() throws {
+        let old = try JSONDecoder().decode(PosMsg.self, from: Data(#"{"t":"pos","x":1}"#.utf8))
+        #expect(old.g == nil && old.i == nil && old.u == nil)
+        let still = String(decoding: try JSONEncoder().encode(PosMsg(x: 1, y: nil)), as: UTF8.self)
+        #expect(!still.contains("\"g\"") && !still.contains("\"u\""))
+        let fishing = String(decoding: try JSONEncoder().encode(PosMsg(x: 1, y: nil, g: true, i: true, u: 3)),
+                             as: UTF8.self)
+        #expect(fishing.contains("\"g\":true") && fishing.contains("\"i\":true") && fishing.contains("\"u\":3"))
+    }
+
     /// 보낸 사람은 연결이 정한다. 메시지에 id 가 있으면 남을 사칭할 수 있다
     @Test func 좌표와_채팅에는_id_가_없다() throws {
         let pos = String(decoding: try JSONEncoder().encode(PosMsg(x: 1, y: nil)), as: UTF8.self)

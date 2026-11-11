@@ -697,8 +697,12 @@ final class CharacterNode: SKNode {
                              jetting: Bool = false, parachuting: Bool = false, away: Bool = false,
                              working: Bool = false, hiding: Bool = false, prop: Int = 0, riding: Int? = nil,
                              wielding: Weapon? = nil, dancing: Bool = false,
+                             fishing: Bool = false, biting: Bool = false, caught: Int? = nil,
                              facing direction: Int?, sent: TimeInterval?, at now: TimeInterval) -> Bool {
         guard setRemoteTarget(x: x, y: y, sent: sent, at: now) else { return false }
+        isFishing = fishing
+        isBiting = biting
+        self.caught = caught
         isBowing = bowing
         isAway = away
         isHiding = hiding
@@ -1381,12 +1385,14 @@ extension World {
     func setPeerTarget(id: String, x: CGFloat, y: CGFloat, bowing: Bool, dragging: Bool, dead: Bool,
                        jetting: Bool = false, parachuting: Bool = false, away: Bool = false,
                        working: Bool = false, hiding: Bool = false, prop: Int = 0, riding: Int? = nil,
-                       wielding: Weapon? = nil, dancing: Bool = false, facing: Int?, sent: TimeInterval?) {
+                       wielding: Weapon? = nil, dancing: Bool = false, fishing: Bool = false,
+                       biting: Bool = false, caught: Int? = nil, facing: Int?, sent: TimeInterval?) {
         guard let node = peers[id] else { return }
         node.applyRemoteSnapshot(x: x, y: y, bowing: bowing, dragging: dragging, dead: dead,
                                  jetting: jetting, parachuting: parachuting, away: away, working: working,
                                  hiding: hiding, prop: prop, riding: riding, wielding: wielding,
-                                 dancing: dancing, facing: facing, sent: sent,
+                                 dancing: dancing, fishing: fishing, biting: biting, caught: caught,
+                                 facing: facing, sent: sent,
                                  at: ProcessInfo.processInfo.systemUptime)
     }
 
