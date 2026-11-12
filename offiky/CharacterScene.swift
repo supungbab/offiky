@@ -234,7 +234,7 @@ final class CharacterNode: SKNode {
     /// 들어 보이는 물고기 번호(1부터). X 로 놓아주면 nil
     var caught: Int?
     /// 던지기·놓침에서 다음 입질까지. 테스트가 줄인다
-    var biteDelay: ClosedRange<TimeInterval> = 10...25
+    var biteDelay: ClosedRange<TimeInterval> = 5...20
     /// 헛챔질한 횟수. 원격은 받은 값이고, 바뀌면 헛챔질을 그린다
     var misses = 0
     private var shownMisses = 0
