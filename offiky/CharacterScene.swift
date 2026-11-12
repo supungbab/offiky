@@ -860,6 +860,7 @@ final class CharacterNode: SKNode {
                              wielding: Weapon? = nil, dancing: Bool = false,
                              fishing: Bool = false, biting: Bool = false, caught: Int? = nil, misses: Int = 0,
                              facing direction: Int?, sent: TimeInterval?, at now: TimeInterval) -> Bool {
+        let first = samples.isEmpty
         guard setRemoteTarget(x: x, y: y, sent: sent, at: now) else { return false }
         isBowing = bowing
         isAway = away
@@ -881,6 +882,8 @@ final class CharacterNode: SKNode {
         isBiting = biting
         self.caught = caught
         self.misses = misses
+        // 처음 받은 헛챔질 횟수와 든 물고기는 보이기 전에 있던 일이다. 방금 일어난 것처럼 그리지 않는다
+        if first { shownMisses = misses; shownCaught = caught }
         return true
     }
 

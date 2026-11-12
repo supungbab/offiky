@@ -784,6 +784,7 @@ struct ControlTests {
             mirror.update(dt: 0.1, now: now, strip: strip)
         }
         me.toggleFishing(now: 0)
+        relay(at: 0)
         #expect(!me.strike(now: 1, fish: 1))
         relay(at: 1)
         #expect(label(mirror) == Characters.missText(id: "me", misses: 1))
@@ -793,6 +794,21 @@ struct ControlTests {
         me.toggleFishing(now: 6)
         relay(at: 6)
         #expect(label(mirror) == nil)
+    }
+
+    @MainActor @Test func 낚시하던_동료가_새로_보이면_지난_헛챔질과_잡은_말풍선을_띄우지_않는다() {
+        let peer = CharacterNode(id: "p", name: "p", isLocal: false)
+        func label() -> String? { (peer["//bubble"].first?.children.first as? SKLabelNode)?.text }
+        peer.update(dt: 0.1, now: 0, strip: strip)                          // 좌표를 받기 전에도 그린다
+        peer.applyRemoteSnapshot(x: 100, y: 0, bowing: false, dragging: false, fishing: true, caught: 3, misses: 2,
+                                 facing: 1, sent: nil, at: 0.1)
+        peer.update(dt: 0.1, now: 0.1, strip: strip)
+        #expect(label() == nil)
+        // 그 뒤에 일어난 헛챔질은 띄운다
+        peer.applyRemoteSnapshot(x: 100, y: 0, bowing: false, dragging: false, fishing: true, misses: 3,
+                                 facing: 1, sent: nil, at: 0.2)
+        peer.update(dt: 0.1, now: 0.2, strip: strip)
+        #expect(label() == Characters.missText(id: "p", misses: 3))
     }
 
     @MainActor @Test func 낚시와_춤은_서로를_멈춘다() {
