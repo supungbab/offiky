@@ -172,6 +172,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 let me = World.shared.me
                 if !me.isFishing { me.toggleFishing(now: ProcessInfo.processInfo.systemUptime) }
                 else if me.caught != nil { if Int.random(in: 0..<6) == 0 { World.shared.strike() } }   // 3초쯤 들고 있다가 놓아준다
+                else if !me.isCast { if Int.random(in: 0..<4) == 0 { World.shared.strike() } }         // 2초쯤 들고 있다가 던진다
                 // 입질마다 세 번 기회 중 한 번씩만 챔질해 가끔 놓친다
                 else if me.isBiting, Int.random(in: 0..<3) == 0 { World.shared.strike() }
                 else if !me.isBiting, Int.random(in: 0..<80) == 0 { World.shared.strike() }   // 40초에 한 번꼴로 헛챔질

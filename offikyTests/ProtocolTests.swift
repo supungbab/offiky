@@ -369,9 +369,9 @@ struct MessageTests {
 
     @Test func 낚시_필드는_옛_버전_좌표에_없어도_디코딩되고_할_때만_적힌다() throws {
         let old = try JSONDecoder().decode(PosMsg.self, from: Data(#"{"t":"pos","x":1}"#.utf8))
-        #expect(old.g == nil && old.i == nil && old.u == nil)
+        #expect(old.g == nil && old.l == nil && old.i == nil && old.u == nil)
         let still = String(decoding: try JSONEncoder().encode(PosMsg(x: 1, y: nil)), as: UTF8.self)
-        #expect(!still.contains("\"g\"") && !still.contains("\"u\""))
+        #expect(!still.contains("\"g\"") && !still.contains("\"l\"") && !still.contains("\"u\""))
         let fishing = String(decoding: try JSONEncoder().encode(PosMsg(x: 1, y: nil, g: true, i: true, u: 3)),
                              as: UTF8.self)
         #expect(fishing.contains("\"g\":true") && fishing.contains("\"i\":true") && fishing.contains("\"u\":3"))

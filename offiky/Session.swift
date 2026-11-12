@@ -92,6 +92,7 @@ final class Session {
                e: node.wielding?.rawValue,
                n: node.isDancing ? true : nil,
                g: node.isFishing ? true : nil,
+               l: node.isFishing && !node.isCast ? true : nil,
                i: node.isBiting ? true : nil,
                u: node.caught,
                // 접은 동안에도 보낸다. 빼면 받는 쪽이 0 으로 알다가 다시 펼 때 헛챔질로 읽는다
@@ -256,7 +257,7 @@ final class Session {
                                        parachuting: msg.c == true, away: msg.a == true,
                                        working: msg.w == true, hiding: msg.h == true, prop: msg.o ?? 0,
                                        riding: msg.r, wielding: msg.e.flatMap(Weapon.init),
-                                       dancing: msg.n == true, fishing: msg.g == true, biting: msg.i == true,
+                                       dancing: msg.n == true, fishing: msg.g == true, cast: msg.l != true, biting: msg.i == true,
                                        caught: msg.u, misses: msg.v ?? 0, facing: msg.f, sent: msg.m.map { Double($0) / 1000 })
         case let .say(msg):
             guard let body = validChat(msg.msg) else { return }

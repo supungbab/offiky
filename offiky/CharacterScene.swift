@@ -170,19 +170,21 @@ final class CharacterNode: SKNode {
     var bobberX: CGFloat { x + facing * CharacterNode.bobberLead }
     /// 입질 중 몸과 낚싯대가 좌우로 떨리는 폭
     private var shake: CGFloat = 0
-    private var bobberLift: CGFloat = 0
     /// 입질 중 낚싯대 끝이 물 쪽으로 기우는 각도
     private var dip: CGFloat = 0
-    /// 헛챔질 때 낚싯대를 휘두르는 각도
-    private var missSwing: CGFloat = 0
+    /// 헛챔질한 뒤 지난 시간(초). 0.5초 동안 낚싯대를 휙 올려 빈 찌를 낚싯대 끝까지 채 올린다
+    private var reel: TimeInterval = .infinity
+    /// 찌를 던진 뒤 지난 시간(초)
+    private var thrown: TimeInterval = .infinity
+    private var castedAt: TimeInterval?
+    private var shownCast = false
     /// 챔질한 뒤 지난 시간(초). `hoistDuration` 까지는 물고기가 딸려 오고 그 뒤는 매달려 파닥인다
     private var hoist: TimeInterval = CharacterNode.hoistDuration
     private var caughtAt: TimeInterval?
-    /// 놓아준 뒤 지난 시간(초). `dropDuration` 동안 물고기가 떨어져 0.3초 물이 튀고, `castAt` 부터 찌를 다시 던진다
+    /// 놓아준 뒤 지난 시간(초). `dropDuration` 동안 물고기가 떨어져 0.3초 물이 튄다
     private var release: TimeInterval = .infinity
     private var releasedAt: TimeInterval?
     static let dropDuration: TimeInterval = 0.35
-    static let castAt: CGFloat = 0.45
     private let plop = SKSpriteNode(texture: Characters.splash[0])
     private var shownCaught: Int?
     private weak var catchBubble: SKShapeNode?
@@ -219,7 +221,7 @@ final class CharacterNode: SKNode {
     /// F 로 낚싯대를 편 동안. `canDance` 가 아니게 되면 접힌다. 원격은 주인이 보낸 값을 따른다
     var isFishing = false {
         didSet {
-            if !isFishing { isBiting = false; caught = nil; releasedAt = nil }
+            if !isFishing { isBiting = false; caught = nil; releasedAt = nil; isCast = false }
             guard isFishing != oldValue else { return }
             if isFishing { hop = (hopHeight ?? 0, CharacterNode.dockLift, nil, 0) }
             else if y <= 0, !isDead, !isDragging, !isAway { hop = (hopHeight ?? CharacterNode.dockLift, 0, nil, 0) }
@@ -227,9 +229,11 @@ final class CharacterNode: SKNode {
     }
     /// 입질 중. 낚시하는 사람은 `fishingTick` 이 정하고, 원격은 받은 값
     var isBiting = false
+    /// 찌가 물에 있다. 펴면 들고만 있다가 X 로 던지고, 헛챔질·챔질하면 물 밖으로 올라온다. 원격은 받은 값
+    var isCast = false
     /// 들어 보이는 물고기 번호(1부터). X 로 놓아주면 nil
     var caught: Int?
-    /// 펴기·헛챔질·놓침·놓아주기에서 다음 입질까지. 테스트가 줄인다
+    /// 던지기·놓침에서 다음 입질까지. 테스트가 줄인다
     var biteDelay: ClosedRange<TimeInterval> = 10...25
     /// 헛챔질한 횟수. 원격은 받은 값이고, 바뀌면 헛챔질을 그린다
     var misses = 0
@@ -237,7 +241,9 @@ final class CharacterNode: SKNode {
     static let biteWindow: TimeInterval = 1
     /// 챔질하며 연타한 X 로 바로 놓아주지 않게 이만큼은 들고 있는다
     static let releaseLock: TimeInterval = 0.8
-    private var releasableAt: TimeInterval = 0
+    /// 던지기·헛챔질·놓아주기 동작이 끝날 때까지 다음 X 를 받지 않는다
+    static let motionLock: TimeInterval = 0.5
+    private var nextStrikeAt: TimeInterval = 0
     /// 헛챔질한 시각. 찌가 튀는 표시용
     private(set) var missedAt: TimeInterval?
     private var biteAt: TimeInterval?
@@ -539,9 +545,7 @@ final class CharacterNode: SKNode {
     func toggleFishing(now: TimeInterval) {
         guard isLocal else { return }
         isFishing = !isFishing && canDance(now: now)
-        guard isFishing else { return }
-        isDancing = false
-        waitForBite(from: now)
+        if isFishing { isDancing = false }
     }
 
     private func waitForBite(from now: TimeInterval) {
@@ -549,24 +553,24 @@ final class CharacterNode: SKNode {
         biteAt = now + .random(in: biteDelay)
     }
 
-    /// X 로 챔질한다. 입질 중이면 물고기를 들어 보이고 true. 들고 있으면 놓아주고, 아니면 헛챔질
+    /// X 로 찌를 던지거나, 챔질하거나(잡으면 true), 물고기를 놓아준다
     func strike(now: TimeInterval, fish: Int) -> Bool {
-        guard isFishing else { return false }
-        if caught != nil {
-            if now >= releasableAt { caught = nil; waitForBite(from: now) }
-            return false
-        }
-        guard isBiting else { missedAt = now; misses += 1; waitForBite(from: now); return false }
+        guard isFishing, now >= nextStrikeAt else { return false }
+        nextStrikeAt = now + CharacterNode.motionLock
+        if caught != nil { caught = nil; return false }
+        guard isCast else { isCast = true; waitForBite(from: now); return false }
+        isCast = false
+        guard isBiting else { missedAt = now; misses += 1; return false }
         isBiting = false
         caught = fish
-        releasableAt = now + CharacterNode.releaseLock
+        nextStrikeAt = now + CharacterNode.releaseLock
         return true
     }
 
     /// 낚시하는 사람만 입질 시각을 민다. 원격은 받은 값 그대로다
     private func fishingTick(now: TimeInterval) {
-        guard isFishing else { return }
-        if !isBiting, caught == nil, let at = biteAt, now >= at { isBiting = true; biteAt = nil; biteUntil = now + CharacterNode.biteWindow }
+        guard isFishing, isCast else { return }
+        if !isBiting, let at = biteAt, now >= at { isBiting = true; biteAt = nil; biteUntil = now + CharacterNode.biteWindow }
         if isBiting, let until = biteUntil, now >= until { waitForBite(from: now) }
     }
 
@@ -720,8 +724,6 @@ final class CharacterNode: SKNode {
         }
         shake = isBiting ? (Int(now / 0.08) % 2 == 0 ? 2 : -2) : 0
         dip = isBiting ? CGFloat(0.16 + 0.06 * sin(now * 24)) : 0
-        // 헛챔질하면 찌가 0.3초 동안 튀어 오른다
-        // 헛챔질도 챔질처럼 낚싯대를 휙 올렸다 내리고, 빈 찌가 물 밖으로 튀었다 떨어진다
         if misses != shownMisses {
             shownMisses = misses
             if isFishing, misses > 0 {
@@ -729,10 +731,11 @@ final class CharacterNode: SKNode {
                 showBubble(text: Characters.missText(id: id, misses: misses), now: now, tone: CharacterNode.missTone)
             }
         }
-        let missed = missedAt.map { now - $0 } ?? 1
-        let u = missed / 0.5
-        bobberLift = u < 1 ? ((24 * 4 * u * (1 - u)) / 2).rounded() * 2 : 0
-        missSwing = u < 1 ? 0.5 * (missed < 0.12 ? missed / 0.12 : 1 - (missed - 0.12) / 0.38) : 0
+        reel = missedAt.map { now - $0 } ?? .infinity
+        // 원격도 받은 값이 바뀌는 순간 던진다
+        if isCast, !shownCast { castedAt = now }
+        shownCast = isCast
+        thrown = castedAt.map { now - $0 } ?? .infinity
         // 잡은 순간부터 잰다. 원격도 받은 번호가 생기는 순간이 그때다
         if let caught, shownCaught == nil {
             caughtAt = now
@@ -858,7 +861,7 @@ final class CharacterNode: SKNode {
                              jetting: Bool = false, parachuting: Bool = false, away: Bool = false,
                              working: Bool = false, hiding: Bool = false, prop: Int = 0, riding: Int? = nil,
                              wielding: Weapon? = nil, dancing: Bool = false,
-                             fishing: Bool = false, biting: Bool = false, caught: Int? = nil, misses: Int = 0,
+                             fishing: Bool = false, cast: Bool = true, biting: Bool = false, caught: Int? = nil, misses: Int = 0,
                              facing direction: Int?, sent: TimeInterval?, at now: TimeInterval) -> Bool {
         let first = samples.isEmpty
         guard setRemoteTarget(x: x, y: y, sent: sent, at: now) else { return false }
@@ -879,11 +882,12 @@ final class CharacterNode: SKNode {
         else if isDragging { endDrag() }
         // 묘비·끌기를 먼저 받아야 낚시를 접을 때 뛰어내리지 않는다
         isFishing = fishing
+        isCast = fishing && cast
         isBiting = biting
         self.caught = caught
         self.misses = misses
-        // 처음 받은 헛챔질 횟수와 든 물고기는 보이기 전에 있던 일이다. 방금 일어난 것처럼 그리지 않는다
-        if first { shownMisses = misses; shownCaught = caught }
+        // 처음 받은 헛챔질 횟수·든 물고기·던진 찌는 보이기 전에 있던 일이다. 방금 일어난 것처럼 그리지 않는다
+        if first { shownMisses = misses; shownCaught = caught; shownCast = isCast }
         return true
     }
 
@@ -1160,13 +1164,16 @@ final class CharacterNode: SKNode {
         let travel = CGFloat(min(1, hoist / CharacterNode.hoistDuration))
         let eased = 1 - pow(1 - travel, 3)
         let settle = CGFloat(max(0, hoist - CharacterNode.hoistDuration))
-        // 놓아주면 물고기가 먼저 떨어지고, 그다음 든 자세에서 뒤로 젖혔다가 앞으로 던지고 제자리로 온다. 한 동작에 0.15초
+        // 찌를 들고 있으면 든 자세다. 던지면 뒤로 젖혔다가 앞으로 던지고 제자리로 온다. 한 동작에 0.15초
         let heldSwing: CGFloat = 0.5 - 0.12
-        let cast = (CGFloat(release) - CharacterNode.castAt) / 0.15
+        let cast = isCast ? CGFloat(thrown) / 0.15 : -1
         let castSwing = cast < 0 ? heldSwing : cast < 1 ? heldSwing + (0.75 - heldSwing) * cast
             : cast < 2 ? 0.75 - (cast - 1) : cast < 3 ? -0.25 * (3 - cast) : 0
+        // 헛챔질하면 챔질처럼 낚싯대를 휙 올렸다가 든 자세로 내린다
+        let r = CGFloat(reel)
+        let reelSwing = r < 0.12 ? 0.5 * r / 0.12 : r < 0.5 ? 0.5 + (castSwing - 0.5) * (r - 0.12) / 0.38 : castSwing
         // 입질이 오면 물고기가 당겨 낚싯대 끝이 물 쪽으로 기운다
-        let swing = caught == nil ? missSwing - dip + castSwing
+        let swing = caught == nil ? reelSwing - dip
             : 0.5 * eased - 0.12 * min(1, settle / 0.3)
         rod.zRotation = shownFacing * swing
         // 낚싯대 끝(18, 4)은 손에서 (30, 26)pt. 보는 쪽으로 뒤집고 휘두른 만큼 돌린다
@@ -1178,19 +1185,19 @@ final class CharacterNode: SKNode {
         let tip = rodTip(at: swing)
         // 찌는 낚싯대 끝이 내려간 만큼의 두 배로 물속에 끌려 들어간다. 연못보다 뒤에 그려 물속 부분은 가려진다
         let pulled = (rod.position.y + ty - tip.y).rounded() * 2
-        let floating = -spriteDisplaySize / 2 - 4 + bobberLift
+        let floating = -spriteDisplaySize / 2 - 4
         bobber.position = CGPoint(x: shownFacing * CharacterNode.bobberLead, y: floating - (caught == nil ? pulled : 0))
         let water = CGPoint(x: bobber.position.x, y: floating + bobber.size.height - 2)
         // 줄은 찌까지의 길이 그대로 낚싯대 끝에서 수직으로 늘어지되, 물고기 끝이 수면보다 6pt 위에 오도록 감는다
         func hanging(from tip: CGPoint) -> CGPoint {
             CGPoint(x: tip.x, y: tip.y - min(rod.position.y + ty - water.y, tip.y - (-spriteDisplaySize / 2 + 6 + catchNode.size.width)))
         }
-        // 물고기가 빠진 빈 줄 끝에 찌가 매달려 있다가, 앞으로 던지는 순간 날아가 던지기가 끝날 때 물에 앉는다
+        // 찌는 낚싯대 끝에서 던져 물에 앉고, 헛챔질하면 물에서 튀어 올라 낚싯대 끝으로 돌아온다
         if caught == nil, cast < 3 {
             let flight = max(0, cast - 1) / 2
             let from = hanging(from: cast < 1 ? tip : rodTip(at: 0.75))
-            let top = CGPoint(x: from.x + (water.x - from.x) * flight,
-                              y: from.y + (water.y - from.y) * flight + 30 * 4 * flight * (1 - flight))
+            let (a, b, t) = !isCast && r < 0.5 ? (water, from, r / 0.5) : (from, water, flight)
+            let top = CGPoint(x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t + 30 * 4 * t * (1 - t))
             bobber.position = CGPoint(x: top.x, y: top.y - (bobber.size.height - 2))
         }
         let hooked = CGPoint(x: bobber.position.x, y: bobber.position.y + bobber.size.height - 2)
@@ -1655,13 +1662,13 @@ extension World {
     func setPeerTarget(id: String, x: CGFloat, y: CGFloat, bowing: Bool, dragging: Bool, dead: Bool,
                        jetting: Bool = false, parachuting: Bool = false, away: Bool = false,
                        working: Bool = false, hiding: Bool = false, prop: Int = 0, riding: Int? = nil,
-                       wielding: Weapon? = nil, dancing: Bool = false, fishing: Bool = false,
+                       wielding: Weapon? = nil, dancing: Bool = false, fishing: Bool = false, cast: Bool = true,
                        biting: Bool = false, caught: Int? = nil, misses: Int = 0, facing: Int?, sent: TimeInterval?) {
         guard let node = peers[id] else { return }
         node.applyRemoteSnapshot(x: x, y: y, bowing: bowing, dragging: dragging, dead: dead,
                                  jetting: jetting, parachuting: parachuting, away: away, working: working,
                                  hiding: hiding, prop: prop, riding: riding, wielding: wielding,
-                                 dancing: dancing, fishing: fishing, biting: biting, caught: caught, misses: misses,
+                                 dancing: dancing, fishing: fishing, cast: cast, biting: biting, caught: caught, misses: misses,
                                  facing: facing, sent: sent,
                                  at: ProcessInfo.processInfo.systemUptime)
     }
