@@ -163,13 +163,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 if !World.shared.me.isDancing { World.shared.me.toggleDance() }
             }
         }
-        // 계속 낚시하고 입질이 오면 챔질한다. biteDelay(초)로 대기를 줄인다
+        // biteDelay(초)로 입질 대기를 줄인다. 직접 낚시할 때도 적용된다
+        let delay = UserDefaults.standard.double(forKey: "biteDelay")
+        if delay > 0 { World.shared.me.biteDelay = delay...delay }
+        // 계속 낚시하고 입질이 오면 챔질한다
         if UserDefaults.standard.bool(forKey: "fishing") {
-            let delay = UserDefaults.standard.double(forKey: "biteDelay")
-            if delay > 0 { World.shared.me.biteDelay = delay...delay }
             Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { _ in
                 let me = World.shared.me
                 if !me.isFishing { me.toggleFishing(now: ProcessInfo.processInfo.systemUptime) }
+                else if me.caught != nil { if Int.random(in: 0..<6) == 0 { World.shared.strike() } }   // 3초쯤 들고 있다가 놓아준다
                 // 입질마다 세 번 기회 중 한 번씩만 챔질해 가끔 놓친다
                 else if me.isBiting, Int.random(in: 0..<3) == 0 { World.shared.strike() }
                 else if !me.isBiting, Int.random(in: 0..<80) == 0 { World.shared.strike() }   // 40초에 한 번꼴로 헛챔질

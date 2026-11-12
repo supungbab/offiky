@@ -542,7 +542,7 @@ struct ControlTests {
         #expect(!node.isExhausting)
     }
 
-    @MainActor @Test func 무기는_누를_때마다_몽둥이_물총_광선검_순으로_바꿔_들고_마지막에_내려놓는다() {
+    @MainActor @Test func 무기는_누를_때마다_몽둥이_물총_광선검_낚싯대_순으로_바꿔_들고_마지막에_내려놓는다() {
         let me = node()
         #expect(me.wielding == nil)
         me.cycleWeapon()
@@ -552,7 +552,29 @@ struct ControlTests {
         me.cycleWeapon()
         #expect(me.wielding == .lightsaber)
         me.cycleWeapon()
+        #expect(me.wielding == .rod)
+        #expect(Weapon.rod.rawValue == 4)                           // 번호로 전송되므로 뒤에 더한다
+        me.cycleWeapon()
         #expect(me.wielding == nil)
+    }
+
+    @MainActor @Test func 낚싯대는_가장_멀리_닿고_맞은_상대를_휘두른_쪽으로_끌어온다() {
+        let me = node()
+        let far = CharacterNode(id: "far", name: "far", isLocal: false)
+        far.teleport(to: 820)
+        #expect(me.canReach(far, with: .rod))
+        #expect(!me.canReach(far, with: .lightsaber))
+
+        // 오른쪽을 보고 휘두른 사람에게 맞았으니 왼쪽으로 끌려간다
+        let hooked = node()
+        hooked.takeHit(now: 0, by: .rod, toward: 1)
+        var now = 0.0
+        for _ in 0..<60 {
+            hooked.update(dt: 1.0 / 60, now: now, strip: strip)
+            now += 1.0 / 60
+        }
+        #expect(hooked.hits == 1)
+        #expect(hooked.x < 900 && hooked.y == 0)
     }
 
     @MainActor @Test func 몽둥이는_보는_쪽에서_닿는_거리_안의_상대만_맞힌다() {
@@ -686,7 +708,7 @@ struct ControlTests {
         #expect(me.isDancing && me.isShowingDance)
     }
 
-    @MainActor @Test func 잡은_말풍선은_잡자마자_뜨고_내려놓을_때_같이_사라진다() {
+    @MainActor @Test func 잡은_말풍선은_3초_뒤_사라지고_물고기는_놓아줄_때까지_든다() {
         let me = node(); me.biteDelay = 1...1
         func label() -> String? { (me["//bubble"].first?.children.first as? SKLabelNode)?.text }
         me.toggleFishing(now: 0)
@@ -694,10 +716,21 @@ struct ControlTests {
         #expect(me.strike(now: 1.2, fish: 1))
         me.update(dt: 0.1, now: 1.2, strip: strip)
         #expect(label() == "붕어를 잡았다!")
-        me.update(dt: 0.1, now: 1.2 + CharacterNode.catchShow - 0.05, strip: strip)
-        #expect(label() == "붕어를 잡았다!")
-        me.update(dt: 0.1, now: 1.2 + CharacterNode.catchShow, strip: strip)
-        #expect(me.caught == nil && label() == nil)
+        me.update(dt: 0.1, now: 4.3, strip: strip)
+        #expect(me.caught == 1 && label() == nil)
+        me.update(dt: 0.1, now: 60, strip: strip)
+        #expect(me.caught == 1)                                              // 저절로 내려놓지 않는다
+
+        // 말풍선이 떠 있는 동안 놓아주면 말풍선도 같이 사라진다
+        let quick = node(); quick.biteDelay = 1...1
+        func quickLabel() -> String? { (quick["//bubble"].first?.children.first as? SKLabelNode)?.text }
+        quick.toggleFishing(now: 0)
+        quick.update(dt: 1.1, now: 1.1, strip: strip)
+        #expect(quick.strike(now: 1.2, fish: 1))
+        quick.update(dt: 0.1, now: 1.2, strip: strip)
+        #expect(!quick.strike(now: 2.1, fish: 2))
+        quick.update(dt: 0.1, now: 2.1, strip: strip)
+        #expect(quick.caught == nil && quickLabel() == nil)
     }
 
     @MainActor @Test func 입질을_그냥_보내면_느낌표만_사라지고_말풍선을_더_띄우지_않는다() {
@@ -780,7 +813,7 @@ struct ControlTests {
         me.update(dt: 0.6, now: 3.8, strip: strip); #expect(me.isBiting)
     }
 
-    @MainActor @Test func 챔질은_입질_중에만_잡고_2초_보여_준_뒤_낚시를_이어_간다() {
+    @MainActor @Test func 챔질은_입질_중에만_잡고_다시_누르면_놓아주고_낚시를_이어_간다() {
         let me = node(); me.biteDelay = 1...1
         me.toggleFishing(now: 0)
         #expect(!me.strike(now: 0.5, fish: 3))                              // 헛챔질
@@ -789,10 +822,13 @@ struct ControlTests {
         #expect(me.isBiting)
         #expect(me.strike(now: 1.7, fish: 3))
         #expect(me.caught == 3 && !me.isBiting && me.isFishing)
-        #expect(!me.strike(now: 1.8, fish: 4))                              // 드는 동안은 챔질 없음
+        #expect(!me.strike(now: 1.8, fish: 4))                              // 챔질하며 연타한 X 는 무시한다
+        #expect(me.caught == 3)
         me.update(dt: 2, now: 3.7, strip: strip)
-        #expect(me.caught == nil && me.isFishing)
-        me.update(dt: 0.5, now: 4.2, strip: strip); #expect(!me.isBiting)   // 든 뒤부터 다시 1초
+        #expect(me.caught == 3)
+        #expect(!me.strike(now: 3.7, fish: 4))                              // 놓아준다
+        #expect(me.caught == nil && me.isFishing && me.misses == 1)         // 놓아주기는 헛챔질로 세지 않는다
+        me.update(dt: 0.5, now: 4.2, strip: strip); #expect(!me.isBiting)   // 놓아준 뒤부터 다시 1초
         me.update(dt: 0.6, now: 4.8, strip: strip); #expect(me.isBiting)
     }
 

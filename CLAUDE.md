@@ -18,7 +18,7 @@ xcodebuild -project offiky.xcodeproj -scheme offiky -configuration Debug -destin
 cp -R /tmp/offiky-debug/Build/Products/Debug/Offiky.app "$DIR/debug1/"
 /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.offiky.debug1" "$DIR/debug1/Offiky.app/Contents/Info.plist"
 codesign --force --deep --entitlements offiky.entitlements -s - "$DIR/debug1/Offiky.app"  # offiky/ 아래가 아니라 리포 루트에 있다
-defaults write com.offiky.debug1 channel -int 2   # Debug 빌드만: bot -bool YES 면 혼자 움직이고, dance -bool YES 면 제자리에서 계속 춤춘다. fishing -bool YES 면 계속 낚시하고 입질이 오면 챔질하며 biteDelay -float 4 로 대기를 줄인다. working -bool NO
+defaults write com.offiky.debug1 channel -int 2   # Debug 빌드만: bot -bool YES 면 혼자 움직이고, dance -bool YES 면 제자리에서 계속 춤춘다. fishing -bool YES 면 계속 낚시하고 입질이 오면 챔질한다. biteDelay -float 4 는 입질 대기를 줄이고 직접 낚시할 때도 적용된다. working -bool NO
 open -n "$DIR/debug1/Offiky.app"
 ```
 
