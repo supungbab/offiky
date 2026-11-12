@@ -740,6 +740,28 @@ struct ControlTests {
         #expect(Set((1...12).map { Characters.missText(id: "me", misses: $0) }).count >= 4)   // 매번 같은 말이 아니다
     }
 
+    @MainActor @Test func 낚싯대를_접었다_다시_펴도_동료_화면에_지난_헛챔질_말풍선이_뜨지_않는다() {
+        let me = node(); me.biteDelay = 10...10
+        func label(_ n: CharacterNode) -> String? { (n["//bubble"].first?.children.first as? SKLabelNode)?.text }
+        let mirror = CharacterNode(id: "me", name: "me", isLocal: false)
+        func relay(at now: TimeInterval) {
+            let msg = Session.shared.snapshot(of: me)
+            mirror.applyRemoteSnapshot(x: 100, y: 0, bowing: false, dragging: false, fishing: msg.g == true,
+                                       misses: msg.v ?? 0, facing: 1, sent: nil, at: now)
+            mirror.update(dt: 0.1, now: now, strip: strip)
+        }
+        me.toggleFishing(now: 0)
+        #expect(!me.strike(now: 1, fish: 1))
+        relay(at: 1)
+        #expect(label(mirror) == Characters.missText(id: "me", misses: 1))
+        me.toggleFishing(now: 5)
+        relay(at: 5)
+        #expect(label(mirror) == nil)
+        me.toggleFishing(now: 6)
+        relay(at: 6)
+        #expect(label(mirror) == nil)
+    }
+
     @MainActor @Test func 낚시와_춤은_서로를_멈춘다() {
         let me = node()
         me.toggleDance(); me.toggleFishing(now: 0)

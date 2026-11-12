@@ -75,7 +75,7 @@ final class Session {
         return true
     }
 
-    private func snapshot(of node: CharacterNode) -> PosMsg {
+    func snapshot(of node: CharacterNode) -> PosMsg {
         PosMsg(x: Double(node.x),
                y: node.y > 0 ? Double(node.y) : nil,
                b: node.isBowing ? true : nil,
@@ -94,7 +94,8 @@ final class Session {
                g: node.isFishing ? true : nil,
                i: node.isBiting ? true : nil,
                u: node.caught,
-               v: node.isFishing && node.misses > 0 ? node.misses : nil)
+               // 접은 동안에도 보낸다. 빼면 받는 쪽이 0 으로 알다가 다시 펼 때 헛챔질로 읽는다
+               v: node.misses > 0 ? node.misses : nil)
     }
 
     /// 받는 쪽이 도착 시각 대신 이걸로 표본을 놓는다. 망이 흔들려도 걸음이 고르다
