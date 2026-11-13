@@ -58,6 +58,14 @@ extension View {
 final class KeyPanel: NSPanel {
     override var canBecomeKey: Bool { true }
 
+    /// 지금 데스크톱에 표시한 뒤 모든 데스크톱에 속하게 한다. 모니터 연결을 해제하면 숨겨 둔 창이 그 모니터의 데스크톱에만 속해, 그대로 표시하면 그 데스크톱으로 전환된다
+    override func makeKeyAndOrderFront(_ sender: Any?) {
+        collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
+        super.makeKeyAndOrderFront(sender)
+        // 같은 실행 루프에서 되돌리면 되돌린 설정으로 표시되어 전환된다
+        DispatchQueue.main.async { self.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary] }
+    }
+
     /// 채팅창과 조작 안내가 쓰는 창. 다른 곳을 클릭하면 `onResign` 을 호출한다
     static func floating(onResign: @escaping () -> Void) -> KeyPanel {
         let panel = KeyPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel],
@@ -68,7 +76,6 @@ final class KeyPanel: NSPanel {
         panel.level = .modalPanel
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         NotificationCenter.default.addObserver(
             forName: NSWindow.didResignKeyNotification, object: panel, queue: .main
         ) { _ in onResign() }
