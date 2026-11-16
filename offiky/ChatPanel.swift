@@ -89,7 +89,7 @@ func screenUnderMouse() -> NSScreen? {
 }
 
 /// AppKit 이 저장한 "x y w h 화면x 화면y 화면w 화면h" 에서 창 frame 만 읽는다
-func savedChatFrame(_ value: String? = UserDefaults.standard.string(forKey: "NSWindow Frame Chat")) -> CGRect? {
+func savedChatFrame(_ value: String? = UserDefaults.standard.string(forKey: "NSWindow Frame ChatFrame")) -> CGRect? {
     let n = (value ?? "").split(separator: " ").compactMap { Double($0) }
     guard n.count >= 4 else { return nil }
     return CGRect(x: n[0], y: n[1], width: n[2], height: n[3])
@@ -183,35 +183,41 @@ private let chatMinSize = CGSize(width: 300, height: 400)
 private struct ChatHistoryView: View {
     /// 맨 아래에 보이는 말. 한 번도 스크롤하지 않았으면 nil
     @State private var bottom: UUID?
+    private static let end = "end"
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 8) {
-                // 입력란이 아래라 최신이 아래여야 한다. 저장은 최신이 앞이다
-                ForEach(ChatLog.shared.entries.reversed()) { entry in
-                    if entry.isSystem {
-                        Text(entry.text).font(.system(size: 11)).foregroundStyle(.secondary)
-                            .padding(.horizontal, 10).padding(.vertical, 3)
-                            .background(.quaternary, in: Capsule())
-                            .frame(maxWidth: .infinity)
-                    } else {
-                        bubbleRow(entry)
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(spacing: 0) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        // 입력란이 아래라 최신이 아래여야 한다. 저장은 최신이 앞이다
+                        ForEach(ChatLog.shared.entries.reversed()) { entry in
+                            if entry.isSystem {
+                                Text(entry.text).font(.system(size: 11)).foregroundStyle(.secondary)
+                                    .padding(.horizontal, 10).padding(.vertical, 3)
+                                    .background(.quaternary, in: Capsule())
+                                    .frame(maxWidth: .infinity)
+                            } else {
+                                bubbleRow(entry)
+                            }
+                        }
                     }
+                    .scrollTargetLayout()
+                    .font(.system(size: 12))
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 11)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    // 마지막 말이 아니라 여기로 이동해야 아래 여백까지 보인다
+                    Color.clear.frame(height: 0).id(Self.end)
                 }
             }
-            .scrollTargetLayout()
-            .font(.system(size: 12))
-            .padding(.horizontal, 16)
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        // padding 으로 두면 맨 아래 말로 이동할 때 아래 여백이 화면 밖에 남는다
-        .contentMargins(.vertical, 11, for: .scrollContent)
-        .defaultScrollAnchor(.bottom)
-        .scrollPosition(id: $bottom, anchor: .bottom)
-        // defaultScrollAnchor 는 한 번 스크롤하면 따라가지 않는다. 맨 아래에 있었거나 내가 보냈으면 새 말로 이동한다
-        .onChange(of: ChatLog.shared.entries.first?.id) { old, new in
-            guard let new, bottom == nil || bottom == old || ChatLog.shared.entries.first?.isMe == true else { return }
-            bottom = new
+            .defaultScrollAnchor(.bottom)
+            .scrollPosition(id: $bottom, anchor: .bottom)
+            // defaultScrollAnchor 는 한 번 스크롤하면 따라가지 않는다. 맨 아래에 있었거나 내가 보냈으면 새 말로 이동한다
+            .onChange(of: ChatLog.shared.entries.first?.id) { old, new in
+                guard new != nil, bottom == nil || bottom == old || ChatLog.shared.entries.first?.isMe == true else { return }
+                proxy.scrollTo(Self.end, anchor: .bottom)
+            }
         }
         .frame(minHeight: 60, maxHeight: .infinity)
         .overlay {
@@ -261,11 +267,11 @@ private struct ChatInputView: View {
         }
         // sizingOptions 가 이 최소 크기를 창의 최소 크기로 적용한다
         .frame(minWidth: chatMinSize.width, minHeight: chatMinSize.height)
-        .padding(.top, titlebarHeight)
-        // 조작 안내와 같은 재질·모서리를 제목 표시줄 영역까지 적용한다
+        // 본문은 제목 표시줄 아래에 배치되므로 조작 안내와 같은 재질·모서리를 그 높이만큼 위로 확장해 그린다
         .background {
             panelShape.fill(.regularMaterial)
                 .overlay(panelShape.strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5))
+                .padding(.top, -titlebarHeight)
         }
     }
 
@@ -386,9 +392,8 @@ private struct ChatInputView: View {
         // ⌥F 를 누른 데스크톱으로 창을 가져오고 전체 화면 앱 위에도 표시한다
         window.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
         window.alphaValue = opacity
-        // safe area 를 쓰면 SwiftUI 가 제목 표시줄 아래에만 그려 그 줄이 투명해진다. 창 전체에 그리고 본문은 그 높이만큼 아래에 배치한다
+        // safeAreaRegions 를 비워 창 전체에 그리면 hosting view 가 레이아웃마다 창을 제목 표시줄 높이만큼 키운다
         let hosting = NSHostingView(rootView: ChatInputView(titlebarHeight: window.frame.height - window.contentLayoutRect.height))
-        hosting.safeAreaRegions = []
         hosting.sizingOptions = [.minSize]
         window.contentView = hosting
         // 카카오톡처럼 우측 상단에서 투명도를 정한다
@@ -399,7 +404,7 @@ private struct ChatInputView: View {
         accessory.view = slider
         accessory.layoutAttribute = .trailing
         window.addTitlebarAccessoryViewController(accessory)
-        window.setFrameAutosaveName("Chat")
+        window.setFrameAutosaveName("ChatFrame")
         // setFrameUsingName 은 주 화면이 아닌 화면에 저장된 자리를 주 화면으로 옮기므로 직접 읽는다
         if let saved = savedChatFrame(), NSScreen.screens.contains(where: { $0.visibleFrame.intersects(saved) }) {
             window.setFrame(saved, display: false)
