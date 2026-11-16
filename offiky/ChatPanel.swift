@@ -181,6 +181,9 @@ struct FocusReturn {
 private let chatMinSize = CGSize(width: 300, height: 400)
 
 private struct ChatHistoryView: View {
+    /// 맨 아래에 보이는 말. 한 번도 스크롤하지 않았으면 nil
+    @State private var bottom: UUID?
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 8) {
@@ -196,12 +199,20 @@ private struct ChatHistoryView: View {
                     }
                 }
             }
+            .scrollTargetLayout()
             .font(.system(size: 12))
             .padding(.horizontal, 16)
-            .padding(.vertical, 11)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+        // padding 으로 두면 맨 아래 말로 이동할 때 아래 여백이 화면 밖에 남는다
+        .contentMargins(.vertical, 11, for: .scrollContent)
         .defaultScrollAnchor(.bottom)
+        .scrollPosition(id: $bottom, anchor: .bottom)
+        // defaultScrollAnchor 는 한 번 스크롤하면 따라가지 않는다. 맨 아래에 있었거나 내가 보냈으면 새 말로 이동한다
+        .onChange(of: ChatLog.shared.entries.first?.id) { old, new in
+            guard let new, bottom == nil || bottom == old || ChatLog.shared.entries.first?.isMe == true else { return }
+            bottom = new
+        }
         .frame(minHeight: 60, maxHeight: .infinity)
         .overlay {
             if ChatLog.shared.entries.isEmpty {
@@ -238,6 +249,7 @@ private struct ChatHistoryView: View {
 }
 
 private struct ChatInputView: View {
+    let titlebarHeight: CGFloat
     @State private var draft = ""
     @FocusState private var focused: Bool
 
@@ -249,11 +261,11 @@ private struct ChatInputView: View {
         }
         // sizingOptions 가 이 최소 크기를 창의 최소 크기로 적용한다
         .frame(minWidth: chatMinSize.width, minHeight: chatMinSize.height)
+        .padding(.top, titlebarHeight)
         // 조작 안내와 같은 재질·모서리를 제목 표시줄 영역까지 적용한다
         .background {
             panelShape.fill(.regularMaterial)
                 .overlay(panelShape.strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5))
-                .ignoresSafeArea()
         }
     }
 
@@ -374,7 +386,9 @@ private struct ChatInputView: View {
         // ⌥F 를 누른 데스크톱으로 창을 가져오고 전체 화면 앱 위에도 표시한다
         window.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
         window.alphaValue = opacity
-        let hosting = NSHostingView(rootView: ChatInputView())
+        // safe area 를 쓰면 SwiftUI 가 제목 표시줄 아래에만 그려 그 줄이 투명해진다. 창 전체에 그리고 본문은 그 높이만큼 아래에 배치한다
+        let hosting = NSHostingView(rootView: ChatInputView(titlebarHeight: window.frame.height - window.contentLayoutRect.height))
+        hosting.safeAreaRegions = []
         hosting.sizingOptions = [.minSize]
         window.contentView = hosting
         // 카카오톡처럼 우측 상단에서 투명도를 정한다
