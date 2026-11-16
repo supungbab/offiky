@@ -66,7 +66,7 @@ final class KeyPanel: NSPanel {
         DispatchQueue.main.async { self.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary] }
     }
 
-    /// 채팅창과 조작 안내가 쓰는 창. 다른 곳을 클릭하면 `onResign` 을 호출한다
+    /// 조작 안내가 쓰는 창. 다른 곳을 클릭하면 `onResign` 을 호출한다
     static func floating(onResign: @escaping () -> Void) -> KeyPanel {
         let panel = KeyPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel],
                              backing: .buffered, defer: false)
@@ -89,7 +89,7 @@ func screenUnderMouse() -> NSScreen? {
 }
 
 /// AppKit 이 저장한 "x y w h 화면x 화면y 화면w 화면h" 에서 창 frame 만 읽는다
-func savedChatFrame(_ value: String? = UserDefaults.standard.string(forKey: "NSWindow Frame ChatWindow")) -> CGRect? {
+func savedChatFrame(_ value: String? = UserDefaults.standard.string(forKey: "NSWindow Frame Chat")) -> CGRect? {
     let n = (value ?? "").split(separator: " ").compactMap { Double($0) }
     guard n.count >= 4 else { return nil }
     return CGRect(x: n[0], y: n[1], width: n[2], height: n[3])
@@ -243,22 +243,18 @@ private struct ChatInputView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // 카카오톡처럼 우측 상단에서 투명도를 정한다. 빈 곳을 끌면 창이 옮겨진다
-            HStack {
-                Spacer()
-                Slider(value: Bindable(ChatPanel.shared).opacity, in: 0.3...1)
-                    .controlSize(.mini)
-                    .frame(width: 80)
-            }
-            .padding(.horizontal, 12)
-            .frame(height: 26)
             ChatHistoryView()
             Divider()
             inputBar.frame(height: panelSize.height)
         }
-        // 테두리 없는 창은 panel.minSize 를 지키지 않는다. 내용의 최소 크기는 지킨다
+        // sizingOptions 가 이 최소 크기를 창의 최소 크기로 적용한다
         .frame(minWidth: chatMinSize.width, minHeight: chatMinSize.height)
-        .panelSurface()
+        // 조작 안내와 같은 재질·모서리를 제목 표시줄 영역까지 적용한다
+        .background {
+            panelShape.fill(.regularMaterial)
+                .overlay(panelShape.strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5))
+                .ignoresSafeArea()
+        }
     }
 
     private var inputBar: some View {
@@ -292,9 +288,8 @@ private struct ChatInputView: View {
 @Observable final class ChatPanel {
     static let shared = ChatPanel()
 
-    private var panel: KeyPanel?
+    private var window: NSWindow?
     private var hotKey: HotKey?
-    private var presenting = false
     private var focus = FocusReturn()
 
     private init() {}
@@ -302,7 +297,7 @@ private struct ChatInputView: View {
     var opacity = UserDefaults.standard.object(forKey: "chatOpacity") as? Double ?? 1 {
         didSet {
             UserDefaults.standard.set(opacity, forKey: "chatOpacity")
-            panel?.alphaValue = opacity
+            window?.alphaValue = opacity
         }
     }
 
@@ -325,15 +320,19 @@ private struct ChatInputView: View {
 
     /// 기록의 글을 선택하면 입력란이 포커스를 잃는다. 그때 누른 키는 입력란으로 보내고 Esc 는 창을 닫는다
     private func redirect(_ event: NSEvent) -> NSEvent? {
-        guard let panel, event.window === panel, !event.modifierFlags.contains(.command),
-              (panel.firstResponder as? NSTextView)?.isEditable != true
+        guard let window, event.window === window, !event.modifierFlags.contains(.command),
+              (window.firstResponder as? NSTextView)?.isEditable != true
         else { return event }
         if event.keyCode == UInt16(kVK_Escape) { hide(); return nil }
-        guard let field = panel.contentView.flatMap(editableField) else { return event }
-        panel.makeFirstResponder(field)
-        // 포커스를 받으면 전체가 선택되어 입력한 글자가 쓰던 글을 덮어쓴다
-        field.currentEditor()?.selectedRange = NSRange(location: field.stringValue.utf16.count, length: 0)
+        focusField()
         return event
+    }
+
+    /// 포커스를 받으면 전체가 선택되어 입력한 글자가 쓰던 글을 덮어쓰므로 커서를 끝에 둔다
+    private func focusField() {
+        guard let window, let field = window.contentView.flatMap(editableField) else { return }
+        window.makeFirstResponder(field)
+        field.currentEditor()?.selectedRange = NSRange(location: field.stringValue.utf16.count, length: 0)
     }
 
     private func editableField(in view: NSView) -> NSTextField? {
@@ -341,56 +340,62 @@ private struct ChatInputView: View {
         return view.subviews.lazy.compactMap(editableField).first
     }
 
+    /// 맨 앞에서 입력 중이면 닫고, 닫혀 있거나 다른 창 뒤에 있으면 앞으로 가져온다
     func toggle() {
-        if panel?.isVisible == true { hide() } else { show() }
+        if NSApp.isActive, window?.isKeyWindow == true { hide() } else { show() }
     }
 
     func show() {
-        guard let screen = screenUnderMouse() else { return }
-        // 입력란 높이는 조작 안내와 같고, 창은 그 위로 길게 쌓인다
-        let origin = panelOrigin(on: screen, width: chatMinSize.width)
-        let size = chatMinSize
-
-        // 스포트라이트처럼 다른 곳을 클릭하면 사라진다
-        let panel = self.panel ?? KeyPanel.floating { [weak self] in
-            guard let self, !self.presenting else { return }
-            self.hide(restoringFocus: false)
+        let window = self.window ?? makeWindow()
+        self.window = window
+        // 숨긴 사이 그 모니터 연결을 해제했으면 마우스가 있는 화면으로 옮긴다
+        if !NSScreen.screens.contains(where: { $0.visibleFrame.intersects(window.frame) }),
+           let screen = screenUnderMouse() {
+            window.setFrameOrigin(panelOrigin(on: screen, width: window.frame.width))
         }
-        if self.panel == nil {
-            panel.styleMask.insert(.resizable)
-            panel.isMovableByWindowBackground = true
-            panel.setFrameAutosaveName("ChatWindow")
-        }
-        self.panel = panel
-        panel.alphaValue = opacity
-
-        // 매번 새 뷰를 넣어 입력란을 비우고 포커스를 다시 잡는다
-        presenting = true
+        if window.isMiniaturized { window.deminiaturize(nil) }
         focus.remember()
-        let hosting = NSHostingView(rootView: ChatInputView())
-        hosting.sizingOptions = [.minSize]
-        panel.contentView = hosting
-        // 옮기거나 크기를 바꾼 적이 있으면 그 자리에 띄운다. 그 화면이 빠졌으면 크기만 쓴다.
-        // setFrameUsingName 은 주 화면이 아닌 화면에 저장된 자리를 주 화면으로 옮기므로 직접 읽는다
-        if let saved = savedChatFrame() {
-            let onScreen = NSScreen.screens.contains { $0.visibleFrame.intersects(saved) }
-            panel.setFrame(onScreen ? saved : CGRect(origin: origin, size: saved.size), display: true)
-        } else {
-            panel.setFrame(CGRect(origin: origin, size: size), display: true)
-        }
         NSApp.activate(ignoringOtherApps: true)
-        panel.makeKeyAndOrderFront(nil)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            self.presenting = false
-            // 그 사이에 다른 곳을 클릭했으면 알림이 무시됐다. 여기서 확인한다
-            if self.panel?.isKeyWindow == false { self.hide(restoringFocus: false) }
-        }
+        window.makeKeyAndOrderFront(nil)
+        focusField()
     }
 
-    /// Esc·전송으로 닫을 때는 띄우기 직전의 앱으로 포커스를 되돌린다.
-    /// 다른 앱을 클릭해 닫힌 경우에는 그 앱이 이미 앞에 있으므로 되돌리지 않는다.
-    func hide(restoringFocus: Bool = true) {
-        panel?.orderOut(nil)
-        focus.restore(restoringFocus)
+    private func makeWindow() -> NSWindow {
+        let origin = screenUnderMouse().map { panelOrigin(on: $0, width: chatMinSize.width) } ?? .zero
+        let window = NSWindow(contentRect: CGRect(origin: origin, size: chatMinSize),
+                              styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+                              backing: .buffered, defer: false)
+        window.title = "채팅"
+        window.titleVisibility = .hidden
+        window.titlebarAppearsTransparent = true
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.isReleasedWhenClosed = false
+        // ⌥F 를 누른 데스크톱으로 창을 가져오고 전체 화면 앱 위에도 표시한다
+        window.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
+        window.alphaValue = opacity
+        let hosting = NSHostingView(rootView: ChatInputView())
+        hosting.sizingOptions = [.minSize]
+        window.contentView = hosting
+        // 카카오톡처럼 우측 상단에서 투명도를 정한다
+        let slider = NSHostingView(rootView: Slider(value: Bindable(self).opacity, in: 0.3...1)
+            .controlSize(.mini).frame(width: 80).padding(.horizontal, 12))
+        slider.frame.size = slider.fittingSize
+        let accessory = NSTitlebarAccessoryViewController()
+        accessory.view = slider
+        accessory.layoutAttribute = .trailing
+        window.addTitlebarAccessoryViewController(accessory)
+        window.setFrameAutosaveName("Chat")
+        // setFrameUsingName 은 주 화면이 아닌 화면에 저장된 자리를 주 화면으로 옮기므로 직접 읽는다
+        if let saved = savedChatFrame(), NSScreen.screens.contains(where: { $0.visibleFrame.intersects(saved) }) {
+            window.setFrame(saved, display: false)
+        }
+        return window
+    }
+
+    /// Esc·⌥F 로 닫으면 열기 직전의 앱으로 포커스를 되돌린다
+    func hide() {
+        window?.orderOut(nil)
+        focus.restore(true)
     }
 }
