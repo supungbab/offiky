@@ -52,7 +52,7 @@ enum Characters {
         "birb_scarlet", "cat_cheese", "cat_tuxedo", "human_skin", "human_jeans",
         "ghost_white", "ghost_mint", "ghost_pumpkin", "ghost_night", "ghost_ice", "ghost_sakura",
         "human_tan", "human_brown", "human_deep", "slime_green",
-        "slime_water", "slime_berry", "slime_lava", "slime_metal", "slime_grape"]
+        "slime_water", "slime_berry", "slime_lava", "slime_metal", "slime_grape", "lion_gold", "lion_white", "lion_black"]
     static var count: Int { names.count }
 
     static func shape(_ design: Int) -> String {
@@ -80,7 +80,8 @@ enum Characters {
                                  "cat": "고양이",
                                  "human": "사람",
                                  "ghost": "유령",
-                                 "slime": "슬라임"]
+                                 "slime": "슬라임",
+                                 "lion": "사자"]
 
     static func label(_ shape: String) -> String { labels[shape] ?? shape }
 
