@@ -181,8 +181,9 @@ struct FocusReturn {
 private let chatMinSize = CGSize(width: 300, height: 400)
 
 private struct ChatHistoryView: View {
-    /// 맨 아래에 보이는 말. 한 번도 스크롤하지 않았으면 nil
+    /// 맨 아래에 보이는 말. 직접 스크롤할 때만 갱신되고 scrollTo 로 이동해서는 갱신되지 않는다
     @State private var bottom: UUID?
+    @State private var following = true
     private static let end = "end"
 
     var body: some View {
@@ -213,9 +214,11 @@ private struct ChatHistoryView: View {
             }
             .defaultScrollAnchor(.bottom)
             .scrollPosition(id: $bottom, anchor: .bottom)
+            .onChange(of: bottom) { following = bottom == ChatLog.shared.entries.first?.id }
             // defaultScrollAnchor 는 한 번 스크롤하면 따라가지 않는다. 맨 아래에 있었거나 내가 보냈으면 새 말로 이동한다
-            .onChange(of: ChatLog.shared.entries.first?.id) { old, new in
-                guard new != nil, bottom == nil || bottom == old || ChatLog.shared.entries.first?.isMe == true else { return }
+            .onChange(of: ChatLog.shared.entries.first?.id) { _, new in
+                guard new != nil, following || ChatLog.shared.entries.first?.isMe == true else { return }
+                following = true
                 proxy.scrollTo(Self.end, anchor: .bottom)
             }
         }
