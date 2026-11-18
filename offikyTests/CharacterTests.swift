@@ -896,13 +896,15 @@ struct ControlTests {
         #expect(Characters.caughtText(1) == "붕어를 잡았다!")
         #expect(Characters.caughtText(7) == "게를 잡았다!")
         #expect(Characters.caughtText(17) == "깡통을 잡았다!")
-        #expect(Characters.caughtText(999) == "깡통을 잡았다!")              // 새 버전이 더한 물고기는 마지막 장으로 그린다
+        #expect(Characters.caughtText(19) == "우럭을 잡았다!")
+        #expect(Characters.caughtText(24) == "해초를 잡았다!")
+        #expect(Characters.caughtText(999) == "해초를 잡았다!")              // 새 버전이 더한 물고기는 마지막 장으로 그린다
     }
 
     @Test func 낚시_에셋은_장수와_크기가_맞다() {
         #expect(Characters.bobber.count == 1)
         #expect(Characters.pond.count == 4)
-        #expect(Characters.fishes.count == 17)
+        #expect(Characters.fishes.count == 24)
         #expect(Characters.rod.size().width > 0)
         #expect(Characters.pond[0].size() == Characters.danceFloor[0].size())
         #expect(Set(Characters.fishes.map { $0.size() }).count == 1)

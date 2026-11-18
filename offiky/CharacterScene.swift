@@ -1814,7 +1814,7 @@ extension World {
     }
 
     /// `Characters.fishes` 순서의 가중치. 번호는 1부터. 흔한 민물고기가 대부분이고 상어가 가장 드물다
-    static let fishWeights = [24, 18, 14, 6, 5, 4, 5, 6, 16, 10, 6, 12, 5, 8, 5, 2, 6]
+    static let fishWeights = [24, 18, 14, 6, 5, 4, 5, 6, 16, 10, 6, 12, 5, 8, 5, 2, 6, 8, 8, 6, 6, 3, 6, 6]
 
     static func pickFish() -> Int {
         var roll = Int.random(in: 0..<fishWeights.reduce(0, +))

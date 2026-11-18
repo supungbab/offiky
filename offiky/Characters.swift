@@ -272,9 +272,10 @@ enum Characters {
     static let bobber = strip("bobber", count: 1)
     static let pond = strip("pond", count: 4)
     /// `fishNames` 순서의 물고기. 번호로 전송되므로 뒤에만 더한다
-    static let fishes = strip("fish", count: 17)
+    static let fishes = strip("fish", count: 24)
     static let fishNames = ["붕어", "잉어", "금붕어", "복어", "가오리", "문어", "게", "장화",
-                            "고등어", "연어", "흰동가리", "메기", "오징어", "새우", "불가사리", "상어", "깡통"]
+                            "고등어", "연어", "흰동가리", "메기", "오징어", "새우", "불가사리", "상어", "깡통",
+                            "광어", "우럭", "농어", "삼치", "붉바리", "쥐노래미", "해초"]
 
     /// 헛챔질 때 하는 말. id 와 횟수로 골라 매번 바뀌면서도 모든 화면에 같은 말이 뜬다
     static let missLines = ["까비…", "아깝다!", "어라?", "허탕…", "에잇!", "쳇…", "빈 바늘…", "다음엔 꼭!"]
@@ -299,7 +300,10 @@ enum Characters {
         (CGPoint(x: 8, y: 11.5), .pi), (CGPoint(x: 1.5, y: 2.5), -0.9), (CGPoint(x: 7, y: 0.5), 0),
         (CGPoint(x: 0.5, y: 6.5), -.pi / 2), (CGPoint(x: 0.5, y: 6.5), -.pi / 2), (CGPoint(x: 0.5, y: 6.5), -.pi / 2),
         (CGPoint(x: 0.5, y: 6.5), -.pi / 2), (CGPoint(x: 0.5, y: 6.5), -.pi / 2), (CGPoint(x: 3.5, y: 3.5), -.pi / 2),
-        (CGPoint(x: 7.5, y: 0.5), 0), (CGPoint(x: 1.5, y: 7.5), -.pi / 2), (CGPoint(x: 5.5, y: 2.5), -0.5)]
+        (CGPoint(x: 7.5, y: 0.5), 0), (CGPoint(x: 1.5, y: 7.5), -.pi / 2), (CGPoint(x: 5.5, y: 2.5), -0.5),
+        (CGPoint(x: 0.5, y: 6.5), -.pi / 2), (CGPoint(x: 0.5, y: 6.5), -.pi / 2), (CGPoint(x: 0.5, y: 7.5), -.pi / 2),
+        (CGPoint(x: 0.5, y: 6.5), -.pi / 2), (CGPoint(x: 0.5, y: 6.5), -.pi / 2), (CGPoint(x: 0.5, y: 6.5), -.pi / 2),
+        (CGPoint(x: 8, y: 0.5), 0)]
 
     /// 가로로 붙은 같은 폭의 그림을 자른다
     private static func strip(_ name: String, count: Int) -> [SKTexture] {
