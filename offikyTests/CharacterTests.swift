@@ -545,7 +545,7 @@ struct ControlTests {
         #expect(!node.isExhausting)
     }
 
-    @MainActor @Test func 무기는_누를_때마다_몽둥이_물총_광선검_낚싯대_순으로_바꿔_들고_마지막에_내려놓는다() {
+    @MainActor @Test func 무기는_누를_때마다_몽둥이_물총_광선검_낚싯대_파리채_순으로_바꿔_들고_마지막에_내려놓는다() {
         let me = node()
         #expect(me.wielding == nil)
         me.cycleWeapon()
@@ -557,6 +557,9 @@ struct ControlTests {
         me.cycleWeapon()
         #expect(me.wielding == .rod)
         #expect(Weapon.rod.rawValue == 4)                           // 번호로 전송되므로 뒤에 더한다
+        me.cycleWeapon()
+        #expect(me.wielding == .swatter)
+        #expect(Weapon.swatter.rawValue == 5)
         me.cycleWeapon()
         #expect(me.wielding == nil)
     }

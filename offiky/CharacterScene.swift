@@ -3,7 +3,7 @@ import SpriteKit
 
 /// Z 로 바꿔 들고 X 로 쓰는 무기. 번호가 그대로 오가므로 바꾸지 않는다
 enum Weapon: Int {
-    case club = 1, waterGun = 2, lightsaber = 3, rod = 4
+    case club = 1, waterGun = 2, lightsaber = 3, rod = 4, swatter = 5
 
     /// 한 번 휘두르거나 쏘는 동안. 그동안은 다시 쓰지 않는다
     var duration: TimeInterval { self == .waterGun ? 0.25 : self == .rod ? 0.4 : 0.32 }
@@ -16,7 +16,7 @@ enum Weapon: Int {
         }
     }
     /// 휘두르는 무기가 몸 가운데에서 닿는 거리(pt). 그림 길이와 낚싯줄이 뻗는 끝에 맞춘다
-    var reach: CGFloat { self == .lightsaber ? 54 : self == .rod ? 120 : 30 }
+    var reach: CGFloat { self == .lightsaber ? 54 : self == .swatter ? 48 : self == .rod ? 120 : 30 }
 }
 
 final class CharacterNode: SKNode {
@@ -781,6 +781,11 @@ final class CharacterNode: SKNode {
                 let frame = t.map { $0 < 0.08 ? 0 : $0 < 0.14 ? 1 : $0 < 0.2 ? 2 : 3 } ?? 4
                 weapon.texture = Characters.lightsaber[frame]
                 weapon.anchorPoint = CGPoint(x: 22.5 / 56, y: 1 - 34.5 / 44)
+                weapon.zPosition = frame < 2 ? -0.5 : 0.5
+            case .swatter:
+                let frame = t.map { $0 < 0.08 ? 0 : $0 < 0.14 ? 1 : $0 < 0.2 ? 2 : 3 } ?? 4
+                weapon.texture = Characters.swatter[frame]
+                weapon.anchorPoint = CGPoint(x: 20.5 / 46, y: 1 - 26.5 / 32)
                 weapon.zPosition = frame < 2 ? -0.5 : 0.5
             case .waterGun:
                 weapon.texture = Characters.waterGun[t.map { $0 < 0.1 } == true ? 1 : 0]
@@ -1830,7 +1835,7 @@ extension World {
         _ = me.strike(now: ProcessInfo.processInfo.systemUptime, fish: World.pickFish())
     }
 
-    /// X 를 눌렀다. 몽둥이·광선검은 쓴 쪽이 앞에서 가장 가까운 상대를 맞힌 것으로 판정해 함께 알린다
+    /// X 를 눌렀다. 휘두르는 무기는 쓴 쪽이 앞에서 가장 가까운 상대를 맞힌 것으로 판정해 함께 알린다
     func fire() {
         let now = ProcessInfo.processInfo.systemUptime
         guard let weapon = me.wielding, me.startAttack(weapon, now: now) else { return }
@@ -1844,7 +1849,7 @@ extension World {
         Session.shared.sendAttack(weapon, target: target)
     }
 
-    /// 동료가 무기를 썼다. 몽둥이·광선검이 나를 맞혔으면 그림이 닿는 때에 맞는다
+    /// 동료가 무기를 썼다. 휘두르는 무기가 나를 맞혔으면 그림이 닿는 때에 맞는다
     func peerAttacked(id: String, with weapon: Weapon, target: String?, at position: CGPoint, facing: Int) {
         let now = ProcessInfo.processInfo.systemUptime
         guard let shooter = peers[id] else { return }

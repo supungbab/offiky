@@ -257,6 +257,8 @@ enum Characters {
     static let club = strip("club", count: 5)
     /// 광선검 다섯 장. 몽둥이와 같은 순서이고 칸이 더 크다. 칸마다 손(22, 34)이 같다
     static let lightsaber = strip("lightsaber", count: 5)
+    /// 파리채 다섯 장. 몽둥이와 같은 순서이고 칸마다 손(20, 26)이 같다
+    static let swatter = strip("swatter", count: 5)
     /// 물총 두 장(대기·발사), 날아가는 물총알 두 장, 맞은 자리에 튀는 물 세 장
     static let waterGun = strip("watergun", count: 2)
     static let bullet = strip("bullet", count: 2)
