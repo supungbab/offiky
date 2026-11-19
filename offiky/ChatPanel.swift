@@ -385,8 +385,11 @@ private struct ChatInputView: View {
     private func makeWindow() -> NSWindow {
         let origin = screenUnderMouse().map { panelOrigin(on: $0, width: chatMinSize.width) } ?? .zero
         let window = NSWindow(contentRect: CGRect(origin: origin, size: chatMinSize),
-                              styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+                              styleMask: [.titled, .closable, .resizable, .fullSizeContentView],
                               backing: .buffered, defer: false)
+        // 한마디 보내고 닫는 창이라 최소화·확대 버튼은 두지 않는다
+        window.standardWindowButton(.miniaturizeButton)?.isHidden = true
+        window.standardWindowButton(.zoomButton)?.isHidden = true
         window.title = "채팅"
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
