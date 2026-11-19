@@ -291,10 +291,11 @@ private struct ChatInputView: View {
                     if !draft.isEmpty { Session.shared.sendTyping() }
                 }
                 .onAppear { DispatchQueue.main.async { focused = true } }
-                // 보내고도 열어 둔다. 대화가 이어질 때 ⌥F 를 다시 누르지 않아도 된다
+                // 한마디 보내면 닫는다
                 .onSubmit {
                     Session.shared.sendSay(draft)
                     draft = ""
+                    ChatPanel.shared.hide()
                 }
                 .onExitCommand { ChatPanel.shared.hide() }
             Text("\(draft.count)/\(Limits.maxChat)")
@@ -412,12 +413,16 @@ private struct ChatInputView: View {
         if let saved = savedChatFrame(), NSScreen.screens.contains(where: { $0.visibleFrame.intersects(saved) }) {
             window.setFrame(saved, display: false)
         }
+        // 다른 곳을 클릭하면 닫는다. 클릭한 앱이 이미 앞에 있으므로 포커스를 되돌리지 않는다
+        NotificationCenter.default.addObserver(forName: NSWindow.didResignKeyNotification, object: window, queue: .main) { [weak self] _ in
+            self?.hide(restoringFocus: false)
+        }
         return window
     }
 
-    /// Esc·⌥F 로 닫으면 열기 직전의 앱으로 포커스를 되돌린다
-    func hide() {
+    /// 보내거나 Esc·⌥F 로 닫으면 열기 직전의 앱으로 포커스를 되돌린다. 창을 내리면 키를 내준 알림이 hide 를 다시 호출하므로 먼저 되돌린다
+    func hide(restoringFocus: Bool = true) {
+        focus.restore(restoringFocus)
         window?.orderOut(nil)
-        focus.restore(true)
     }
 }
