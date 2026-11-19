@@ -1214,6 +1214,28 @@ struct ScreenChangeTests {
         attach([external, laptop])
         #expect(World.shared.me.x == 2860)
     }
+
+    /// 띠는 [먼 모니터 0~2560][보조 2560~5120][노트북 5120~6920] 이다
+    @MainActor @Test func 깨어나며_화면이_하나씩_돌아와도_있던_모니터로_돌아간다() {
+        let far = CGRect(x: -5120, y: 0, width: 2560, height: 1440)
+        attach([far, external, laptop])
+        World.shared.me.teleport(to: 1000)
+        attach([])
+        attach([laptop])
+        #expect(World.shared.me.x == 1000)       // 없는 동안은 주 화면의 같은 가로 위치에 있는다
+        attach([external, laptop])
+        attach([far, external, laptop])
+        #expect(World.shared.me.x == 1000)
+    }
+
+    @MainActor @Test func 옮겨진_뒤에_움직였으면_움직인_자리를_지킨다() {
+        attach([external, laptop])
+        World.shared.me.teleport(to: 1000)       // 보조 모니터 위
+        attach([laptop])
+        World.shared.me.teleport(to: 500)        // 노트북에서 옮겼다
+        attach([external, laptop])
+        #expect(World.shared.me.x == 3060)       // 노트북 500 지점
+    }
 }
 
 struct DoubleJumpTests {

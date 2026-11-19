@@ -1458,6 +1458,8 @@ final class World {
     /// 마지막으로 보이던 화면 위 자리. 전환 중에는 화면이 0개로 보고되는 순간이 있어,
     /// 그때 띠에서 다시 계산하면 기억이 사라진다
     private var lastSeen: (global: CGPoint, offset: CGFloat)?
+    /// 화면 구성에 맞춰 놓은 직후의 위치. 그 뒤로 움직이지 않았으면 `lastSeen` 을 다시 계산하지 않는다
+    private var settledX: CGFloat?
 
     private init() {
         World.renumberLook()
@@ -1526,7 +1528,7 @@ final class World {
     func attach(scenes: [SKScene], strip: FloorStrip) {
         // 화면 구성이 바뀌면 좌표계가 통째로 움직인다. 보이는 자리를 지키려면
         // 바뀌기 전의 화면 위치를 받아 두었다가 새 좌표계로 되돌려야 한다
-        if !self.strip.frames.isEmpty, let spot = self.strip.place(x: me.x, y: me.y) {
+        if me.x != settledX, !self.strip.frames.isEmpty, let spot = self.strip.place(x: me.x, y: me.y) {
             let frame = self.strip.frames[spot.screenIndex]
             lastSeen = (CGPoint(x: frame.minX + spot.point.x, y: frame.minY + spot.point.y),
                         spot.point.x)
@@ -1551,6 +1553,7 @@ final class World {
             me.teleport(to: strip.onMain(offset: seen.offset))
         }
         me.x = strip.clamp(me.x)
+        settledX = me.x
     }
 
     /// 전역 커서 좌표를 띠 좌표로 바꾼다. 세로는 커서가 있는 화면의
