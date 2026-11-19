@@ -88,11 +88,39 @@ func screenUnderMouse() -> NSScreen? {
     NSScreen.screens.first { $0.frame.contains(NSEvent.mouseLocation) } ?? NSScreen.main
 }
 
+/// 키보드로 쓰고 있는 앱의 맨 앞 창이 있는 화면. 창이 없으면 마우스가 있는 화면.
+/// 우리 앱을 앞으로 가져오기 전에 불러야 한다
+func focusedScreen() -> NSScreen? {
+    guard let pid = NSWorkspace.shared.frontmostApplication?.processIdentifier,
+          let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]],
+          let front = windows.first(where: {
+              $0[kCGWindowOwnerPID as String] as? pid_t == pid && $0[kCGWindowLayer as String] as? Int == 0
+          }),
+          let bounds = (front[kCGWindowBounds as String] as? NSDictionary)
+              .flatMap({ CGRect(dictionaryRepresentation: $0 as CFDictionary) })
+    else { return screenUnderMouse() }
+    return screen(containingWindowBounds: bounds, in: NSScreen.screens.map(\.frame))
+        .map { NSScreen.screens[$0] } ?? screenUnderMouse()
+}
+
+/// 창 목록의 좌표는 주 화면 왼쪽 위가 원점이고 y 가 아래로 커진다. 창 가운데가 들어 있는 화면의 번호
+func screen(containingWindowBounds bounds: CGRect, in frames: [CGRect]) -> Int? {
+    guard let primary = frames.first else { return nil }
+    let center = CGPoint(x: bounds.midX, y: primary.maxY - bounds.midY)
+    return frames.firstIndex { $0.contains(center) }
+}
+
 /// AppKit 이 저장한 "x y w h 화면x 화면y 화면w 화면h" 에서 창 frame 만 읽는다
 func savedChatFrame(_ value: String? = UserDefaults.standard.string(forKey: "NSWindow Frame ChatFrame")) -> CGRect? {
     let n = (value ?? "").split(separator: " ").compactMap { Double($0) }
     guard n.count >= 4 else { return nil }
     return CGRect(x: n[0], y: n[1], width: n[2], height: n[3])
+}
+
+/// 다른 화면으로 옮길 때 그 화면 안에서의 자리를 지킨다. 넘치면 화면 안으로 당긴다
+func chatOrigin(_ frame: CGRect, from: CGRect, to: CGRect) -> CGPoint {
+    CGPoint(x: min(max(to.minX + frame.minX - from.minX, to.minX), to.maxX - frame.width),
+            y: min(max(to.minY + frame.minY - from.minY, to.minY), to.maxY - frame.height))
 }
 
 /// 채팅 입력란과 조작 안내가 같은 높이에 뜬다
@@ -370,12 +398,13 @@ private struct ChatInputView: View {
     func show() {
         let window = self.window ?? makeWindow()
         self.window = window
-        // 숨긴 사이 그 모니터 연결을 해제했으면 마우스가 있는 화면으로 옮긴다
-        if !NSScreen.screens.contains(where: { $0.visibleFrame.intersects(window.frame) }),
-           let screen = screenUnderMouse() {
-            window.setFrameOrigin(panelOrigin(on: screen, width: window.frame.width))
+        // 키보드로 쓰고 있는 화면에 연다. 그 모니터 연결을 해제했으면 가운데 아래에 둔다
+        let center = CGPoint(x: window.frame.midX, y: window.frame.midY)
+        if let target = focusedScreen(), !target.frame.contains(center) {
+            let source = NSScreen.screens.first { $0.frame.contains(center) }
+            window.setFrameOrigin(source.map { chatOrigin(window.frame, from: $0.visibleFrame, to: target.visibleFrame) }
+                                  ?? panelOrigin(on: target, width: window.frame.width))
         }
-        if window.isMiniaturized { window.deminiaturize(nil) }
         focus.remember()
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
@@ -383,7 +412,7 @@ private struct ChatInputView: View {
     }
 
     private func makeWindow() -> NSWindow {
-        let origin = screenUnderMouse().map { panelOrigin(on: $0, width: chatMinSize.width) } ?? .zero
+        let origin = focusedScreen().map { panelOrigin(on: $0, width: chatMinSize.width) } ?? .zero
         let window = NSWindow(contentRect: CGRect(origin: origin, size: chatMinSize),
                               styleMask: [.titled, .closable, .resizable, .fullSizeContentView],
                               backing: .buffered, defer: false)

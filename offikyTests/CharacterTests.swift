@@ -1858,6 +1858,23 @@ struct ChatFrameTests {
         #expect(savedChatFrame(nil) == nil)
         #expect(savedChatFrame("1 2 3") == nil)
     }
+
+    /// 주 화면 1800×1100 오른쪽에 모니터가 위쪽을 맞춰 붙어 있다. 창 목록은 y 가 아래로 커진다
+    @Test func 창_목록_좌표로_창이_있는_화면을_찾는다() {
+        let frames = [CGRect(x: 0, y: 0, width: 1800, height: 1100), CGRect(x: 1800, y: -300, width: 2560, height: 1400)]
+        #expect(screen(containingWindowBounds: CGRect(x: 100, y: 100, width: 800, height: 600), in: frames) == 0)
+        #expect(screen(containingWindowBounds: CGRect(x: 2000, y: 900, width: 800, height: 600), in: frames) == 1)
+        #expect(screen(containingWindowBounds: CGRect(x: 9000, y: 0, width: 10, height: 10), in: frames) == nil)
+    }
+
+    @Test func 다른_화면으로_옮길_때_화면_안_자리를_지킨다() {
+        let laptop = CGRect(x: 0, y: 0, width: 1800, height: 1100)
+        let monitor = CGRect(x: 1800, y: 0, width: 2560, height: 1400)
+        // 노트북 오른쪽 아래에 있던 창은 모니터에서도 같은 거리에 놓인다
+        #expect(chatOrigin(CGRect(x: 1400, y: 50, width: 300, height: 400), from: laptop, to: monitor) == CGPoint(x: 3200, y: 50))
+        // 좁은 화면으로 옮기면 넘치지 않게 안으로 당긴다
+        #expect(chatOrigin(CGRect(x: 3900, y: 1000, width: 300, height: 400), from: monitor, to: laptop) == CGPoint(x: 1500, y: 700))
+    }
 }
 
 /// 다른 테스트가 같은 기록을 쓰므로 이름으로 가려 확인한다
