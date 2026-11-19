@@ -404,6 +404,27 @@ struct ControlTests {
         #expect(node.y == 0)
     }
 
+    @MainActor @Test func 겹치면_물건이_묘비보다_앞이다() {
+        let worker = CharacterNode(id: "worker", name: "w", isLocal: true)
+        worker.teleport(to: 900)
+        worker.startWorking()
+        worker.update(dt: 1.0 / 60, now: 1, strip: strip)
+        worker.render(placement: strip.place(x: worker.x, y: 0)!)
+        // 사람마다 다른 깊이 보정보다 앞서는지 여러 사람으로 확인한다
+        for id in ["a", "b", "c", "d", "e", "f"] {
+            let dead = CharacterNode(id: id, name: id, isLocal: true)
+            dead.teleport(to: 900)
+            for n in 1...CharacterNode.hitsToDie {
+                dead.takeHit(now: Double(n))
+                dead.update(dt: 1.0 / 60, now: Double(n), strip: strip)
+            }
+            dead.update(dt: 1.0 / 60, now: 30, strip: strip)
+            dead.render(placement: strip.place(x: dead.x, y: dead.y)!)
+            #expect(dead.tombstoneRows != nil)
+            #expect(worker.zPosition > dead.zPosition)
+        }
+    }
+
     @MainActor @Test func 노트북은_아파하지_않고_바로_올라오고_다_올라온_뒤_위_키로_돌아온다() {
         let node = node()
         node.startWorking()

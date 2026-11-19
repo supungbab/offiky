@@ -1292,8 +1292,8 @@ final class CharacterNode: SKNode {
             flameTick += 1
             exhaust.texture = Characters.exhaust[(flameTick / 3) % 2]
         }
-        // 묘비·팻말·물건은 늘 다른 캐릭터 뒤에 둔다. 원격은 띠 왼쪽 밖(x < 0)에도 서므로 넉넉히 뺀다
-        zPosition = standing ? depthBias - 10_000 : x + depthBias
+        // 묘비·팻말·물건은 늘 다른 캐릭터 뒤에 두고, 겹치면 물건을 앞에 둔다. 원격은 띠 왼쪽 밖(x < 0)에도 서므로 넉넉히 뺀다
+        zPosition = standing ? depthBias - 10_000 + (tombstone || isAway ? 0 : 1) : x + depthBias
         // 스프라이트는 오른쪽을 보고 그려져 있다. 글씨가 있는 업데이트 팻말은 뒤집지 않는다
         image.xScale = standing || look.design == Characters.count ? 1 : shownFacing
         updateNameLabel()
