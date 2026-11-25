@@ -114,10 +114,12 @@ final class UpdateChecker {
 
     /// Homebrew 7 부터 upgrade 가 기본으로 [y/n] 을 묻는다. 옛 brew 는 --yes 를 모르니 환경변수로 끈다.
     /// 앱은 명령을 넘기고 스스로 종료한다. brew 가 종료하려면 터미널에 자동화 권한이 있어야 하고,
-    /// 없으면 다시 실행하지도 않는다. 업그레이드가 실패해도 옛 버전을 다시 실행한다
+    /// 없으면 다시 실행하지도 않는다. 업그레이드가 실패해도 옛 버전을 다시 실행한다.
+    /// 설치 직후에는 Launch Services 가 번들 id 를 아직 등록하지 않아 open -b 가 실패할 수 있어 1초 간격으로 다시 시도한다
     private var command: String {
         // 터미널이 막 뜬 창은 셸이 준비되기 전에 들어온 첫 글자를 먹는다(rew update). 공백이 대신 먹히게 한다
-        "  brew update && HOMEBREW_NO_ASK=1 brew upgrade --cask \(cask); open -b com.offiky.app"
+        "  brew update && HOMEBREW_NO_ASK=1 brew upgrade --cask \(cask); "
+            + "for i in 1 2 3 4 5; do open -b com.offiky.app 2>/dev/null && break; sleep 1; done"
     }
 
     /// 자동화 권한을 거부하면 붙여 넣을 수 있게 클립보드에 넣고 터미널만 연다
