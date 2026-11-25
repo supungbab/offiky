@@ -273,11 +273,19 @@ enum Characters {
     static let rod = strip("rod", count: 1)[0]
     static let bobber = strip("bobber", count: 1)
     static let pond = strip("pond", count: 4)
-    /// `fishNames` 순서의 물고기. 번호로 전송되므로 뒤에만 더한다
-    static let fishes = strip("fish", count: 24)
-    static let fishNames = ["붕어", "잉어", "금붕어", "복어", "가오리", "문어", "게", "장화",
-                            "고등어", "연어", "흰동가리", "메기", "오징어", "새우", "불가사리", "상어", "깡통",
-                            "광어", "우럭", "농어", "삼치", "붉바리", "쥐노래미", "해초"]
+    /// `scripts/make_fishing.py` 의 FISH 순서. 번호로 전송되므로 뒤에만 더한다
+    static let fishes = strip("fish", count: 26)
+    /// `fishes` 순서로 잡았을 때 하는 말
+    static let catchLines = [
+        "붕어다! 팥은 안 들었네", "잉어 한 마리! 잉여로운 오후다", "금붕어…? 방금 뭐 했더라?",
+        "복어가 빵빵해! 왜 화났어?", "가오리 낚았다! 가오 좀 살았다", "문어다! 너도 머리숱 고민 있구나",
+        "게다! 어딜 옆으로 도망가!", "장화네… 한 짝은 어디 갔지?", "고등어! 오늘 저녁은 구이다",
+        "연어구나, 퇴근하던 길이었어?", "흰동가리! 아빠가 찾을 텐데", "메기 수염 관리 잘했네",
+        "오징어다! 이거 누구 닮은 것 같은데?", "새우야, 허리 좀 펴고 살자", "불가사리! 별 볼 일 있네",
+        "사, 상어?! 이거 실화야?!", "깡통이네… 분리수거는 내가 할게", "광어 왔다! 초장 어디 있어?",
+        "우럭이다! 매운탕 끓이자", "농어 낚음. 농담 아니고 진짜임", "삼치 한 마리면 밥 삼 공기",
+        "붉바리다! 이거 귀한 몸이야!", "쥐노래미인데 노래는 안 하네", "해초네… 샐러드라고 치자",
+        "당근?! 왜 물에서 당근이 나와?", "으아악! 해, 해골이다!!"]
 
     /// 헛챔질 때 하는 말. id 와 횟수로 골라 매번 바뀌면서도 모든 화면에 같은 말이 뜬다
     static let missLines = ["까비…", "아깝다!", "어라?", "허탕…", "에잇!", "쳇…", "빈 바늘…", "다음엔 꼭!"]
@@ -286,12 +294,9 @@ enum Characters {
         missLines[Int(stableHash("\(id)#\(misses)") % UInt64(missLines.count))]
     }
 
-    /// 잡은 말풍선 문구. 받침이 있으면 을, 없으면 를. 새 버전이 더한 번호는 마지막 장으로 본다
+    /// 새 버전이 더한 번호는 마지막 장으로 본다
     static func caughtText(_ fish: Int) -> String {
-        let name = fishNames[min(max(fish, 1), fishNames.count) - 1]
-        let last = name.unicodeScalars.last!.value
-        let batchim = (0xAC00...0xD7A3).contains(last) && (last - 0xAC00) % 28 != 0
-        return "\(name)\(batchim ? "을" : "를") 잡았다!"
+        catchLines[min(max(fish, 1), catchLines.count) - 1]
     }
     /// 낚시꾼이 올라서는 나무 발판. 윗면이 바닥선보다 `CharacterNode.dockLift` 위에 온다
     static let dock = strip("dock", count: 1)[0]
@@ -305,7 +310,7 @@ enum Characters {
         (CGPoint(x: 7.5, y: 0.5), 0), (CGPoint(x: 1.5, y: 7.5), -.pi / 2), (CGPoint(x: 5.5, y: 2.5), -0.5),
         (CGPoint(x: 0.5, y: 6.5), -.pi / 2), (CGPoint(x: 0.5, y: 6.5), -.pi / 2), (CGPoint(x: 0.5, y: 7.5), -.pi / 2),
         (CGPoint(x: 0.5, y: 6.5), -.pi / 2), (CGPoint(x: 0.5, y: 6.5), -.pi / 2), (CGPoint(x: 0.5, y: 6.5), -.pi / 2),
-        (CGPoint(x: 8, y: 0.5), 0)]
+        (CGPoint(x: 8, y: 0.5), 0), (CGPoint(x: 0.5, y: 6.5), -.pi / 2), (CGPoint(x: 8, y: 0.5), 0)]
 
     /// 가로로 붙은 같은 폭의 그림을 자른다
     private static func strip(_ name: String, count: Int) -> [SKTexture] {

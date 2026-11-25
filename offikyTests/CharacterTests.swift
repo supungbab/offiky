@@ -744,7 +744,7 @@ struct ControlTests {
         me.update(dt: 1.1, now: 1.1, strip: strip)
         #expect(me.strike(now: 1.2, fish: 1))
         me.update(dt: 0.1, now: 1.2, strip: strip)
-        #expect(label() == "붕어를 잡았다!")
+        #expect(label() == Characters.caughtText(1))
         me.update(dt: 0.1, now: 4.3, strip: strip)
         #expect(me.caught == 1 && label() == nil)
         me.update(dt: 0.1, now: 60, strip: strip)
@@ -915,20 +915,17 @@ struct ControlTests {
         #expect(Characters.hooks.count == Characters.fishes.count)
     }
 
-    @Test func 잡은_말풍선은_종마다_이름과_받침에_맞는_조사를_쓴다() {
-        #expect(Characters.fishNames.count == Characters.fishes.count)
-        #expect(Characters.caughtText(1) == "붕어를 잡았다!")
-        #expect(Characters.caughtText(7) == "게를 잡았다!")
-        #expect(Characters.caughtText(17) == "깡통을 잡았다!")
-        #expect(Characters.caughtText(19) == "우럭을 잡았다!")
-        #expect(Characters.caughtText(24) == "해초를 잡았다!")
-        #expect(Characters.caughtText(999) == "해초를 잡았다!")              // 새 버전이 더한 물고기는 마지막 장으로 그린다
+    @Test func 잡은_말풍선은_종마다_다른_말을_한다() {
+        #expect(Characters.catchLines.count == Characters.fishes.count)
+        #expect(Set(Characters.catchLines).count == Characters.catchLines.count)
+        #expect(Characters.caughtText(1) == Characters.catchLines[0])
+        #expect(Characters.caughtText(999) == Characters.catchLines.last)              // 새 버전이 더한 물고기는 마지막 장으로 그린다
     }
 
     @Test func 낚시_에셋은_장수와_크기가_맞다() {
         #expect(Characters.bobber.count == 1)
         #expect(Characters.pond.count == 4)
-        #expect(Characters.fishes.count == 24)
+        #expect(Characters.fishes.count == 26)
         #expect(Characters.rod.size().width > 0)
         #expect(Characters.pond[0].size() == Characters.danceFloor[0].size())
         #expect(Set(Characters.fishes.map { $0.size() }).count == 1)
