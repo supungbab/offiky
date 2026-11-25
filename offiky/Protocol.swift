@@ -314,6 +314,9 @@ struct AttackMsg: Codable, Equatable {
     let x: Double
     let y: Double
     let f: Int
+    /// 던진 똥의 속도(pt/초). 똥을 던질 때만 적는다
+    var vx: Double? = nil
+    var vy: Double? = nil
 }
 
 /// 웅크린 채 버텨 바닥에 똥을 쌌다. 옛 버전은 모르는 종류라 무시한다

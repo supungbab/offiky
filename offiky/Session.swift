@@ -149,9 +149,10 @@ final class Session {
         if let data = encode(HitMsg()) { Net.shared.broadcast(data) }
     }
 
-    func sendAttack(_ weapon: Weapon, target: String?) {
+    func sendAttack(_ weapon: Weapon, target: String?, velocity: CGVector? = nil) {
         let me = World.shared.me
-        let msg = AttackMsg(w: weapon.rawValue, target: target, x: Double(me.x), y: Double(me.y), f: Int(me.facing))
+        let msg = AttackMsg(w: weapon.rawValue, target: target, x: Double(me.x), y: Double(me.y), f: Int(me.facing),
+                            vx: velocity.map { Double($0.dx) }, vy: velocity.map { Double($0.dy) })
         if let data = encode(msg) { Net.shared.broadcast(data) }
     }
 
@@ -272,7 +273,8 @@ final class Session {
             guard let weapon = Weapon(rawValue: msg.w), abs(msg.x) <= Limits.maxX, (0...Limits.maxY).contains(msg.y)
             else { return }
             World.shared.peerAttacked(id: id, with: weapon, target: msg.target,
-                                      at: CGPoint(x: msg.x, y: msg.y), facing: msg.f)
+                                      at: CGPoint(x: msg.x, y: msg.y), facing: msg.f,
+                                      velocity: msg.vx.flatMap { vx in msg.vy.map { CGVector(dx: vx, dy: $0) } })
         case let .poop(msg):
             guard abs(msg.x) <= Limits.maxX else { return }
             World.shared.dropPoop(x: CGFloat(msg.x), now: ProcessInfo.processInfo.systemUptime)

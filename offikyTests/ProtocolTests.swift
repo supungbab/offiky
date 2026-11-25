@@ -466,6 +466,15 @@ struct MessageTests {
         #expect(Weapon(rawValue: msg.w) == .waterGun)
     }
 
+    @Test func 던진_속도가_없는_이전_공격_메시지도_읽는다() throws {
+        let old = try JSONDecoder().decode(AttackMsg.self, from: Data(#"{"t":"atk","w":1,"x":0,"y":0,"f":1}"#.utf8))
+        #expect(old.vx == nil && old.vy == nil)
+        let thrown = try JSONDecoder().decode(AttackMsg.self,
+                                              from: JSONEncoder().encode(AttackMsg(w: 6, x: 0, y: 0, f: 1, vx: 300, vy: 400)))
+        #expect(thrown.vx == 300 && thrown.vy == 400)
+        #expect(Weapon(rawValue: thrown.w) == .poop)
+    }
+
     @Test func 피격_메시지를_구분한다() throws {
         let data = try JSONEncoder().encode(HitMsg())
         let message = try JSONDecoder().decode(IncomingMessage.self, from: data)

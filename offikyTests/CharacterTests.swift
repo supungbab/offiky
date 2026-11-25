@@ -566,7 +566,7 @@ struct ControlTests {
         #expect(!node.isExhausting)
     }
 
-    @MainActor @Test func 무기는_누를_때마다_몽둥이_물총_광선검_낚싯대_파리채_순으로_바꿔_들고_마지막에_내려놓는다() {
+    @MainActor @Test func 무기는_누를_때마다_몽둥이_물총_광선검_낚싯대_파리채_똥_순으로_바꿔_들고_마지막에_내려놓는다() {
         let me = node()
         #expect(me.wielding == nil)
         me.cycleWeapon()
@@ -581,6 +581,9 @@ struct ControlTests {
         me.cycleWeapon()
         #expect(me.wielding == .swatter)
         #expect(Weapon.swatter.rawValue == 5)
+        me.cycleWeapon()
+        #expect(me.wielding == .poop)
+        #expect(Weapon.poop.rawValue == 6)
         me.cycleWeapon()
         #expect(me.wielding == nil)
     }
@@ -899,6 +902,45 @@ struct ControlTests {
         #expect(peer.isFishing && !peer.isCast)
         peer.applyRemoteSnapshot(x: 100, y: 0, bowing: false, dragging: false, fishing: true, facing: 1, sent: nil, at: 0.1)
         #expect(peer.isCast)
+    }
+
+    @Test func 똥을_던지는_힘은_누른_동안_최소와_최대를_오간다() {
+        let me = CharacterNode(id: "me", name: "me", isLocal: true)
+        me.startAim(now: 0)
+        #expect(me.aimingSince == nil)
+        for _ in 1...Weapon.poop.rawValue { me.cycleWeapon() }
+        #expect(me.wielding == .poop)
+        me.startAim(now: 0)
+        let weak = me.aimVelocity(now: 0)!
+        let charge = CharacterNode.throwCharge
+        let strong = me.aimVelocity(now: charge)!
+        let back = me.aimVelocity(now: charge * 2)!
+        #expect(abs(hypot(back.dx, back.dy) - CharacterNode.throwSpeed.lowerBound) < 0.01)
+        #expect(me.aimVelocity(now: charge * 1.5) == me.aimVelocity(now: charge * 0.5))
+        #expect(abs(hypot(weak.dx, weak.dy) - CharacterNode.throwSpeed.lowerBound) < 0.01)
+        #expect(abs(hypot(strong.dx, strong.dy) - CharacterNode.throwSpeed.upperBound) < 0.01)
+        #expect(abs(abs(strong.dx) - strong.dy) < 0.01)
+        #expect(me.releaseAim(now: charge) == strong)
+        #expect(me.aimingSince == nil)
+        #expect(me.attack?.weapon == .poop)
+        #expect(me.releaseAim(now: charge + 1) == nil)
+    }
+
+    @Test func 던진_똥은_포물선으로_날아_같은_높이로_돌아온다() {
+        let velocity = CGVector(dx: 300, dy: 550)
+        let flight = Double(2 * velocity.dy / CharacterNode.gravity)
+        let top = CharacterNode.thrownPoint(from: CGPoint(x: 10, y: 20), velocity: velocity, after: flight / 2)
+        let end = CharacterNode.thrownPoint(from: CGPoint(x: 10, y: 20), velocity: velocity, after: flight)
+        #expect(abs(top.y - (20 + velocity.dy * velocity.dy / (2 * CharacterNode.gravity))) < 0.01)
+        #expect(abs(end.y - 20) < 0.01)
+        #expect(abs(end.x - (10 + 300 * CGFloat(flight))) < 0.01)
+    }
+
+    @Test func 똥에_맞으면_날아온_쪽으로_밀려난다() {
+        let me = CharacterNode(id: "me", name: "me", isLocal: true)
+        me.takeHit(now: 0, by: .poop, toward: -1)
+        #expect(me.hits == 1)
+        #expect(!me.canBeStruck(now: 0.1))
     }
 
     @Test func 연못은_혼자여도_생기고_가까운_낚시꾼과_찌를_모두_덮는다() {

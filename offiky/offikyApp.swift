@@ -121,6 +121,11 @@ private final class Bot {
         case 8:     me.hold(0, dash: false); me.isBowing = true; until = now + .random(in: 0.5...1.5)
         case 9:     me.cycleWeapon(); until = now + .random(in: 0.3...0.8)
         case 10:    World.shared.fire(); until = now + .random(in: 0.3...0.8)
+                    if me.aimingSince != nil {
+                        me.aimAngle = .random(in: CharacterNode.throwAngles)
+                        DispatchQueue.main.asyncAfter(deadline: .now() + .random(in: 0.2...1.2)) { World.shared.throwPoop() }
+                        until = now + 1.3
+                    }
         case 11:    me.hold(0, dash: false); me.toggleDance(); until = now + .random(in: 1.5...3)
         case 12:    me.hold(0, dash: false); me.toggleFishing(now: now); until = now + .random(in: 3...8)
         case 13:    World.shared.strike(); until = now + .random(in: 0.3...1)

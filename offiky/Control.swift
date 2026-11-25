@@ -66,6 +66,7 @@ import SwiftUI
         dashing = false
         World.shared.me.isBowing = false
         World.shared.me.isThrusting = false
+        World.shared.me.cancelAim()
         World.shared.me.hold(0, dash: false)
         panel?.orderOut(nil)
         focus.restore(restoringFocus)
@@ -92,7 +93,8 @@ import SwiftUI
         case kVK_Escape:
             stop()
         case kVK_UpArrow:
-            if !event.isARepeat { World.shared.me.jump() }
+            if World.shared.me.aimingSince != nil { World.shared.me.aimTurning = 1 }
+            else if !event.isARepeat { World.shared.me.jump() }
         case kVK_ANSI_W:
             if !event.isARepeat { openPicker() }
         case kVK_ANSI_B:
@@ -108,7 +110,8 @@ import SwiftUI
         case kVK_Space:
             World.shared.me.isThrusting = true
         case kVK_DownArrow:
-            World.shared.me.isBowing = true
+            if World.shared.me.aimingSince != nil { World.shared.me.aimTurning = -1 }
+            else { World.shared.me.isBowing = true }
         case kVK_LeftArrow, kVK_RightArrow:
             guard !event.isARepeat else { return }
             let now = ProcessInfo.processInfo.systemUptime
@@ -124,7 +127,9 @@ import SwiftUI
 
     fileprivate func keyUp(_ event: NSEvent) {
         let code = Int(event.keyCode)
-        if code == kVK_DownArrow { World.shared.me.isBowing = false; return }
+        if code == kVK_ANSI_X { World.shared.throwPoop(); return }
+        if code == kVK_UpArrow { World.shared.me.aimTurning = 0; return }
+        if code == kVK_DownArrow { World.shared.me.isBowing = false; World.shared.me.aimTurning = 0; return }
         if code == kVK_Space { World.shared.me.isThrusting = false; return }
         guard code == kVK_LeftArrow || code == kVK_RightArrow else { return }
         pressed.removeAll { $0 == code }
@@ -196,7 +201,7 @@ struct HintView: View {
                 }
             }
             HStack(spacing: 16) {
-                HStack(spacing: 10) { item("z", "무기 바꾸기"); item("x", "공격·챔질"); item("c", "춤"); item("f", "낚시") }
+                HStack(spacing: 10) { item("z", "무기 바꾸기"); item("x", "공격·챔질"); item("x꾹 ↑↓", "똥 던지기"); item("c", "춤"); item("f", "낚시") }
                 HStack(spacing: 10) { item("⇧↓", "1초 똥"); item("w", "WORK"); item("b", "오토바이") }
                 item("esc", "끝내기")
             }

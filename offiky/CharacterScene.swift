@@ -3,15 +3,16 @@ import SpriteKit
 
 /// Z 로 바꿔 들고 X 로 쓰는 무기. 번호가 그대로 오가므로 바꾸지 않는다
 enum Weapon: Int {
-    case club = 1, waterGun = 2, lightsaber = 3, rod = 4, swatter = 5
+    case club = 1, waterGun = 2, lightsaber = 3, rod = 4, swatter = 5, poop = 6
 
     /// 한 번 휘두르거나 쏘는 동안. 그동안은 다시 쓰지 않는다
-    var duration: TimeInterval { self == .waterGun ? 0.25 : self == .rod ? 0.4 : 0.32 }
+    var duration: TimeInterval { self == .waterGun ? 0.25 : self == .rod || self == .poop ? 0.4 : 0.32 }
     /// 맞은 쪽이 밀려나는 가로 속도와 튀어 오르는 높이. 낚싯대는 음수라 휘두른 쪽으로 끌려온다
     var push: (speed: CGFloat, apex: CGFloat) {
         switch self {
         case .waterGun: (60, 8)
         case .rod: (-150, 10)
+        case .poop: (100, 16)
         default: (80, 14)
         }
     }
@@ -200,6 +201,17 @@ final class CharacterNode: SKNode {
     /// 물총알은 노즐에서 나가 이만큼 날아가면 사라진다
     static let bulletSpeed: CGFloat = 480
     static let bulletRange: CGFloat = 720
+    /// X 를 누른 동안 이 시간에 걸쳐 똥을 던지는 속도가 최소에서 최대까지 오르고, 같은 시간에 걸쳐 다시 내려가기를 되풀이한다
+    static let throwCharge: TimeInterval = 1.2
+    static let throwSpeed: ClosedRange<CGFloat> = 250...800
+    /// 던지는 각도(도)와 ↑↓ 로 초당 바꾸는 양
+    static let throwAngles: ClosedRange<CGFloat> = 15...75
+    static let aimTurnRate: CGFloat = 60
+    /// 힘을 모으기 시작한 시각. 내 캐릭터에만 있다
+    private(set) var aimingSince: TimeInterval?
+    var aimAngle: CGFloat = 45
+    /// 모으는 동안 누르고 있는 쪽. +1 이면 각도를 높인다
+    var aimTurning: CGFloat = 0
     /// C 로 춤추는 동안. `canDance` 가 아니게 되면 멈춘다. 원격은 주인이 적어 보낸 값을 따른다
     var isDancing = false {
         didSet { if isDancing, !oldValue { hop = (hopHeight ?? 0, 0, nil, 0) } }
@@ -576,7 +588,7 @@ final class CharacterNode: SKNode {
 
     /// 바닥에 가만히 서 있을 때만 춘다. 움직이거나 뛰거나 웅크리거나 맞거나 무기를 쓰면 멈춘다
     func canDance(now: TimeInterval) -> Bool {
-        y <= 0 && holding == 0 && !isBowing && now >= hurtUntil && attack == nil
+        y <= 0 && holding == 0 && !isBowing && now >= hurtUntil && attack == nil && aimingSince == nil
             && !isDead && !isWorking && !isAway && !isDragging && !isRiding
     }
 
@@ -672,11 +684,62 @@ final class CharacterNode: SKNode {
     /// 무기를 쓴다. 이미 쓰는 중이거나 쓸 수 없는 상태면 false
     @discardableResult
     func startAttack(_ weapon: Weapon, now: TimeInterval) -> Bool {
-        guard attack == nil, hop == nil, !isDead, !isDragging, !isWorking, !isAway, !isRiding else { return false }
+        guard attack == nil, canUseWeapon else { return false }
         // 춤추다 반대쪽을 보던 박자에 쓰면 보이던 쪽으로 쓴다
         if isLocal, danceMove?.turned == true { facing = -facing }
         attack = (weapon, now)
         return true
+    }
+
+    private var canUseWeapon: Bool { hop == nil && !isDead && !isDragging && !isWorking && !isAway && !isRiding }
+
+    /// 똥을 든 채 X 를 눌렀다. 놓을 때까지 힘을 모은다
+    func startAim(now: TimeInterval) {
+        guard isLocal, wielding == .poop, aimingSince == nil, attack == nil, canUseWeapon, !isFishing, now >= hurtUntil
+        else { return }
+        aimingSince = now
+    }
+
+    func cancelAim() {
+        aimingSince = nil
+        aimTurning = 0
+    }
+
+    /// 지금 놓으면 날아갈 속도. 모으는 중이 아니면 nil
+    func aimVelocity(now: TimeInterval) -> CGVector? {
+        guard let since = aimingSince else { return nil }
+        let phase = ((now - since) / CharacterNode.throwCharge).truncatingRemainder(dividingBy: 2)
+        let power = CGFloat(phase <= 1 ? phase : 2 - phase)
+        let range = CharacterNode.throwSpeed
+        let speed = range.lowerBound + (range.upperBound - range.lowerBound) * power
+        let angle = aimAngle * .pi / 180
+        return CGVector(dx: facing * speed * cos(angle), dy: speed * sin(angle))
+    }
+
+    /// X 를 놓았다. 던졌으면 날아갈 속도를 반환한다
+    func releaseAim(now: TimeInterval) -> CGVector? {
+        let velocity = aimVelocity(now: now)
+        cancelAim()
+        guard let velocity, startAttack(.poop, now: now) else { return nil }
+        return velocity
+    }
+
+    private func aimTick(dt: TimeInterval, now: TimeInterval) {
+        guard aimingSince != nil else { return }
+        guard wielding == .poop, canUseWeapon, !isFishing, now >= hurtUntil else { cancelAim(); return }
+        let range = CharacterNode.throwAngles
+        aimAngle = min(max(aimAngle + aimTurning * CharacterNode.aimTurnRate * CGFloat(dt), range.lowerBound), range.upperBound)
+    }
+
+    /// 몸 가운데 발밑에서 똥을 쥔 손(칸의 15, 14)까지
+    var handOffset: CGVector {
+        CGVector(dx: facing * (15 - 12) * 2, dy: (24 - 14) * 2 - sheet.footPadding * 2)
+    }
+
+    /// 던진 똥이 `time` 초 뒤에 있는 곳. 미리 보여 주는 점선과 날아가는 똥이 같은 식을 쓴다
+    static func thrownPoint(from origin: CGPoint, velocity: CGVector, after time: TimeInterval) -> CGPoint {
+        let t = CGFloat(time)
+        return CGPoint(x: origin.x + velocity.dx * t, y: origin.y + velocity.dy * t - gravity * t * t / 2)
     }
 
     /// 보는 쪽에서 무기가 닿는 거리 안에 있다
@@ -790,6 +853,12 @@ final class CharacterNode: SKNode {
             case .waterGun:
                 weapon.texture = Characters.waterGun[t.map { $0 < 0.1 } == true ? 1 : 0]
                 weapon.anchorPoint = CGPoint(x: 2.5 / 11, y: 1 - 6.5 / 9)
+                weapon.zPosition = 0.5
+            case .poop:
+                // 던진 뒤 다시 들 때까지는 손이 비어 있다
+                weapon.isHidden = t != nil
+                weapon.texture = Characters.poop
+                weapon.anchorPoint = CGPoint(x: 0.5, y: 0)
                 weapon.zPosition = 0.5
             }
             weapon.size = CGSize(width: weapon.texture!.size().width * 2, height: weapon.texture!.size().height * 2)
@@ -914,6 +983,7 @@ final class CharacterNode: SKNode {
             if isDancing, !canDance(now: now) { isDancing = false }
             if isFishing, !canDance(now: now) { isFishing = false }
             fishingTick(now: now)
+            aimTick(dt: dt, now: now)
         }
         expireBubble(now: now)
         if pleadsUpdate, bubbleNode == nil { showBubble(text: "Plz Update!", now: now, sticky: true) }
@@ -1449,6 +1519,9 @@ final class World {
     private var strikes: [(at: TimeInterval, from: String, weapon: Weapon)] = []
     private var bullets: [(sprite: SKSpriteNode, from: String, x: CGFloat, y: CGFloat,
                            direction: CGFloat, left: CGFloat, since: TimeInterval)] = []
+    private var thrown: [(sprite: SKSpriteNode, from: String, origin: CGPoint, velocity: CGVector,
+                          since: TimeInterval, x: CGFloat, trailed: TimeInterval)] = []
+    private var aimDots: [SKSpriteNode] = []
     /// 2명 이상 모여 춤추는 무리 발밑에 까는 무대 조각과 위에 매다는 미러볼. 남는 것은 화면에서 제거해 둔다
     private var stageTiles: [SKSpriteNode] = []
     private var pondTiles: [SKSpriteNode] = []
@@ -1612,6 +1685,8 @@ final class World {
         placeDiscos(now: now)
         placePonds(now: now)
         moveBullets(dt: dt, now: now)
+        moveThrown(now: now)
+        placeAimDots(now: now)
 
         for strike in strikes where now >= strike.at {
             guard let other = peers[strike.from], me.canBeStruck(now: now) else { continue }
@@ -1841,6 +1916,7 @@ extension World {
     /// X 를 눌렀다. 휘두르는 무기는 쓴 쪽이 앞에서 가장 가까운 상대를 맞힌 것으로 판정해 함께 알린다
     func fire() {
         let now = ProcessInfo.processInfo.systemUptime
+        if me.wielding == .poop { me.startAim(now: now); return }
         guard let weapon = me.wielding, me.startAttack(weapon, now: now) else { return }
         var target: String?
         if weapon != .waterGun {
@@ -1853,9 +1929,17 @@ extension World {
     }
 
     /// 동료가 무기를 썼다. 휘두르는 무기가 나를 맞혔으면 그림이 닿는 때에 맞는다
-    func peerAttacked(id: String, with weapon: Weapon, target: String?, at position: CGPoint, facing: Int) {
+    func peerAttacked(id: String, with weapon: Weapon, target: String?, at position: CGPoint, facing: Int,
+                      velocity: CGVector? = nil) {
         let now = ProcessInfo.processInfo.systemUptime
         guard let shooter = peers[id] else { return }
+        if weapon == .poop {
+            guard let velocity, hypot(velocity.dx, velocity.dy) <= CharacterNode.throwSpeed.upperBound + 1 else { return }
+            shooter.faceAsTold(CGFloat(facing))
+            shooter.startAttack(weapon, now: now)
+            launch(from: shooter, at: position, velocity: velocity, now: now)
+            return
+        }
         shooter.faceAsTold(CGFloat(facing))
         shooter.startAttack(weapon, now: now)
         if weapon == .waterGun { shoot(from: shooter, at: position, now: now) }
@@ -1902,6 +1986,90 @@ extension World {
             }
             bullet.sprite.texture = Characters.bullet[Int((now - bullet.since) / 0.1) % 2]
         }
+    }
+
+    /// X 를 놓았다. 모은 힘과 각도로 똥을 던진다
+    func throwPoop() {
+        let now = ProcessInfo.processInfo.systemUptime
+        guard let velocity = me.releaseAim(now: now) else { return }
+        launch(from: me, at: CGPoint(x: me.x, y: me.y), velocity: velocity, now: now)
+        Session.shared.sendAttack(.poop, target: nil, velocity: velocity)
+    }
+
+    private func launch(from shooter: CharacterNode, at position: CGPoint, velocity: CGVector, now: TimeInterval) {
+        let sprite = SKSpriteNode(texture: Characters.poop)
+        sprite.size = CGSize(width: Characters.poop.size().width * 2, height: Characters.poop.size().height * 2)
+        sprite.anchorPoint = CGPoint(x: 0.5, y: 0)
+        sprite.zPosition = 20_000
+        let hand = shooter.handOffset
+        let origin = CGPoint(x: position.x + hand.dx, y: position.y + hand.dy)
+        thrown.append((sprite, shooter.id, origin, velocity, now, origin.x, now))
+        if thrown.count > World.maxBullets { thrown.removeFirst().sprite.removeFromParent() }
+    }
+
+    /// 날아가는 똥이 지나온 길에 남기는 점. 이 간격으로 남기고 이 시간에 걸쳐 옅어진다
+    static let trailStep: TimeInterval = 0.04
+    static let trailLife: TimeInterval = 0.5
+    static let trailColor = NSColor(red: 0.48, green: 0.31, blue: 0.16, alpha: 1)
+
+    /// 캐릭터에 닿으면 사라지고, 바닥에 닿으면 싼 똥처럼 남는다. 다치는 것은 맞은 사람 화면에서만 판정한다
+    fileprivate func moveThrown(now: TimeInterval) {
+        let targets = [me] + Array(peers.values)
+        for i in thrown.indices.reversed() {
+            let poop = thrown[i]
+            let point = CharacterNode.thrownPoint(from: poop.origin, velocity: poop.velocity, after: now - poop.since)
+            thrown[i].x = point.x
+            let live = poop.from == myID || peers[poop.from] != nil
+            let path = min(poop.x, point.x)...max(poop.x, point.x)
+            let hit = live ? targets.first { $0.id != poop.from && $0.isHit(byBulletAlong: path, y: point.y) } : nil
+            if hit === me, me.canBeStruck(now: now) {
+                me.takeHit(now: now, by: .poop, toward: poop.velocity.dx < 0 ? -1 : 1)
+            }
+            if live, hit == nil, point.y <= 0 { dropPoop(x: point.x, now: now) }
+            guard live, hit == nil, point.y > 0, put(poop.sprite, x: point.x, y: point.y) else {
+                poop.sprite.removeFromParent()
+                thrown.remove(at: i)
+                continue
+            }
+            if now - poop.trailed >= World.trailStep, let scene = poop.sprite.parent {
+                thrown[i].trailed = now
+                let dot = SKSpriteNode(color: World.trailColor, size: CGSize(width: 4, height: 4))
+                dot.position = CGPoint(x: poop.sprite.position.x, y: poop.sprite.position.y + 7)
+                dot.zPosition = 19_999
+                scene.addChild(dot)
+                dot.run(.sequence([.fadeOut(withDuration: World.trailLife), .removeFromParent()]))
+            }
+        }
+    }
+
+    static let maxAimDots = 8
+    static let aimDotGap: CGFloat = 12
+
+    /// 힘을 모으는 동안 손에서 던질 방향으로 점을 늘어놓는다. 힘이 찰수록 점이 늘고, 떨어질 곳은 보여 주지 않는다. 내 화면에만 보인다
+    fileprivate func placeAimDots(now: TimeInterval) {
+        var count = 0
+        if let velocity = me.aimVelocity(now: now) {
+            let hand = me.handOffset
+            let speed = hypot(velocity.dx, velocity.dy)
+            let range = CharacterNode.throwSpeed
+            let power = (speed - range.lowerBound) / (range.upperBound - range.lowerBound)
+            let shown = 2 + Int((power * CGFloat(World.maxAimDots - 2)).rounded())
+            while count < shown {
+                if count == aimDots.count {
+                    let dot = SKSpriteNode(color: .white, size: CGSize(width: 4, height: 4))
+                    let edge = SKSpriteNode(color: NSColor(white: 0, alpha: 0.6), size: CGSize(width: 8, height: 8))
+                    edge.zPosition = -1
+                    dot.addChild(edge)
+                    dot.zPosition = 20_001
+                    aimDots.append(dot)
+                }
+                let reach = CGFloat(count + 1) * World.aimDotGap
+                put(aimDots[count], x: me.x + hand.dx + velocity.dx / speed * reach,
+                    y: me.y + hand.dy + 7 + velocity.dy / speed * reach)
+                count += 1
+            }
+        }
+        for dot in aimDots[count...] { dot.removeFromParent() }
     }
 
     func showBubble(id: String, text: String) {
